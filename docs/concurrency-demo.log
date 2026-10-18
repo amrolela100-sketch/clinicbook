@@ -1,0 +1,12 @@
+
+> clinicbook-saas@1.0.0 test:concurrency
+> tsx scripts/test-concurrency.ts
+
+{
+  "engine": "SQLite local demo, real HTTP requests",
+  "requests": 50,
+  "success": 1,
+  "conflicts": 49,
+  "activeRows": 1,
+  "doubleBookings": 0
+}

@@ -1,0 +1,16 @@
+
+> clinicbook-saas@1.0.0 test:postgres
+> tsx tests/postgres/verify.ts
+
+PASS PostgreSQL concurrency: 50 requests, 1 success, 49 exclusion violations, 0 double bookings
+PASS RLS own doctor reads; foreign tenant cannot read
+PASS RPC patient impersonation denied
+PASS adjacent [start,end) slots are allowed
+PASS public slots expose only availability and exclude active holds
+PASS arbitrary duration rejected
+PASS off-grid booking rejected
+PASS privilege escalation denied
+PASS EMR treating doctor/patient only; reception and owner denied
+PASS lifecycle role checks
+PASS verified review ownership
+PASS maximum three active bookings enforced

@@ -1,0 +1,16 @@
+
+> clinicbook-saas@1.0.0 test:e2e
+> playwright test
+
+
+Running 7 tests using 1 worker
+
+  ✓  1 tests/e2e/flows.spec.ts:32:5 › public discovery, filters, doctor slots and mobile layout (3.5s)
+  ✓  2 tests/e2e/flows.spec.ts:52:5 › patient books real slot then cancels with persisted status (2.8s)
+  ✓  3 tests/e2e/flows.spec.ts:69:5 › owner navigation, branch save, schedule save and permissions (7.0s)
+  ✓  4 tests/e2e/flows.spec.ts:126:5 › reception direct booking, check-in and cash collection (3.5s)
+  ✓  5 tests/e2e/flows.spec.ts:150:5 › doctor writes clinical record and printable prescription (1.4s)
+  ✓  6 tests/e2e/flows.spec.ts:169:5 › admin approves request and persists a reference (1.3s)
+  ✓  7 tests/e2e/flows.spec.ts:181:5 › unauthenticated and cross-origin mutations are blocked (34ms)
+
+  7 passed (20.8s)

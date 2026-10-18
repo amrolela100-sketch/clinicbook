@@ -1,0 +1,3 @@
+-- Safe reference data only. Create application users through Supabase Auth APIs, not SQL.
+INSERT INTO cities(name_ar,name_en,slug) VALUES('دمشق','Damascus','damascus'),('حلب','Aleppo','aleppo'),('حمص','Homs','homs') ON CONFLICT(slug) DO NOTHING;
+INSERT INTO specialties(name_ar,name_en,slug,icon_name) VALUES('الطب العام','General Medicine','general','Stethoscope'),('طب الأطفال','Pediatrics','pediatrics','Baby'),('طب الأسنان','Dentistry','dentistry','Smile'),('القلب والأوعية','Cardiology','cardiology','HeartPulse'),('الأمراض الجلدية','Dermatology','dermatology','Flower2'),('طب العيون','Ophthalmology','ophthalmology','Eye') ON CONFLICT(slug) DO NOTHING;

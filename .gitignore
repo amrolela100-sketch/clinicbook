@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+
+# Next.js Build & Outputs
+.next/
+out/
+build/
+dist/
+
+# TypeScript Cache
+*.tsbuildinfo
+
+# Environment Variables (Keep .env.example)
+.env*
+!.env.example
+
+# Local SQLite Database & Secrets
+data/*.sqlite*
+data/session-secret
+
+# Test & Coverage Artifacts
+coverage/
+playwright-report/
+test-results/
+
+# Agent & AI Tooling Logs/Cache
+.agents/
+.claude/
+.gemini/
+
+# IDE & Editor Settings
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs & Archives
+*.log
+!docs/*.log
+*.zip
+*.tar.gz
+

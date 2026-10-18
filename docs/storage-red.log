@@ -1,0 +1,35 @@
+
+> clinicbook-saas@1.0.0 test:unit
+> vitest run
+
+
+ RUN  v3.2.7 /home/user/clinicbook
+
+ ✓ tests/unit/core.test.ts (27 tests) 26ms
+ ❯ tests/integration/demo-storage.test.ts (2 tests | 1 failed) 23ms
+   × updating the same active appointment does not conflict with itself 19ms
+     → expected [Function] to not throw an error but 'SqliteError: SLOT_CONFLICT' was thrown
+   ✓ a different appointment cannot overlap the same doctor 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/integration/demo-storage.test.ts > updating the same active appointment does not conflict with itself
+AssertionError: expected [Function] to not throw an error but 'SqliteError: SLOT_CONFLICT' was thrown
+
+[32m- Expected:[39m 
+undefined
+
+[31m+ Received:[39m 
+"SqliteError: SLOT_CONFLICT"
+
+ ❯ tests/integration/demo-storage.test.ts:8:157
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 28 passed (29)
+   Start at  23:21:29
+   Duration  1.34s (transform 161ms, setup 0ms, collect 723ms, tests 49ms, environment 0ms, prepare 190ms)
+

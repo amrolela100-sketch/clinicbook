@@ -1,0 +1,10 @@
+[
+  {
+    "route": "/",
+    "violations": []
+  },
+  {
+    "route": "/workspace/dashboard",
+    "violations": []
+  }
+]

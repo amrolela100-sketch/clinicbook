@@ -1,0 +1,2 @@
+# Healthcare Security
+Never trust client role, organization, fees or patient identity. Derive identity from verified server session. Scope records by organization AND role; reception has no EMR access. Patients see their own records only. Validate transitions and booking time on server. Local demo is separate from production, synthetic data only. Production RPCs use auth.uid(), explicit grants, fixed search_path and narrow RLS. Never claim regulatory compliance without audit. Document integration gaps.

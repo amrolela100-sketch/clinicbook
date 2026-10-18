@@ -1,0 +1,7 @@
+export const DEFAULT_CANCEL_WINDOW_HOURS = 2;
+export const DEFAULT_PENDING_EXPIRY_HOURS = 12;
+export const DEFAULT_MIN_LEAD_MINUTES = 60;
+export const PENDING_EXPIRY_BEFORE_START_MINUTES = 60;
+export const DEFAULT_BOOKING_HORIZON_DAYS = 30;
+export const MAX_ACTIVE_PER_PATIENT = 3;
+export const DEFAULT_TIMEZONE = 'Asia/Damascus';

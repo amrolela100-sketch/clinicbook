@@ -1,0 +1,2 @@
+# RTL Product Design
+Arabic-first, logical spacing, IBM Plex Sans Arabic and tabular numerals. Restrained medical editorial identity: ivory canvas, deep pine, mint, warm coral highlights, thin lines, custom illustrations; no generic purple gradients. Motion communicates state and respects reduced motion. Every page needs functional navigation, meaningful empty/error/loading states and keyboard accessible controls. Verify mobile overflow and dialog focus with browser tests.

@@ -1,0 +1,15 @@
+
+> clinicbook-saas@1.0.0 test:unit
+> vitest run
+
+
+ RUN  v3.2.7 /home/user/clinicbook
+
+ ✓ tests/unit/core.test.ts (27 tests) 15ms
+ ✓ tests/integration/demo-storage.test.ts (2 tests) 8ms
+
+ Test Files  2 passed (2)
+      Tests  29 passed (29)
+   Start at  23:31:58
+   Duration  1.18s (transform 130ms, setup 0ms, collect 627ms, tests 23ms, environment 0ms, prepare 190ms)
+
