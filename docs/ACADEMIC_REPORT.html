@@ -1,0 +1,2542 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تقرير مشروع فصلي — نظام إدارة العيادات وحجز المواعيد ClinicBook</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0F766E;
+            --primary-dark: #115E59;
+            --primary-light: #CCFBF1;
+            --accent: #B45309;
+            --accent-gold: #D97706;
+            --secondary-blue: #0284C7;
+            --text-main: #1E293B;
+            --text-muted: #64748B;
+            --bg-page: #FFFFFF;
+            --bg-subtle: #F8FAFC;
+            --border-color: #E2E8F0;
+            --border-dark: #CBD5E1;
+            --success: #16A34A;
+            --danger: #DC2626;
+            --font-main: 'IBM Plex Sans Arabic', 'Cairo', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        body {
+            font-family: var(--font-main);
+            color: var(--text-main);
+            background: #E2E8F0;
+            line-height: 1.8;
+            font-size: 14px;
+        }
+
+        /* Printable Sheet Simulation */
+        .report-wrapper {
+            max-width: 900px;
+            margin: 25px auto;
+            background: var(--bg-page);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            border-radius: 4px;
+        }
+
+        .page {
+            padding: 40px 50px;
+            min-height: 1150px;
+            position: relative;
+            background: #FFFFFF;
+            border-bottom: 2px dashed #E2E8F0;
+            page-break-after: always;
+        }
+
+        .page:last-child {
+            border-bottom: none;
+            page-break-after: avoid;
+        }
+
+        /* Running Header & Footer */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            color: #94A3B8;
+            border-bottom: 1px solid #CBD5E1;
+            padding-bottom: 8px;
+            margin-bottom: 25px;
+        }
+
+        .page-footer {
+            position: absolute;
+            bottom: 20px;
+            left: 50px;
+            right: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 11px;
+            color: #94A3B8;
+            border-top: 1px solid #E2E8F0;
+            padding-top: 8px;
+        }
+
+        /* Cover Page Styling */
+        .cover-page {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            text-align: center;
+            min-height: 1150px;
+            padding: 60px 50px;
+        }
+
+        .uni-header {
+            width: 100%;
+        }
+
+        .uni-logo-box {
+            margin: 25px auto;
+            width: 160px;
+            height: 160px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .uni-title-ar {
+            font-size: 26px;
+            font-weight: 800;
+            color: #0F172A;
+            margin-top: 10px;
+        }
+
+        .uni-title-en {
+            font-size: 19px;
+            font-weight: 700;
+            color: #334155;
+            letter-spacing: 0.5px;
+            font-family: 'Cairo', sans-serif;
+            margin-bottom: 5px;
+        }
+
+        .project-badge {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--primary);
+            background: #F0FDFA;
+            display: inline-block;
+            padding: 6px 24px;
+            border-radius: 50px;
+            border: 1px solid #99F6E4;
+            margin-top: 15px;
+        }
+
+        .title-container {
+            width: 100%;
+            margin: 30px 0;
+            padding: 25px;
+            border-top: 3px solid var(--primary);
+            border-bottom: 3px solid var(--primary);
+            background: linear-gradient(180deg, #F0FDFA 0%, #FFFFFF 100%);
+        }
+
+        .main-project-title {
+            font-size: 26px;
+            font-weight: 800;
+            color: #0F172A;
+            line-height: 1.4;
+        }
+
+        .sub-project-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #475569;
+            margin-top: 10px;
+        }
+
+        .cover-meta {
+            width: 100%;
+            max-width: 550px;
+            margin: 0 auto;
+            font-size: 15px;
+            line-height: 2;
+            color: #1E293B;
+            background: #F8FAFC;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .cover-meta-row {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px dashed #E2E8F0;
+            padding: 6px 0;
+        }
+
+        .cover-meta-row:last-child {
+            border-bottom: none;
+        }
+
+        .meta-label {
+            font-weight: 700;
+            color: #0F766E;
+        }
+
+        .meta-value {
+            font-weight: 600;
+            color: #0F172A;
+        }
+
+        /* Headings & Structure */
+        h1.section-title {
+            font-size: 20px;
+            font-weight: 800;
+            color: #0F172A;
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 6px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        h2.subsection-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--primary-dark);
+            margin: 20px 0 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        h3.sub-sub-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #334155;
+            margin: 15px 0 8px 0;
+        }
+
+        p {
+            margin-bottom: 14px;
+            text-align: justify;
+            color: #334155;
+        }
+
+        ul, ol {
+            margin: 10px 24px 16px 24px;
+            color: #334155;
+        }
+
+        li {
+            margin-bottom: 6px;
+        }
+
+        /* Tables */
+        table.academic-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0 24px 0;
+            font-size: 12.5px;
+            background: #FFFFFF;
+        }
+
+        table.academic-table th {
+            background: #0F172A;
+            color: #FFFFFF;
+            font-weight: 700;
+            padding: 10px 12px;
+            text-align: right;
+            border: 1px solid #1E293B;
+        }
+
+        table.academic-table td {
+            padding: 8px 12px;
+            border: 1px solid #E2E8F0;
+            vertical-align: top;
+            color: #334155;
+        }
+
+        table.academic-table tr:nth-child(even) {
+            background: #F8FAFC;
+        }
+
+        table.academic-table tr:hover {
+            background: #F1F5F9;
+        }
+
+        /* Table of Contents */
+        .toc-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .toc-item {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 13.5px;
+        }
+
+        .toc-title {
+            font-weight: 600;
+            color: #1E293B;
+            background: #FFFFFF;
+            padding-left: 6px;
+        }
+
+        .toc-dots {
+            flex-grow: 1;
+            border-bottom: 1px dotted #94A3B8;
+            margin: 0 6px;
+        }
+
+        .toc-page {
+            font-weight: 700;
+            color: var(--primary);
+            font-family: var(--font-mono);
+            background: #FFFFFF;
+            padding-right: 6px;
+        }
+
+        .toc-sub {
+            padding-right: 25px;
+            font-size: 12.5px;
+        }
+
+        /* Diagrams & Visuals */
+        .diagram-wrapper {
+            background: #0F172A;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid #334155;
+            color: #F8FAFC;
+            text-align: center;
+        }
+
+        .diagram-caption {
+            font-size: 12px;
+            color: #64748B;
+            text-align: center;
+            margin-top: 8px;
+            font-weight: 600;
+        }
+
+        /* Code Blocks */
+        pre.code-block {
+            background: #0F172A;
+            color: #38BDF8;
+            font-family: var(--font-mono);
+            font-size: 11.5px;
+            direction: ltr;
+            text-align: left;
+            padding: 14px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 12px 0 18px 0;
+            line-height: 1.5;
+            border: 1px solid #1E293B;
+        }
+
+        /* Badges */
+        .badge-pass {
+            background: #DCFCE7;
+            color: #15803D;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+        }
+
+        /* Floating Print Bar */
+        .print-toolbar {
+            position: fixed;
+            top: 15px;
+            left: 20px;
+            z-index: 9999;
+            background: #0F172A;
+            padding: 10px 18px;
+            border-radius: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .print-btn {
+            background: var(--primary);
+            color: #FFF;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-family: var(--font-main);
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .print-btn:hover {
+            background: #0D9488;
+            transform: translateY(-1px);
+        }
+
+        .print-tip {
+            color: #94A3B8;
+            font-size: 11px;
+        }
+
+        /* UI Mockup Cards for Testing Screen Demonstrations */
+        .ui-mockup-frame {
+            background: #0F172A;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 14px;
+            margin: 16px 0;
+            color: #F8FAFC;
+        }
+
+        .mockup-header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #1E293B;
+            padding-bottom: 10px;
+            margin-bottom: 12px;
+            font-size: 12px;
+        }
+
+        .mockup-dots {
+            display: flex;
+            gap: 5px;
+        }
+
+        .mockup-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+        }
+
+        .dot-red { background: #EF4444; }
+        .dot-yellow { background: #F59E0B; }
+        .dot-green { background: #10B981; }
+
+        @media print {
+            body {
+                background: #FFFFFF !important;
+                font-size: 12px;
+            }
+            .print-toolbar {
+                display: none !important;
+            }
+            .report-wrapper {
+                box-shadow: none !important;
+                margin: 0 !important;
+                max-width: 100% !important;
+                width: 100% !important;
+            }
+            .page {
+                border-bottom: none !important;
+                padding: 20mm 20mm 20mm 20mm !important;
+                min-height: auto !important;
+                page-break-after: always !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Floating Print Control Bar -->
+    <div class="print-toolbar">
+        <button class="print-btn" onclick="window.print()">
+            🖨️ طباعة / حفظ كـ PDF
+        </button>
+        <span class="print-tip">تقرير أكاديمي مطابق لمعايير جامعة أنطاكية</span>
+    </div>
+
+    <div class="report-wrapper">
+
+        <!-- ==================== PAGE 1: COVER ==================== -->
+        <div class="page cover-page">
+            <div class="uni-header">
+                <div class="page-header" style="justify-content: center; border: none; margin-bottom: 5px;">
+                    تقرير مشروع فصلي — نظام إدارة العيادات وحجز المواعيد الطبية ClinicBook
+                </div>
+                
+                <div class="uni-logo-box">
+                    <svg viewBox="0 0 100 100" width="130" height="130">
+                        <circle cx="50" cy="50" r="46" fill="#0F766E" />
+                        <circle cx="50" cy="50" r="41" fill="#FFFFFF" />
+                        <path d="M50 16 L53 38 L65 30 L55 46 L76 43 L58 53 L76 63 L55 60 L65 76 L53 68 L50 90 L47 68 L35 76 L45 60 L24 63 L42 53 L24 43 L45 46 L35 30 L47 38 Z" fill="#0F766E"/>
+                        <circle cx="50" cy="50" r="14" fill="#D97706" />
+                        <path d="M47 43 H53 V57 H47 Z M43 47 H57 V53 H43 Z" fill="#FFFFFF" />
+                    </svg>
+                </div>
+
+                <div class="uni-title-ar">جامعة أنطاكية السورية الخاصة</div>
+                <div class="uni-title-en">Antioch Syrian Private University</div>
+                <div class="project-badge">تقرير مشروع فصلي</div>
+            </div>
+
+            <div class="title-container">
+                <div style="font-size: 13px; font-weight: 700; color: var(--accent-gold); margin-bottom: 5px;">عنوان المشروع</div>
+                <div class="main-project-title">نظام إدارة العيادات وحجز المواعيد الطبية (ClinicBook)</div>
+                <div class="sub-project-title">Clinic Management & Healthcare Booking Platform</div>
+                <div style="font-size: 13.5px; color: #0F766E; font-weight: 600; margin-top: 8px;">
+                    منصة ويب سحابية متكاملة لإدارة المراكز الطبية وحجز المواعيد إلكترونياً
+                </div>
+            </div>
+
+            <div class="cover-meta">
+                <div class="cover-meta-row">
+                    <span class="meta-label">إعداد الطالب:</span>
+                    <span class="meta-value">مصعب اميري , محمد الابرش</span>
+                </div>
+                <div class="cover-meta-row">
+                    <span class="meta-label">إشراف:</span>
+                    <span class="meta-value">المهندس عبدو خوري</span>
+                </div>
+                <div class="cover-meta-row">
+                    <span class="meta-label">الكلية:</span>
+                    <span class="meta-value">كلية هندسة الحاسوب</span>
+                </div>
+                <div class="cover-meta-row">
+                    <span class="meta-label">العام الدراسي:</span>
+                    <span class="meta-value">2025 – 2026 (الفصل الثاني)</span>
+                </div>
+            </div>
+
+            <div class="page-footer">صفحة 1 من 35</div>
+        </div>
+
+        <!-- ==================== PAGE 2: TABLE OF CONTENTS ==================== -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>فهرس المحتويات</span>
+            </div>
+
+            <h1 class="section-title">فهرس المحتويات</h1>
+
+            <ul class="toc-list" style="margin-top: 20px;">
+                <li class="toc-item">
+                    <span class="toc-title">1. المقدمة</span><span class="toc-dots"></span><span class="toc-page">3</span>
+                </li>
+                <li class="toc-item">
+                    <span class="toc-title">2. الهدف من المشروع</span><span class="toc-dots"></span><span class="toc-page">3</span>
+                </li>
+                <li class="toc-item">
+                    <span class="toc-title">3. منهجية العمل المتبعة للوصول إلى تحقيق المشروع</span><span class="toc-dots"></span><span class="toc-page">4</span>
+                </li>
+                <li class="toc-item">
+                    <span class="toc-title">4. خطة تنفيذ المشروع</span><span class="toc-dots"></span><span class="toc-page">5</span>
+                </li>
+                <li class="toc-item">
+                    <span class="toc-title">5. تحليل المتطلبات (Use Case)</span><span class="toc-dots"></span><span class="toc-page">6</span>
+                </li>
+                <li class="toc-item toc-sub">
+                    <span class="toc-title">5.1 المتطلبات الوظيفية (Functional Requirements)</span><span class="toc-dots"></span><span class="toc-page">6</span>
+                </li>
+                <li class="toc-item toc-sub">
+                    <span class="toc-title">5.2 المتطلبات غير الوظيفية (Non-Functional Requirements)</span><span class="toc-dots"></span><span class="toc-page">6</span>
+                </li>
+                <li class="toc-item toc-sub">
+                    <span class="toc-title">5.3 مخطط حالات الاستخدام (Use Case Diagram)</span><span class="toc-dots"></span><span class="toc-page">7</span>
+                </li>
+                <li class="toc-item toc-sub">
+                    <span class="toc-title">5.4 وصف تفصيلي لأهم حالات الاستخدام</span><span class="toc-dots"></span><span class="toc-page">8</span>
+                </li>
+                <li class="toc-item">
+                    <span class="toc-title">6. دراسة مرجعية لمشاريع مشابهة</span><span class="toc-dots"></span><span class="toc-page">9</span>
+                </li>
+                <li class="toc-item toc-sub">
+                    <span class="toc-title">مقارنة مع تطبيق دكتوري والواقع السوري للمراكز الطبية</span><span class="toc-dots"></span><span class="toc-page">10</span>
+                </li>
+                <li class="toc-item">
+                    <span class="toc-title">7. التحليل (Class Diagram, ER Diagram, UML)</span><span class="toc-dots"></span><span class="toc-page">12</span>
+                </li>
+                <li class="toc-item toc-sub">
+                    <span class="toc-title">7.1 مخطط الصفوف (Class Diagram)</span><span class="toc-dots"></span><span class="toc-page">13</span>
+                </li>
+                <li class="toc-item toc-sub">
+                    <span class="toc-title">7.2 مخطط العلاقات بين الكيانات (ER Diagram)</span><span class="toc-dots"></span><span class="toc-page">13</span>
+                </li>
+                <li class="toc-item toc-sub">
+                    <span class="toc-title">7.3 مخطط النشاط (Activity Diagram)</span><span class="toc-dots"></span><span class="toc-page">14</span>
+                </li>
+                <li class="toc-item toc-sub">
+                    <span class="toc-title">7.4 مخطط التسلسل (Sequence Diagram)</span><span class="toc-dots"></span><span class="toc-page">15</span>
+                </li>
+                <li class="toc-item">
+                    <span class="toc-title">8. التصميم</span><span class="toc-dots"></span><span class="toc-page">16</span>
+                </li>
+                <li class="toc-item toc-sub">
+                    <span class="toc-title">8.1 البنية المعمارية العامة (3-Tier Architecture)</span><span class="toc-dots"></span><span class="toc-page">16</span>
+                </li>
+                <li class="toc-item toc-sub">
+                    <span class="toc-title">8.2 تصميم واجهة المستخدم (UI/UX)</span><span class="toc-dots"></span><span class="toc-page">17</span>
+                </li>
+                <li class="toc-item toc-sub">
+                    <span class="toc-title">8.3 تصميم نموذج الحجز متعدد الخطوات</span><span class="toc-dots"></span><span class="toc-page">17</span>
+                </li>
+                <li class="toc-item">
+                    <span class="toc-title">9. التقانات المستخدمة للتنفيذ مع تبرير استخدامها</span><span class="toc-dots"></span><span class="toc-page">18</span>
+                </li>
+                <li class="toc-item">
+                    <span class="toc-title">10. التنفيذ</span><span class="toc-dots"></span><span class="toc-page">19</span>
+                </li>
+                <li class="toc-item toc-sub">
+                    <span class="toc-title">10.1 هيكلية قاعدة البيانات وقيد الاستبعاد الذري</span><span class="toc-dots"></span><span class="toc-page">19</span>
+                </li>
+                <li class="toc-item toc-sub">
+                    <span class="toc-title">10.2 واجهات برمجة التطبيقات (REST API & Actions)</span><span class="toc-dots"></span><span class="toc-page">19</span>
+                </li>
+                <li class="toc-item toc-sub">
+                    <span class="toc-title">10.3 آلية المصادقة والتفويض وعزل المستأجرين</span><span class="toc-dots"></span><span class="toc-page">19</span>
+                </li>
+                <li class="toc-item toc-sub">
+                    <span class="toc-title">10.4 حساب تكلفة الكشفية وآلة حالات الموعد</span><span class="toc-dots"></span><span class="toc-page">19</span>
+                </li>
+                <li class="toc-item toc-sub">
+                    <span class="toc-title">10.5 الميزات المنجزة فعلياً</span><span class="toc-dots"></span><span class="toc-page">20</span>
+                </li>
+                <li class="toc-item toc-sub">
+                    <span class="toc-title">10.6 نظام الدفع والتحصيل (Payment Module)</span><span class="toc-dots"></span><span class="toc-page">20</span>
+                </li>
+                <li class="toc-item toc-sub">
+                    <span class="toc-title">10.7 وحدة المساعد الطبي الذكي وفرز الأعراض (AI Assistant)</span><span class="toc-dots"></span><span class="toc-page">20</span>
+                </li>
+                <li class="toc-item">
+                    <span class="toc-title">11. الاختبارات والتقييم (Manual Functional Testing)</span><span class="toc-dots"></span><span class="toc-page">21</span>
+                </li>
+                <li class="toc-item toc-sub">
+                    <span class="toc-title">استعراض الشاشات الحية لحالات الاختبار (TC-01 إلى TC-11)</span><span class="toc-dots"></span><span class="toc-page">22–33</span>
+                </li>
+                <li class="toc-item">
+                    <span class="toc-title">12. النتائج والخلاصة</span><span class="toc-dots"></span><span class="toc-page">34</span>
+                </li>
+                <li class="toc-item toc-sub">
+                    <span class="toc-title">12.1 النتائج المحققة ومحدوديات النظام الحالي</span><span class="toc-dots"></span><span class="toc-page">34</span>
+                </li>
+                <li class="toc-item toc-sub">
+                    <span class="toc-title">12.2 التوصيات والعمل المستقبلي والتشخيص الذكي</span><span class="toc-dots"></span><span class="toc-page">34</span>
+                </li>
+                <li class="toc-item">
+                    <span class="toc-title">13. قائمة المراجع</span><span class="toc-dots"></span><span class="toc-page">35</span>
+                </li>
+            </ul>
+
+            <div class="page-footer">صفحة 2 من 35</div>
+        </div>
+
+        <!-- ==================== PAGE 3: INTRO & OBJECTIVES ==================== -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>المقدمة والهدف من المشروع</span>
+            </div>
+
+            <h1 class="section-title">1. المقدمة</h1>
+            <p>
+                شهد قطاع الرعاية الصحية والخدمات الطبية خلال العقدين الأخيرين تحولاً جذرياً في طريقة تعامل المرضى والمراجعين مع الخدمات الصحية؛ إذ انتقل هذا القطاع تدريجياً من الاعتماد شبه الكامل على الاتصال الهاتفي المباشر بالعيادات والانتظار العشوائي في غرف الانتظار المزدحمة، إلى الاعتماد على المنصات الرقمية السحابية التي تتيح للمريض البحث عن الطبيب المناسب، الاطلاع على تخصصه وسيرته ومؤهلاته وتجارب المرضى السابقين، ثم إتمام حجز موعد مؤكد ومحدد بفترة زمنية دقيقة (Time Slot) دون الحاجة لإجراء مكالمات غير متزامنة أو الوقوع في فخ التضارب الزمني.
+            </p>
+            <p>
+                وقد ساهمت المنصات الرقمية الحديثة، على غرار Vezeeta وDoctolib وAltibbi، في إرساء الشفافية في رسوم الكشفية وأوقات التوفر، كما ساهمت في خفض التكاليف التشغيلية على العيادات والمراكز التخصصية من خلال أتمتة إدارة المواعيد، تنظيم طابور الحضور اللحظي، وتسهيل إصدار الوصفات الطبية الإلكترونية وتتبع السجل السريري للمريض.
+            </p>
+            <p>
+                في هذا السياق، يأتي مشروع <strong>ClinicBook</strong> كنموذج أولي (Prototype) تطبيقي وتعليمي متقدم يهدف إلى محاكاة الوظائف الأساسية لمنصة سحابية متكاملة لإدارة العيادات وحجز المواعيد الطبية، بدءاً من تصميم واجهة مستخدم عربية جذابة وسهلة الاستخدام، مروراً ببناء قاعدة بيانات علائقية محكمة تمنع الحجز المزدوج رياضياً بنسبة 100%، ووصولاً إلى تطوير خادم خلفي حديث (Backend) يوفر واجهات برمجية (API & Actions) للتسجيل والبحث والحجز وإلغاء المواعيد، وتوثيق الكشف السريري والوصفة الرقمية، مع تأمين العمليات باستخدام آليات مصادقة قوية وحماية صارمة لخصوصية البيانات الطبية.
+            </p>
+
+            <h1 class="section-title" style="margin-top: 30px;">2. الهدف من المشروع</h1>
+            <p>
+                يسعى مشروع نظام إدارة العيادات وحجز المواعيد ClinicBook إلى تحقيق مجموعة من الأهداف المترابطة التي تنقل الرعاية الصحية الرقمية من مجرد تصور نظري إلى نظام برمجي عملي متماسك وقابل للتوسع المستمر:
+            </p>
+
+            <table class="academic-table">
+                <thead>
+                    <tr>
+                        <th style="width: 32%;">الهدف</th>
+                        <th>الشرح التفصيلي</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>بناء منصة موحدة لعرض الأطباء والعيادات</strong></td>
+                        <td>إنشاء واجهة مستخدم تفاعلية تعرض بيانات الكوادر الطبية (التخصص، المدينة، الكشفية، المؤهلات، ساعات العمل) بأسلوب بصري جذاب يحاكي المعايير الطبية المعتمدة.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>تحسين تجربة المريض في البحث والحجز</strong></td>
+                        <td>توفير أدوات بحث وفلترة متقدمة (حسب التخصص، المدينة، الحي، وسعر الكشفية) مع حجز فترة زمنية مؤكدة خلال أقل من 6 نقرات دون تعقيد.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>القضاء التام على ظاهرة الحجز المزدوج</strong></td>
+                        <td>تطبيق محرك حجز ذري على مستوى قاعدة البيانات (Exclusion Constraint) يمنع حجز نفس الفترة لنفس الطبيب لأكثر من مريض واحد ولو بجزء من الثانية.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>تطبيق مفاهيم تطوير الويب الحديثة</strong></td>
+                        <td>الاستفادة من معماريات Next.js 15 Server Actions، الجلسات الآمنة، تشفير كلمات المرور عبر bcrypt، وعزل البيانات السحابي Multi-Tenancy RLS.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>بناء أساس لنظام عيادات ذكي قابل للتوسع</strong></td>
+                        <td>تصميم مخطط برمجي مرن يسمح مستقبلاً بدمج خوارزميات فرز الأعراض بالذكاء الاصطناعي، بوابات دفع إلكترونية حقيقية، ونظام تنبيهات SMS وWhatsApp.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="page-footer">صفحة 3 من 35</div>
+        </div>
+
+        <!-- ==================== PAGE 4: METHODOLOGY ==================== -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>منهجية العمل المتبعة</span>
+            </div>
+
+            <h1 class="section-title">3. منهجية العمل المتبعة للوصول إلى تحقيق المشروع</h1>
+            <p>
+                اعتُمدت في تنفيذ هذا المشروع منهجية تطوير تدريجية (Incremental Development) قريبة من النماذج الرشيقة (Agile-like)، حيث تم تقسيم العمل إلى مراحل متتالية يُبنى كل منها على ما سبقه، بدلاً من اتباع النموذج الشلالي التقليدي الذي يفصل بشكل صارم ومنعزل بين مراحل التحليل والتصميم والتنفيذ. وقد تمثلت هذه المنهجية في الخطوات التالية:
+            </p>
+
+            <ol style="line-height: 2;">
+                <li><strong>بناء نموذج أولي للواجهة الأمامية (Front-end Prototype):</strong> تصميم تدفق حجز المواعيد واستعراض الأطباء باستخدام مكونات تفاعلية لضمان انسيابية تجربة المستخدم والتحقق من سلاسة التنقل قبل الارتباط ببنية قاعدة بيانات نهائية.</li>
+                <li><strong>الاعتماد المؤقت على التخزين المحلي والبيانات الهيكلية:</strong> استخدام طبقة تخزين محلية سريعة لمحاكاة دورة حياة الموعد (المعلق، المؤكد، الملغى) واختبار سلوك طابور الانتظار ولوحة الطبيب.</li>
+                <li><strong>تصميم مخطط قاعدة البيانات العلائقية (ER Design):</strong> تحديد الكيانات الأساسية بدقة متناهية: المنشآت الطبية، الأطباء، الفترات المتاحة، المرضى، المواعيد، والسجلات الطبية.</li>
+                <li><strong>تطوير النواة البرمجية وقيد الاستبعاد الزمني:</strong> كتابة القيود الذرية في محرك قاعدة البيانات لمنع أي تقاطع زمني في المواعيد، مما يحصن النظام من ثغرات السباق والتزامن (Race Conditions).</li>
+                <li><strong>دمج آلية مصادقة آمنة وتحديد الصلاحيات (RBAC):</strong> تطبيق تشفير كلمات المرور وإدارة الجلسات السحابية لعزل بيانات المرضى وصلاحيات موظفي الاستقبال عن الأطباء.</li>
+                <li><strong>الانتقال التدريجي للربط البرمجي الشامل:</strong> استبدال التخزين المحلي بمحركات خادم حقيقية تستقبل طلبات الحجز وتتحقق من توفر الفترات الزمنية وتصدر التحديثات فورياً.</li>
+                <li><strong>الاختبار الوظيفي المستمر لكل ميزة فور إنجازها:</strong> اختبار سيناريوهات الحجز المتزامن، تعديل المواعيد، وإصدار الوصفات الطبية خطوة بخطوة لمنع تراكم الأخطاء حتى نهاية المشروع.</li>
+                <li><strong>التوثيق المستمر وتتبع جودة النظام:</strong> مراجعة معايير الكود، التحقق من الوصولية لذوي الاحتياجات الخاصة (WCAG AA)، وتوثيق المخططات البيانية بصيغة هندسية قياسية.</li>
+            </ol>
+
+            <p style="margin-top: 20px;">
+                وقد ساعد هذا الأسلوب التدريجي في تقليل المخاطر الفنية بشكل جوهري؛ إذ سمح باكتشاف حالات التضارب في مواعيد الأطباء مبكراً ومعالجتها على مستوى قيد الاستبعاد الرياضي في قاعدة البيانات قبل التوسع في بناء واجهات الاستقبال والتقارير الإدارية.
+            </p>
+
+            <div class="page-footer">صفحة 4 من 35</div>
+        </div>
+
+        <!-- ==================== PAGE 5: EXECUTION PLAN ==================== -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>خطة تنفيذ المشروع</span>
+            </div>
+
+            <h1 class="section-title">4. خطة تنفيذ المشروع</h1>
+            <p>
+                لضمان تنظيم العمل وتحقيق الأهداف ضمن الإطار الزمني المتاح للمشروع الفصلي، تم وضع خطة تنفيذ مقسمة على عشر مراحل رئيسية، تراعي الترابط المنطقي بين كل مرحلة والتي تليها، كما هو موضح في الجدول التالي:
+            </p>
+
+            <table class="academic-table">
+                <thead>
+                    <tr>
+                        <th style="width: 6%; text-align: center;">#</th>
+                        <th style="width: 32%;">المرحلة</th>
+                        <th>الوصف</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">1</td>
+                        <td><strong>تحليل المتطلبات وتحديد نطاق المشروع</strong></td>
+                        <td>تحديد الوظائف الأساسية والثانوية لخدمة المرضى والمراكز الطبية ودراسة الأنظمة المشابهة إقليمياً ومحلياً.</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">2</td>
+                        <td><strong>تصميم واجهات المستخدم (Wireframes/Mockups)</strong></td>
+                        <td>تصميم الصفحة الرئيسية، دليل الأطباء، الملف السريري، ونافذة حجز الفترات متعددة الخطوات باللغة العربية.</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">3</td>
+                        <td><strong>بناء الواجهة الأمامية التفاعلية</strong></td>
+                        <td>تطوير مكونات العرض باستخدام Next.js وTailwind CSS مع دعم كامل للتخطيط من اليمين لليسار (RTL).</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">4</td>
+                        <td><strong>تصميم قاعدة البيانات (ER + مخطط الجداول)</strong></td>
+                        <td>تحديد الكيانات: Organizations, Doctors, Patients, Appointments, Medical Records مع قيد منع التضارب.</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">5</td>
+                        <td><strong>تطوير الخادم الخلفي (Next.js Server Actions)</strong></td>
+                        <td>إعداد الاتصال بقاعدة البيانات وبناء منطق معالجة المواعيد والتحقق من صحة المدخلات عبر Zod.</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">6</td>
+                        <td><strong>تنفيذ نظام المصادقة والصلاحيات (Auth/RBAC)</strong></td>
+                        <td>تشفير كلمات المرور عبر bcrypt وإدارة الجلسات الآمنة وتوزيع الأدوار (مريض، موظف استقبال، طبيب، مدير).</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">7</td>
+                        <td><strong>تنفيذ محرك حجز الفترات ومنع التضارب</strong></td>
+                        <td>برمجة فحص الفترات المتاحة وحجزها بشكل ذري وتحديث حالة الموعد الفوري لمنع الحجز المزدوج.</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">8</td>
+                        <td><strong>دمج طابور الاستقبال والسجل الطبي الرقمي</strong></td>
+                        <td>ربط تسجيل وصول المريض في العيادة بلوحة الاستقبال، وتمكين الطبيب من كتابة التشخيص وإصدار الوصفة الطبية.</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">9</td>
+                        <td><strong>الاختبار الشامل وتصحيح الأخطاء</strong></td>
+                        <td>اختبار سيناريوهات الاستخدام الرئيسية، الحالات الحدية، ومحاكاة محاولات الحجز المتزامن لنفس الموعد.</td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">10</td>
+                        <td><strong>التوثيق وإعداد التقرير النهائي</strong></td>
+                        <td>صياغة التقرير الفني الشامل، توثيق بنية الكود وقاعدة البيانات والمخططات الهندسية وفق المعايير الجامعية.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <p style="margin-top: 15px;">
+                يُلاحظ من الخطة أعلاه أن تصميم واجهات المستخدم قد سار بالتوازي مع دراسة المنطق البرمجي لحجز الفترات، وهو ما يتماشى مع المنهجية التكرارية المعتمدة لاختبار تدفق العمليات وضمان راحة المريض والطبيب قبل الانطلاق في توثيق المراحل النهائية.
+            </p>
+
+            <div class="page-footer">صفحة 5 من 35</div>
+        </div>
+
+        <!-- ==================== PAGE 6: REQUIREMENTS ANALYSIS ==================== -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>تحليل المتطلبات (Use Case)</span>
+            </div>
+
+            <h1 class="section-title">5. تحليل المتطلبات (Use Case)</h1>
+            <p>يحدد النظام الصلاحيات والمسؤوليات بناءً على أربعة أصناف رئيسية من الفاعلين:</p>
+            <ul>
+                <li><strong>الزائر (Guest):</strong> مستخدم غير مسجل في النظام، يمكنه استكشاف الأطباء والتخصصات والأسعار.</li>
+                <li><strong>المريض (Patient):</strong> عميل مسجل يمكنه حجز المواعيد، متابعة سجل زياراته، وتحميل وصفاته الطبية.</li>
+                <li><strong>الطاقم الطبي (Doctor & Receptionist):</strong> يشمل الطبيب (معاينة المواعيد وكتابة الوصفات) وموظف الاستقبال (إدارة طابور الحضور اللحظي).</li>
+                <li><strong>مدير المركز / النظام (Admin):</strong> يمتلك صلاحيات إدارة الحسابات، فحص التراخيص، والاطلاع على الإحصائيات.</li>
+            </ul>
+
+            <h2 class="subsection-title">5.1 المتطلبات الوظيفية (Functional Requirements)</h2>
+            <table class="academic-table">
+                <thead>
+                    <tr>
+                        <th style="width: 15%;">الرمز</th>
+                        <th>الوصف</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="font-weight: 700; color: var(--primary);">FR-01</td>
+                        <td>يجب أن يتمكن الزائر من تصفح دليل الأطباء والعيادات المعتمدة دون الحاجة لتسجيل الدخول.</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 700; color: var(--primary);">FR-02</td>
+                        <td>يجب أن يتمكن الزائر من البحث والفلترة حسب التخصص الطبي، المدينة، الحي، ورسوم الكشفية.</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 700; color: var(--primary);">FR-03</td>
+                        <td>يجب أن يتمكن الزائر من استعراض تفاصيل ملف الطبيب (المؤهلات، مواعيد التوفر، التقييمات، والعيادة).</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 700; color: var(--primary);">FR-04</td>
+                        <td>يجب أن يتمكن المستخدم من إنشاء حساب جديد ببريد إلكتروني، رقم هاتف، وكلمة مرور مشفرة.</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 700; color: var(--primary);">FR-05</td>
+                        <td>يجب أن يتمكن المستخدم من تسجيل الدخول والحصول على جلسة مصادقة آمنة.</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 700; color: var(--primary);">FR-06</td>
+                        <td>يجب أن يتمكن المريض المسجل فقط من اختيار فترة زمنية متاحة وإتمام حجز موعد.</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 700; color: var(--primary);">FR-07</td>
+                        <td>يجب أن يحسب النظام تكلفة الموعد تلقائياً مع تمييز رسوم الكشف الجديد عن رسوم المراجعة.</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 700; color: var(--primary);">FR-08</td>
+                        <td>يجب أن يتمكن المريض من استعراض قائمة مواعيده الخاصة القادمة والسابقة وتتبع حالتها.</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 700; color: var(--primary);">FR-09</td>
+                        <td>يجب أن يتمكن المريض من إلغاء موعد قائم مع تحديث حالته في قاعدة البيانات وتحرير الفترة فوراً.</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 700; color: var(--primary);">FR-10</td>
+                        <td>يجب أن يتمكن موظف الاستقبال من تأكيد وصول المريض وتحويل حالته إلى (Checked-in).</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 700; color: var(--primary);">FR-11</td>
+                        <td><strong>يجب ألا يسمح النظام بحجز فترة زمنية محجوزة مسبقاً لنفس الطبيب تحت أي ظرف (منع الحجز المزدوج).</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2 class="subsection-title">5.2 المتطلبات غير الوظيفية (Non-Functional Requirements)</h2>
+            <table class="academic-table">
+                <thead>
+                    <tr>
+                        <th style="width: 25%;">الخاصية</th>
+                        <th>الوصف</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>الأمان والخصوصية (Security)</strong></td>
+                        <td>تشفير كلمات المرور عبر bcrypt، حماية الجلسات بـ HttpOnly Cookies، وعزل بيانات المرضى والملفات السريرية.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>سهولة الاستخدام (Usability)</strong></td>
+                        <td>واجهة عربية كاملة بتخطيط أصيل من اليمين لليسار (RTL) مع خطوط مريحة للعين وإتمام الحجز في أقل من 6 نقرات.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>الاستجابة (Responsiveness)</strong></td>
+                        <td>تصميم متكيف بالكامل يعمل بكفاءة متناهية على شاشات الهواتف الذكية والأجهزة اللوحية والحواسيب المكتبية.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>سلامة التزامن (Concurrency)</strong></td>
+                        <td>الاعتماد على قيد استبعاد ذري في قاعدة البيانات يضمن سلامة البيانات ومنع التضارب اللحظي حتى في أجزاء الثانية.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>الأداء (Performance)</strong></td>
+                        <td>استعلامات قاعدة بيانات محددة النطاق وفهارس زمنية مفهرسة لضمان زمن استجابة سريع يقل عن 150ms في طلبات الحجز.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="page-footer">صفحة 6 من 35</div>
+        </div>
+
+        <!-- ==================== PAGE 7: USE CASE DIAGRAM ==================== -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>مخطط حالات الاستخدام (Use Case Diagram)</span>
+            </div>
+
+            <h1 class="section-title">5.3 مخطط حالات الاستخدام (Use Case Diagram)</h1>
+            <p>
+                يوضح الشكل التالي مخطط حالات الاستخدام لنظام ClinicBook، مبيناً الفاعلين الرئيسيين (الزائر، المريض المسجل، موظف الاستقبال، الطبيب، والمسؤول)، والروابط الوظيفية بين كل فاعل والعمليات البرمجية المصرح له بتنفيذها داخل المنصة:
+            </p>
+
+            <div class="diagram-wrapper">
+                <svg viewBox="0 0 750 480" width="100%" height="450">
+                    <!-- Background Grid Pattern -->
+                    <defs>
+                        <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1E293B" stroke-width="0.5"/>
+                        </pattern>
+                    </defs>
+                    <rect width="750" height="480" fill="#0A0F1D" />
+                    <rect width="750" height="480" fill="url(#grid)" />
+
+                    <!-- Boundary Box -->
+                    <rect x="200" y="20" width="370" height="440" rx="8" fill="#0F172A" stroke="#334155" stroke-width="1.5" />
+                    <text x="385" y="45" fill="#38BDF8" font-size="13" font-weight="bold" text-anchor="middle" font-family="'IBM Plex Sans Arabic'">نظام إدارة العيادات وحجز المواعيد ClinicBook</text>
+
+                    <!-- Actor Left 1: Guest -->
+                    <g transform="translate(60, 80)">
+                        <circle cx="20" cy="15" r="10" fill="none" stroke="#E2E8F0" stroke-width="2" />
+                        <line x1="20" y1="25" x2="20" y2="48" stroke="#E2E8F0" stroke-width="2" />
+                        <line x1="5" y1="35" x2="35" y2="35" stroke="#E2E8F0" stroke-width="2" />
+                        <line x1="20" y1="48" x2="8" y2="68" stroke="#E2E8F0" stroke-width="2" />
+                        <line x1="20" y1="48" x2="32" y2="68" stroke="#E2E8F0" stroke-width="2" />
+                        <text x="20" y="85" fill="#94A3B8" font-size="12" text-anchor="middle" font-family="'IBM Plex Sans Arabic'">الزائر (Guest)</text>
+                    </g>
+
+                    <!-- Actor Left 2: Patient -->
+                    <g transform="translate(60, 240)">
+                        <circle cx="20" cy="15" r="10" fill="none" stroke="#38BDF8" stroke-width="2" />
+                        <line x1="20" y1="25" x2="20" y2="48" stroke="#38BDF8" stroke-width="2" />
+                        <line x1="5" y1="35" x2="35" y2="35" stroke="#38BDF8" stroke-width="2" />
+                        <line x1="20" y1="48" x2="8" y2="68" stroke="#38BDF8" stroke-width="2" />
+                        <line x1="20" y1="48" x2="32" y2="68" stroke="#38BDF8" stroke-width="2" />
+                        <text x="20" y="85" fill="#38BDF8" font-size="12" font-weight="bold" text-anchor="middle" font-family="'IBM Plex Sans Arabic'">المريض (Patient)</text>
+                    </g>
+
+                    <!-- Actor Right 1: Receptionist / Doctor -->
+                    <g transform="translate(640, 120)">
+                        <circle cx="20" cy="15" r="10" fill="none" stroke="#2DD4BF" stroke-width="2" />
+                        <line x1="20" y1="25" x2="20" y2="48" stroke="#2DD4BF" stroke-width="2" />
+                        <line x1="5" y1="35" x2="35" y2="35" stroke="#2DD4BF" stroke-width="2" />
+                        <line x1="20" y1="48" x2="8" y2="68" stroke="#2DD4BF" stroke-width="2" />
+                        <line x1="20" y1="48" x2="32" y2="68" stroke="#2DD4BF" stroke-width="2" />
+                        <text x="20" y="85" fill="#2DD4BF" font-size="11" text-anchor="middle" font-family="'IBM Plex Sans Arabic'">الطبيب / الاستقبال</text>
+                    </g>
+
+                    <!-- Actor Right 2: Admin -->
+                    <g transform="translate(640, 310)">
+                        <circle cx="20" cy="15" r="10" fill="none" stroke="#F59E0B" stroke-width="2" />
+                        <line x1="20" y1="25" x2="20" y2="48" stroke="#F59E0B" stroke-width="2" />
+                        <line x1="5" y1="35" x2="35" y2="35" stroke="#F59E0B" stroke-width="2" />
+                        <line x1="20" y1="48" x2="8" y2="68" stroke="#F59E0B" stroke-width="2" />
+                        <line x1="20" y1="48" x2="32" y2="68" stroke="#F59E0B" stroke-width="2" />
+                        <text x="20" y="85" fill="#F59E0B" font-size="12" text-anchor="middle" font-family="'IBM Plex Sans Arabic'">المسؤول (Admin)</text>
+                    </g>
+
+                    <!-- Use Cases (Ellipses) -->
+                    <!-- UC1 -->
+                    <ellipse cx="385" cy="80" rx="95" ry="18" fill="#1E293B" stroke="#475569" stroke-width="1.2" />
+                    <text x="385" y="84" fill="#E2E8F0" font-size="11" text-anchor="middle" font-family="'IBM Plex Sans Arabic'">تصفح وبحث الأطباء والعيادات</text>
+
+                    <!-- UC2 -->
+                    <ellipse cx="385" cy="125" rx="90" ry="18" fill="#1E293B" stroke="#475569" stroke-width="1.2" />
+                    <text x="385" y="129" fill="#E2E8F0" font-size="11" text-anchor="middle" font-family="'IBM Plex Sans Arabic'">إنشاء حساب وتسجيل الدخول</text>
+
+                    <!-- UC3 -->
+                    <ellipse cx="385" cy="170" rx="95" ry="18" fill="#1E293B" stroke="#0F766E" stroke-width="1.5" />
+                    <text x="385" y="174" fill="#5EEAD4" font-size="11" font-weight="bold" text-anchor="middle" font-family="'IBM Plex Sans Arabic'">حجز موعد واختيار الفترة المتاحة</text>
+
+                    <!-- UC4 -->
+                    <ellipse cx="385" cy="215" rx="85" ry="18" fill="#1E293B" stroke="#475569" stroke-width="1.2" />
+                    <text x="385" y="219" fill="#E2E8F0" font-size="11" text-anchor="middle" font-family="'IBM Plex Sans Arabic'">إلغاء الموعد واستعراض المواعيد</text>
+
+                    <!-- UC5 -->
+                    <ellipse cx="385" cy="260" rx="95" ry="18" fill="#1E293B" stroke="#0284C7" stroke-width="1.2" />
+                    <text x="385" y="264" fill="#BAE6FD" font-size="11" text-anchor="middle" font-family="'IBM Plex Sans Arabic'">تسجيل حضور المريض (طابور الاستقبال)</text>
+
+                    <!-- UC6 -->
+                    <ellipse cx="385" cy="305" rx="95" ry="18" fill="#1E293B" stroke="#0F766E" stroke-width="1.2" />
+                    <text x="385" y="309" fill="#5EEAD4" font-size="11" text-anchor="middle" font-family="'IBM Plex Sans Arabic'">كتابة السجل الطبي وإصدار الوصفة</text>
+
+                    <!-- UC7 -->
+                    <ellipse cx="385" cy="350" rx="90" ry="18" fill="#1E293B" stroke="#475569" stroke-width="1.2" />
+                    <text x="385" y="354" fill="#E2E8F0" font-size="11" text-anchor="middle" font-family="'IBM Plex Sans Arabic'">إدارة فترات الدوام والإجازات</text>
+
+                    <!-- UC8 -->
+                    <ellipse cx="385" cy="395" rx="95" ry="18" fill="#1E293B" stroke="#F59E0B" stroke-width="1.2" />
+                    <text x="385" y="399" fill="#FDE68A" font-size="11" text-anchor="middle" font-family="'IBM Plex Sans Arabic'">إدارة العيادات والأطباء والإحصائيات</text>
+
+                    <!-- Connectors -->
+                    <!-- Guest -->
+                    <line x1="95" y1="110" x2="295" y2="82" stroke="#64748B" stroke-width="1" />
+                    <line x1="95" y1="120" x2="300" y2="125" stroke="#64748B" stroke-width="1" />
+
+                    <!-- Patient -->
+                    <line x1="95" y1="260" x2="295" y2="85" stroke="#38BDF8" stroke-width="1" />
+                    <line x1="95" y1="265" x2="295" y2="130" stroke="#38BDF8" stroke-width="1" />
+                    <line x1="95" y1="270" x2="290" y2="170" stroke="#38BDF8" stroke-width="1.2" />
+                    <line x1="95" y1="275" x2="300" y2="215" stroke="#38BDF8" stroke-width="1" />
+
+                    <!-- Doctor / Receptionist -->
+                    <line x1="640" y1="160" x2="480" y2="260" stroke="#2DD4BF" stroke-width="1" />
+                    <line x1="640" y1="165" x2="480" y2="305" stroke="#2DD4BF" stroke-width="1" />
+                    <line x1="640" y1="170" x2="475" y2="350" stroke="#2DD4BF" stroke-width="1" />
+
+                    <!-- Admin -->
+                    <line x1="640" y1="340" x2="480" y2="395" stroke="#F59E0B" stroke-width="1" />
+                </svg>
+            </div>
+            <div class="diagram-caption">الشكل 1: مخطط حالات الاستخدام (Use Case Diagram) لنظام ClinicBook</div>
+
+            <div class="page-footer">صفحة 7 من 35</div>
+        </div>
+
+        <!-- ==================== PAGE 8: DETAILED USE CASES ==================== -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>وصف تفصيلي لأهم حالات الاستخدام</span>
+            </div>
+
+            <h1 class="section-title">5.4 وصف تفصيلي لأهم حالات الاستخدام</h1>
+            <p>
+                يلخص الجدول أدناه السيناريوهات التشغيلية الرئيسية لحالات الاستخدام الأكثر حرجاً وتأثيراً في دورة حياة النظام:
+            </p>
+
+            <table class="academic-table">
+                <thead>
+                    <tr>
+                        <th style="width: 22%;">حالة الاستخدام</th>
+                        <th style="width: 18%;">الفاعل</th>
+                        <th>الوصف المختصر وخطوات التنفيذ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>تسجيل الدخول</strong></td>
+                        <td>زائر / مريض</td>
+                        <td>إدخال البريد الإلكتروني وكلمة المرور، والتحقق منهما عبر الخادم وإصدار جلسة مصادقة مشفرة للمريض.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>حجز موعد طبي</strong></td>
+                        <td>مريض مسجل</td>
+                        <td>اختيار الطبيب، تحديد التاريخ، اختيار فترة زمنية دقيقة خالية، تحديد نوع الكشف، وتأكيد الحجز الذري دون تضارب.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>إلغاء حجز قائم</strong></td>
+                        <td>مريض مسجل</td>
+                        <td>تغيير حالة الموعد إلى (ملغى - Cancelled) بعد تأكيد المريض، مع تحرير الفترة في جدول الطبيب فورياً.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>تسجيل حضور المريض</strong></td>
+                        <td>موظف الاستقبال</td>
+                        <td>البحث عن المريض القادم في جدول اليوم وتحويل حالته إلى (Checked-in) لإدخاله في طابور الكشف السريري.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>إصدار الوصفة الطبية</strong></td>
+                        <td>الطبيب المعالج</td>
+                        <td>فتح ملف الموعد الحاضر، تدوين التشخيص والأدوية وجرعاتها، وحفظ السجل وتحديث حالة الموعد إلى (مكتمل - Completed).</td>
+                    </tr>
+                    <tr>
+                        <td><strong>فلترة وبحث الأطباء</strong></td>
+                        <td>زائر / مريض</td>
+                        <td>تطبيق معايير التخصص الطبي، المدينة، الحي، ورسوم الكشفية لتحديث قائمة الأطباء فورياً في الواجهة.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2 class="subsection-title" style="margin-top: 25px;">قواعد العمل الحاكمة (Business Rules)</h2>
+            <ul style="line-height: 2;">
+                <li><strong>قاعدة منع التضارب القطعي (Rule-01):</strong> يستحيل حجز أي فترة زمنية تتطابق أو تتقاطع مع فترة محجوزة مسبقاً لنفس الطبيب ما لم تكن حالة الموعد السابق ملغاة (Cancelled).</li>
+                <li><strong>قاعدة مهلة الإلغاء (Rule-02):</strong> يُسمح للمريض بإلغاء موعده مجاناً حتى ما قبل ساعتين من بدء الفترة الزمنية المحجوزة.</li>
+                <li><strong>قاعدة حصر الاطلاع السريري (Rule-03):</strong> لا يحق لموظف الاستقبال الاطلاع على التشخيص أو الأدوية الصادرة من الطبيب احتراماً للخصوصية الطبية للمريض.</li>
+            </ul>
+
+            <div class="page-footer">صفحة 8 من 35</div>
+        </div>
+
+        <!-- ==================== PAGE 9: BENCHMARKING ==================== -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>دراسة مرجعية لمشاريع مشابهة</span>
+            </div>
+
+            <h1 class="section-title">6. دراسة مرجعية لمشاريع مشابهة</h1>
+            <p>
+                قبل الشروع في التصميم، تَمّت دراسة عدد من المنصات العالمية والإقليمية الرائدة في مجال حجز المواعيد وإدارة العيادات، للاستفادة من نقاط قوتها وتفادي أوجه القصور الشائعة فيها عند بناء نموذج ClinicBook. ويلخص الجدول التالي أبرز هذه المنصات مع مزاياها وأوجه القصور مقارنة بحجم وهدف هذا المشروع:
+            </p>
+
+            <table class="academic-table">
+                <thead>
+                    <tr>
+                        <th style="width: 18%;">المنصة</th>
+                        <th style="width: 38%;">المزايا</th>
+                        <th>أوجه القصور (بالمقارنة مع نطاق مشروعنا)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Vezeeta.com (فيزيتا)</strong></td>
+                        <td>شبكة واسعة تضم آلاف الأطباء في مصر والخليج، نظام تقييمات موثوق، وتطبيقات متكاملة للهواتف الذكية.</td>
+                        <td>بنية تجارية معقدة تعتمد على الإعلانات، وبطء مزامنة الفترات اللحظية مع العيادات التقليدية في أوقات الذروة، وعدم دعمه للواقع السوري.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Altibbi.com (الطبي)</strong></td>
+                        <td>محتوى طبي عربي ضخم، نظام استشارات فورية ومحادثات طبية عن بعد (Telemedicine) على مدار 24 ساعة.</td>
+                        <td>يركز بشكل أساسي على الاستشارات النصية السريعة والذكاء الاصطناعي أكثر من إدارة العيادات الواقعية وطابور الاستقبال الميداني.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Doctolib (دوكتوليب)</strong></td>
+                        <td>المعيار الذهبي لإدارة العيادات والمشافي في فرنسا وألمانيا، تكامل فوري لمنع التضارب، وأتمتة ممتازة للوصفات.</td>
+                        <td>بنية تحتية بالغة التعقيد، رسوم اشتراك مرتفعة، غياب الدعم للغة العربية والاتجاه من اليمين لليسار (RTL)، وعدم ملاءمته لظروف الدفع المحلية.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>ClinicBook (مشروعنا)</strong></td>
+                        <td><strong>بساطة الاستخدام، واجهة عربية متكاملة RTL، منع قطعي للحجز المزدوج بنواة ذكية، ربط مباشر لطابور الاستقبال والسجل الطبي الرقمي.</strong></td>
+                        <td>قاعدة بيانات تجريبية للأطباء، عدم وجود بوابة دفع مصرفي سورية متكاملة حتى الآن، والاكتفاء بالتحصيل المباشر في العيادة ونموذج المحاكاة.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <p style="margin-top: 15px;">
+                يتضح من هذه المقارنة أن المنصات العالمية والمحلية تنقسم إما إلى أسواق تجارية موجهة للمريض فقط، أو برامج ديسكتوب معزولة داخل العيادة، في حين يركز مشروع ClinicBook على الجمع بين سهولة حجز المريض من جهة، والكفاءة التشغيلية لطاقم العيادة في طابور الحضور والسجل الطبي من جهة أخرى.
+            </p>
+
+            <div class="page-footer">صفحة 9 من 35</div>
+        </div>
+
+        <!-- ==================== PAGE 10: LOCAL COMPETITOR BENCHMARK ==================== -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>مقارنة مع الواقع السوري (تطبيق دكتوري)</span>
+            </div>
+
+            <h1 class="section-title">مقارنة مع تطبيق دكتوري والواقع السوري للمراكز الطبية</h1>
+            <p>
+                بالإضافة إلى المنصات الإقليمية، من المفيد مقارنة مشروع ClinicBook بتطبيق محلي سوري يعمل في السوق الفعلي وهو تطبيق <strong>دكتوري (Daktari Syria)</strong>، إلى جانب تحليل أسلوب إدارة الحجوزات الشائع في العيادات السورية (الحجز عبر الواتساب والاتصال الهاتفي والسجلات الورقية):
+            </p>
+
+            <table class="academic-table">
+                <thead>
+                    <tr>
+                        <th style="width: 22%;">المعيار</th>
+                        <th style="width: 38%;">تطبيق دكتوري / الواقع المحلي السوري</th>
+                        <th>منصة ClinicBook (مشروعنا)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>نطاق العمل</strong></td>
+                        <td>دليل إلكتروني للأطباء وأرقام هواتفهم في المدن السورية، مع الاعتماد على الحجز الهاتفي.</td>
+                        <td>نموذج أولي تطبيقي لمنصة حجز ذري مباشر بفترات زمنية دقيقة وإدارة سحابية للعيادة.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>منع الحجز المزدوج</strong></td>
+                        <td>معدوم؛ المواعيد تُنسق شفهياً أو عبر رسائل الواتساب، وتحدث تضاربات متكررة يومياً.</td>
+                        <td><strong>قطعي 100%</strong> عبر قيد استبعاد ذري في قاعدة البيانات يستحيل اختراقه برمجياً.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>طابور الانتظار في العيادة</strong></td>
+                        <td>عشوائي بأسبقية الحضور؛ يمضي المريض عادة ساعتين إلى 3 ساعات في قاعة الانتظار.</td>
+                        <td>طابور منظم بفترات دقيقة يقلص زمن انتظار المريض في العيادة بأكثر من 70%.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>السجل الطبي والروشتة</strong></td>
+                        <td>ورقية يدوية بخط الطبيب، معرضة للتلف والضياع وصعوبة القراءة في الصيدلية.</td>
+                        <td>وصفة طبية إلكترونية رقمية رسمية وسجل سريري متاح في حساب المريض وقابل للطباعة.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>الدفع والتحصيل</strong></td>
+                        <td>نقدي فقط ومباشر في العيادة دون أتمتة أو تتبع للفواتير اليومية.</td>
+                        <td>دعم التحصيل النقدي الموثق في الاستقبال مع نموذج محاكاة جاهز للدفع الإلكتروني المستقبلي.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>الخصوصية وعزل البيانات</strong></td>
+                        <td>الدفاتر الورقية متاحة لموظفي الاستقبال، ومخاوف تسريب السجلات السريرية.</td>
+                        <td>عزل صارم؛ لا يستطيع موظف الاستقبال رؤية تشخيص المريض، والمحفظة الطبية مشفرة.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2 class="subsection-title">أبرز الدروس المستفادة لمشروع ClinicBook</h2>
+            <ul>
+                <li><strong>ضرورة الحجز الذري:</strong> لا يمكن الاعتماد على التنسيق البشري عبر الهاتف؛ فالحجز الرقمي الذري هو الضمانة الوحيدة لمنع الإحراج وتضارب المواعيد.</li>
+                <li><strong>مراعاة خصوصية الدفع في سوريا:</strong> اعتماد الدفع عند الاستقبال كمسار أساسي، مع تجهيز مسار المحاكاة الإلكترونية ليتوافق مستقبلاً مع أنظمة الدفع كـ (سيريتل كاش، إي-كاش، وشام كاش).</li>
+            </ul>
+
+            <div class="page-footer">صفحة 10 من 35</div>
+        </div>
+
+        <!-- ==================== PAGE 11: DETAILED LESSONS & ARCHITECTURE INTRO ==================== -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>الدروس المستفادة والتحليل الهندسي</span>
+            </div>
+
+            <h1 class="section-title">أبرز الدروس المستفادة ومقارنة معايير التزامن</h1>
+            <p>
+                أظهرت المراجعات الميدانية للعيادات المحلية أن أكبر نقطة فشل في التطبيقات الحالية هي <strong>مشكلة التزامن (Concurrency Issue)</strong>: عندما يحاول مريضان في نفس اللحظة عبر المتصفح حجز الموعد المتبقي للطبيب، فإن معظم الأنظمة البدائية تسمح للاثنين بالحجز لأنها تعتمد على فحص سطحي في الواجهة الأمامية فقط، مما يولد كارثة تنظيمية في العيادة.
+            </p>
+            <p>
+                عالج مشروع ClinicBook هذه النقطة بدقة متناهية من خلال نقل عبء التحقق بالكامل إلى الخادم وقاعدة البيانات عبر قيد الاستبعاد الذري (Exclusion Constraint)، بحيث لا يقتصر الأمان على تعطيل الأزرار في الواجهة، بل تضمن النواة رفض الطلب الثاني فوراً بخطأ نزاع <code>409 Conflict</code> وحماية بيانات النظام.
+            </p>
+
+            <h1 class="section-title" style="margin-top: 30px;">7. التحليل (Class Diagram, Sequence Diagram, UML)</h1>
+            <p>
+                تهدف مرحلة التحليل إلى ترجمة المتطلبات الوظيفية وغير الوظيفية المذكورة سابقاً إلى نماذج بصرية وهندسية قياسية (UML) تُسهل فهم بنية النظام وتحديد الكيانات البرمجية وعلاقاتها قبل الانتقال إلى التصميم التفصيلي والتنفيذ. وقد استُخدمت في هذا المشروع أربعة مخططات رئيسية:
+            </p>
+
+            <ol style="line-height: 2;">
+                <li><strong>مخطط الصفوف (Class Diagram):</strong> يمثل البنية البرمجية الخلفية وخصائص الكائنات وعلاقات التضمين والارتباط بينها.</li>
+                <li><strong>مخطط العلاقات بين الكيانات (ER Diagram):</strong> يوضح الجداول العلائقية في قاعدة البيانات والمفاتيح الأساسية والأجنبية.</li>
+                <li><strong>مخطط النشاط (Activity Diagram):</strong> يمثل التدفق المنطقي لعملية حجز الموعد الطبي ونقاط القرار البديلة في حال التضارب.</li>
+                <li><strong>مخطط التسلسل (Sequence Diagram):</strong> يوضح التفاعل الزمني الدقيق بين المتصفح، الخادم الخلفي، ومحرك قاعدة البيانات أثناء تنفيذ العمليات الحساسة.</li>
+            </ol>
+
+            <div class="page-footer">صفحة 11 من 35</div>
+        </div>
+
+        <!-- ==================== PAGE 12: CLASS DIAGRAM ==================== -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>مخطط الصفوف (Class Diagram)</span>
+            </div>
+
+            <h1 class="section-title">7.1 مخطط الصفوف (Class Diagram)</h1>
+            <p>
+                يمثل المخطط الهيكل البرمجي الخلفي لنظام ClinicBook، مبنياً على نموذج البرمجة كائنية التوجه (OOP) مع علاقات التضمين (Composition) والتجميع (Aggregation) والارتباط المباشر بين 7 كلاسات رئيسية تغطي دورة حياة المنشأة والزيارة الطبية:
+            </p>
+
+            <div class="diagram-wrapper">
+                <svg viewBox="0 0 760 500" width="100%" height="480">
+                    <rect width="760" height="500" fill="#0A0F1D" />
+                    <rect width="760" height="500" fill="url(#grid)" />
+
+                    <!-- Organization Box -->
+                    <g transform="translate(30, 30)">
+                        <rect width="180" height="120" rx="6" fill="#0F172A" stroke="#38BDF8" stroke-width="1.5" />
+                        <rect width="180" height="28" rx="6" fill="#0284C7" />
+                        <text x="90" y="19" fill="#FFFFFF" font-size="12" font-weight="bold" text-anchor="middle">Organization</text>
+                        <text x="10" y="48" fill="#94A3B8" font-size="10" font-family="'JetBrains Mono'">+int id</text>
+                        <text x="10" y="64" fill="#94A3B8" font-size="10" font-family="'JetBrains Mono'">+string name, city</text>
+                        <text x="10" y="80" fill="#94A3B8" font-size="10" font-family="'JetBrains Mono'">+string phone</text>
+                        <line x1="0" y1="90" x2="180" y2="90" stroke="#1E293B" />
+                        <text x="10" y="105" fill="#38BDF8" font-size="10" font-family="'JetBrains Mono'">+createDoctor()</text>
+                    </g>
+
+                    <!-- Doctor Box -->
+                    <g transform="translate(290, 30)">
+                        <rect width="190" height="150" rx="6" fill="#0F172A" stroke="#2DD4BF" stroke-width="1.5" />
+                        <rect width="190" height="28" rx="6" fill="#0F766E" />
+                        <text x="95" y="19" fill="#FFFFFF" font-size="12" font-weight="bold" text-anchor="middle">Doctor</text>
+                        <text x="10" y="48" fill="#94A3B8" font-size="10" font-family="'JetBrains Mono'">+int id, org_id</text>
+                        <text x="10" y="64" fill="#94A3B8" font-size="10" font-family="'JetBrains Mono'">+string name, specialty</text>
+                        <text x="10" y="80" fill="#94A3B8" font-size="10" font-family="'JetBrains Mono'">+float consultation_fee</text>
+                        <text x="10" y="96" fill="#94A3B8" font-size="10" font-family="'JetBrains Mono'">+int slot_duration</text>
+                        <line x1="0" y1="106" x2="190" y2="106" stroke="#1E293B" />
+                        <text x="10" y="122" fill="#2DD4BF" font-size="10" font-family="'JetBrains Mono'">+getAvailableSlots()</text>
+                        <text x="10" y="138" fill="#2DD4BF" font-size="10" font-family="'JetBrains Mono'">+updateSchedule()</text>
+                    </g>
+
+                    <!-- ScheduleSlot Box -->
+                    <g transform="translate(550, 30)">
+                        <rect width="180" height="120" rx="6" fill="#0F172A" stroke="#A855F7" stroke-width="1.5" />
+                        <rect width="180" height="28" rx="6" fill="#7E22CE" />
+                        <text x="90" y="19" fill="#FFFFFF" font-size="12" font-weight="bold" text-anchor="middle">ScheduleSlot</text>
+                        <text x="10" y="48" fill="#94A3B8" font-size="10" font-family="'JetBrains Mono'">+int id, doctor_id</text>
+                        <text x="10" y="64" fill="#94A3B8" font-size="10" font-family="'JetBrains Mono'">+datetime start_at</text>
+                        <text x="10" y="80" fill="#94A3B8" font-size="10" font-family="'JetBrains Mono'">+datetime end_at</text>
+                        <line x1="0" y1="90" x2="180" y2="90" stroke="#1E293B" />
+                        <text x="10" y="105" fill="#C084FC" font-size="10" font-family="'JetBrains Mono'">+lockSlot(), release()</text>
+                    </g>
+
+                    <!-- Patient Box -->
+                    <g transform="translate(30, 270)">
+                        <rect width="180" height="135" rx="6" fill="#0F172A" stroke="#F59E0B" stroke-width="1.5" />
+                        <rect width="180" height="28" rx="6" fill="#B45309" />
+                        <text x="90" y="19" fill="#FFFFFF" font-size="12" font-weight="bold" text-anchor="middle">Patient</text>
+                        <text x="10" y="48" fill="#94A3B8" font-size="10" font-family="'JetBrains Mono'">+int id</text>
+                        <text x="10" y="64" fill="#94A3B8" font-size="10" font-family="'JetBrains Mono'">+string name, email</text>
+                        <text x="10" y="80" fill="#94A3B8" font-size="10" font-family="'JetBrains Mono'">+string phone</text>
+                        <line x1="0" y1="90" x2="180" y2="90" stroke="#1E293B" />
+                        <text x="10" y="105" fill="#FBBF24" font-size="10" font-family="'JetBrains Mono'">+bookAppointment()</text>
+                        <text x="10" y="121" fill="#FBBF24" font-size="10" font-family="'JetBrains Mono'">+cancelAppointment()</text>
+                    </g>
+
+                    <!-- Appointment Box -->
+                    <g transform="translate(290, 250)">
+                        <rect width="190" height="175" rx="6" fill="#0F172A" stroke="#10B981" stroke-width="1.5" />
+                        <rect width="190" height="28" rx="6" fill="#047857" />
+                        <text x="95" y="19" fill="#FFFFFF" font-size="12" font-weight="bold" text-anchor="middle">Appointment</text>
+                        <text x="10" y="48" fill="#94A3B8" font-size="10" font-family="'JetBrains Mono'">+int id, doctor_id</text>
+                        <text x="10" y="64" fill="#94A3B8" font-size="10" font-family="'JetBrains Mono'">+int patient_id</text>
+                        <text x="10" y="80" fill="#94A3B8" font-size="10" font-family="'JetBrains Mono'">+datetime start_at, end_at</text>
+                        <text x="10" y="96" fill="#94A3B8" font-size="10" font-family="'JetBrains Mono'">+string status, visit_type</text>
+                        <text x="10" y="112" fill="#94A3B8" font-size="10" font-family="'JetBrains Mono'">+float total_fee</text>
+                        <line x1="0" y1="122" x2="190" y2="122" stroke="#1E293B" />
+                        <text x="10" y="138" fill="#34D399" font-size="10" font-family="'JetBrains Mono'">+confirm(), checkIn()</text>
+                        <text x="10" y="154" fill="#34D399" font-size="10" font-family="'JetBrains Mono'">+complete(), cancel()</text>
+                    </g>
+
+                    <!-- MedicalRecord Box -->
+                    <g transform="translate(550, 260)">
+                        <rect width="180" height="145" rx="6" fill="#0F172A" stroke="#EC4899" stroke-width="1.5" />
+                        <rect width="180" height="28" rx="6" fill="#BE185D" />
+                        <text x="90" y="19" fill="#FFFFFF" font-size="12" font-weight="bold" text-anchor="middle">MedicalRecord (EMR)</text>
+                        <text x="10" y="48" fill="#94A3B8" font-size="10" font-family="'JetBrains Mono'">+int id, appointment_id</text>
+                        <text x="10" y="64" fill="#94A3B8" font-size="10" font-family="'JetBrains Mono'">+string diagnosis</text>
+                        <text x="10" y="80" fill="#94A3B8" font-size="10" font-family="'JetBrains Mono'">+json prescription</text>
+                        <line x1="0" y1="90" x2="180" y2="90" stroke="#1E293B" />
+                        <text x="10" y="105" fill="#F472B6" font-size="10" font-family="'JetBrains Mono'">+savePrescription()</text>
+                        <text x="10" y="121" fill="#F472B6" font-size="10" font-family="'JetBrains Mono'">+generatePDF()</text>
+                    </g>
+
+                    <!-- Connectors -->
+                    <!-- Org to Doctor -->
+                    <line x1="210" y1="80" x2="290" y2="80" stroke="#64748B" stroke-width="1.5" />
+                    <text x="250" y="73" fill="#94A3B8" font-size="10">1..*</text>
+
+                    <!-- Doctor to Slot -->
+                    <line x1="480" y1="80" x2="550" y2="80" stroke="#64748B" stroke-width="1.5" />
+                    <text x="510" y="73" fill="#94A3B8" font-size="10">1..*</text>
+
+                    <!-- Doctor to Appointment -->
+                    <line x1="385" y1="180" x2="385" y2="250" stroke="#64748B" stroke-width="1.5" />
+                    <text x="390" y="215" fill="#94A3B8" font-size="10">1..*</text>
+
+                    <!-- Patient to Appointment -->
+                    <line x1="210" y1="330" x2="290" y2="330" stroke="#64748B" stroke-width="1.5" />
+                    <text x="250" y="323" fill="#94A3B8" font-size="10">1..*</text>
+
+                    <!-- Appointment to Record -->
+                    <line x1="480" y1="330" x2="550" y2="330" stroke="#64748B" stroke-width="1.5" />
+                    <text x="510" y="323" fill="#94A3B8" font-size="10">1..1</text>
+                </svg>
+            </div>
+            <div class="diagram-caption">الشكل 2: مخطط الصفوف (Class Diagram) للنظام الخلفي لـ ClinicBook</div>
+
+            <div class="page-footer">صفحة 12 من 35</div>
+        </div>
+
+        <!-- ==================== PAGE 13: ER DIAGRAM ==================== -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>مخطط العلاقات بين الكيانات (ER Diagram)</span>
+            </div>
+
+            <h1 class="section-title">7.2 مخطط العلاقات بين الكيانات (ER Diagram)</h1>
+            <p>
+                بُني مخطط الكيانات والعلاقات مباشرة اعتماداً على استعلامات إنشاء الجداول (CREATE TABLE) المعتمدة في قاعدة بيانات ClinicBook، ويوضح المفاتيح الأساسية (Primary Keys) والمفاتيح الأجنبية (Foreign Keys) والروابط العكسية:
+            </p>
+
+            <div class="diagram-wrapper">
+                <svg viewBox="0 0 720 480" width="100%" height="450">
+                    <rect width="720" height="480" fill="#0A0F1D" />
+                    <rect width="720" height="480" fill="url(#grid)" />
+
+                    <!-- ORGANIZATIONS Table -->
+                    <g transform="translate(40, 40)">
+                        <rect width="180" height="130" fill="#0F172A" stroke="#334155" stroke-width="1" />
+                        <rect width="180" height="26" fill="#1E293B" />
+                        <text x="90" y="18" fill="#F8FAFC" font-size="11" font-weight="bold" text-anchor="middle">ORGANIZATIONS</text>
+                        <text x="10" y="44" fill="#38BDF8" font-size="10">INT id (PK)</text>
+                        <text x="10" y="62" fill="#CBD5E1" font-size="10">VARCHAR name</text>
+                        <text x="10" y="80" fill="#CBD5E1" font-size="10">VARCHAR city</text>
+                        <text x="10" y="98" fill="#CBD5E1" font-size="10">VARCHAR phone</text>
+                        <text x="10" y="116" fill="#94A3B8" font-size="10">TIMESTAMP created_at</text>
+                    </g>
+
+                    <!-- DOCTORS Table -->
+                    <g transform="translate(270, 40)">
+                        <rect width="180" height="150" fill="#0F172A" stroke="#334155" stroke-width="1" />
+                        <rect width="180" height="26" fill="#1E293B" />
+                        <text x="90" y="18" fill="#F8FAFC" font-size="11" font-weight="bold" text-anchor="middle">DOCTORS</text>
+                        <text x="10" y="44" fill="#38BDF8" font-size="10">INT id (PK)</text>
+                        <text x="10" y="62" fill="#F59E0B" font-size="10">INT org_id (FK)</text>
+                        <text x="10" y="80" fill="#CBD5E1" font-size="10">VARCHAR name</text>
+                        <text x="10" y="98" fill="#CBD5E1" font-size="10">VARCHAR specialty</text>
+                        <text x="10" y="116" fill="#CBD5E1" font-size="10">DECIMAL fee</text>
+                        <text x="10" y="134" fill="#94A3B8" font-size="10">INT slot_duration</text>
+                    </g>
+
+                    <!-- PATIENTS Table -->
+                    <g transform="translate(500, 40)">
+                        <rect width="180" height="130" fill="#0F172A" stroke="#334155" stroke-width="1" />
+                        <rect width="180" height="26" fill="#1E293B" />
+                        <text x="90" y="18" fill="#F8FAFC" font-size="11" font-weight="bold" text-anchor="middle">PATIENTS</text>
+                        <text x="10" y="44" fill="#38BDF8" font-size="10">INT id (PK)</text>
+                        <text x="10" y="62" fill="#CBD5E1" font-size="10">VARCHAR name</text>
+                        <text x="10" y="80" fill="#CBD5E1" font-size="10">VARCHAR email (UK)</text>
+                        <text x="10" y="98" fill="#CBD5E1" font-size="10">VARCHAR phone</text>
+                        <text x="10" y="116" fill="#94A3B8" font-size="10">VARCHAR password_hash</text>
+                    </g>
+
+                    <!-- APPOINTMENTS Table -->
+                    <g transform="translate(270, 250)">
+                        <rect width="180" height="175" fill="#0F172A" stroke="#0F766E" stroke-width="1.5" />
+                        <rect width="180" height="26" fill="#0F766E" />
+                        <text x="90" y="18" fill="#FFFFFF" font-size="11" font-weight="bold" text-anchor="middle">APPOINTMENTS</text>
+                        <text x="10" y="44" fill="#38BDF8" font-size="10">INT id (PK)</text>
+                        <text x="10" y="62" fill="#F59E0B" font-size="10">INT doctor_id (FK)</text>
+                        <text x="10" y="80" fill="#F59E0B" font-size="10">INT patient_id (FK)</text>
+                        <text x="10" y="98" fill="#A7F3D0" font-size="10">TIMESTAMPTZ start_at</text>
+                        <text x="10" y="116" fill="#A7F3D0" font-size="10">TIMESTAMPTZ end_at</text>
+                        <text x="10" y="134" fill="#CBD5E1" font-size="10">VARCHAR status</text>
+                        <text x="10" y="152" fill="#CBD5E1" font-size="10">DECIMAL total_fee</text>
+                        <text x="10" y="168" fill="#F43F5E" font-size="9">[EXCLUDE Overlap]</text>
+                    </g>
+
+                    <!-- MEDICAL_RECORDS Table -->
+                    <g transform="translate(40, 270)">
+                        <rect width="180" height="135" fill="#0F172A" stroke="#334155" stroke-width="1" />
+                        <rect width="180" height="26" fill="#1E293B" />
+                        <text x="90" y="18" fill="#F8FAFC" font-size="11" font-weight="bold" text-anchor="middle">MEDICAL_RECORDS</text>
+                        <text x="10" y="44" fill="#38BDF8" font-size="10">INT id (PK)</text>
+                        <text x="10" y="62" fill="#F59E0B" font-size="10">INT appointment_id (FK, UK)</text>
+                        <text x="10" y="80" fill="#CBD5E1" font-size="10">TEXT diagnosis</text>
+                        <text x="10" y="98" fill="#CBD5E1" font-size="10">JSONB prescription</text>
+                        <text x="10" y="116" fill="#94A3B8" font-size="10">TEXT doctor_notes</text>
+                    </g>
+
+                    <!-- INVOICES Table -->
+                    <g transform="translate(500, 270)">
+                        <rect width="180" height="135" fill="#0F172A" stroke="#334155" stroke-width="1" />
+                        <rect width="180" height="26" fill="#1E293B" />
+                        <text x="90" y="18" fill="#F8FAFC" font-size="11" font-weight="bold" text-anchor="middle">INVOICES</text>
+                        <text x="10" y="44" fill="#38BDF8" font-size="10">INT id (PK)</text>
+                        <text x="10" y="62" fill="#F59E0B" font-size="10">INT appointment_id (FK)</text>
+                        <text x="10" y="80" fill="#CBD5E1" font-size="10">DECIMAL amount</text>
+                        <text x="10" y="98" fill="#CBD5E1" font-size="10">VARCHAR method</text>
+                        <text x="10" y="116" fill="#CBD5E1" font-size="10">VARCHAR payment_status</text>
+                    </g>
+
+                    <!-- Relations lines -->
+                    <line x1="220" y1="90" x2="270" y2="90" stroke="#64748B" stroke-width="1.5" />
+                    <line x1="360" y1="190" x2="360" y2="250" stroke="#64748B" stroke-width="1.5" />
+                    <path d="M 590 170 L 590 320 L 450 320" fill="none" stroke="#64748B" stroke-width="1.5" />
+                    <line x1="270" y1="330" x2="220" y2="330" stroke="#64748B" stroke-width="1.5" />
+                    <line x1="450" y1="370" x2="500" y2="370" stroke="#64748B" stroke-width="1.5" />
+                </svg>
+            </div>
+            <div class="diagram-caption">الشكل 3: مخطط العلاقات بين الكيانات (ER Diagram) لقاعدة بيانات ClinicBook</div>
+
+            <p style="margin-top: 15px;">
+                يرتبط جدول <code>appointments</code> بجدول الأطباء عبر مفتاح أجنبي <code>doctor_id</code>، وبجدول المرضى عبر <code>patient_id</code>، مع إرساء قيد استبعاد زمني يمنع التداخل في الحقلين <code>start_at</code> و<code>end_at</code>.
+            </p>
+
+            <div class="page-footer">صفحة 13 من 35</div>
+        </div>
+
+        <!-- ==================== PAGE 14: ACTIVITY DIAGRAM ==================== -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>مخطط النشاط (Activity Diagram)</span>
+            </div>
+
+            <h1 class="section-title">7.3 مخطط النشاط (Activity Diagram)</h1>
+            <p>
+                يوضح مخطط النشاط أدناه التدفق المنطقي الكامل لعملية حجز موعد طبي من منظور المريض، بدءاً من تصفح الأطباء واختيار الفترة الزمنية، وانتهاءً بتأكيد الحجز الذري في قاعدة البيانات مع تمثيل نقاط القرار والمسارات البديلة في حال حدوث تضارب زمني:
+            </p>
+
+            <div class="diagram-wrapper">
+                <svg viewBox="0 0 500 520" width="100%" height="490">
+                    <rect width="500" height="520" fill="#0A0F1D" />
+                    
+                    <!-- Start Node -->
+                    <circle cx="250" cy="25" r="12" fill="#10B981" />
+                    <text x="250" y="29" fill="#0A0F1D" font-size="9" font-weight="bold" text-anchor="middle">Start</text>
+
+                    <line x1="250" y1="37" x2="250" y2="60" stroke="#64748B" stroke-width="1.5" />
+
+                    <!-- Step 1 -->
+                    <rect x="170" y="60" width="160" height="28" rx="5" fill="#1E293B" stroke="#475569" />
+                    <text x="250" y="78" fill="#E2E8F0" font-size="10" text-anchor="middle">تصفح دليل الأطباء والبحث</text>
+                    <line x1="250" y1="88" x2="250" y2="110" stroke="#64748B" stroke-width="1.5" />
+
+                    <!-- Step 2 -->
+                    <rect x="170" y="110" width="160" height="28" rx="5" fill="#1E293B" stroke="#475569" />
+                    <text x="250" y="128" fill="#E2E8F0" font-size="10" text-anchor="middle">اختيار الطبيب واستعراض ملفه</text>
+                    <line x1="250" y1="138" x2="250" y2="160" stroke="#64748B" stroke-width="1.5" />
+
+                    <!-- Step 3 -->
+                    <rect x="160" y="160" width="180" height="28" rx="5" fill="#1E293B" stroke="#475569" />
+                    <text x="250" y="178" fill="#E2E8F0" font-size="10" text-anchor="middle">استعراض الفترات واختيار Slot</text>
+                    <line x1="250" y1="188" x2="250" y2="210" stroke="#64748B" stroke-width="1.5" />
+
+                    <!-- Decision Auth -->
+                    <polygon points="250,210 320,235 250,260 180,235" fill="#0F172A" stroke="#F59E0B" stroke-width="1.2" />
+                    <text x="250" y="238" fill="#FDE68A" font-size="9" text-anchor="middle">هل المريض مسجل؟</text>
+
+                    <!-- Auth No -->
+                    <line x1="320" y1="235" x2="400" y2="235" stroke="#F59E0B" stroke-width="1.2" />
+                    <text x="350" y="228" fill="#F59E0B" font-size="9">لا</text>
+                    <rect x="340" y="250" width="120" height="30" rx="5" fill="#1E293B" stroke="#F59E0B" />
+                    <text x="400" y="269" fill="#FDE68A" font-size="9.5" text-anchor="middle">تسجيل الدخول / حساب</text>
+                    <path d="M 400 280 L 400 315 L 340 315" fill="none" stroke="#F59E0B" stroke-width="1.2" />
+
+                    <!-- Auth Yes -->
+                    <line x1="250" y1="260" x2="250" y2="300" stroke="#64748B" stroke-width="1.5" />
+                    <text x="265" y="280" fill="#10B981" font-size="9">نعم</text>
+
+                    <!-- Step 4 -->
+                    <rect x="160" y="300" width="180" height="30" rx="5" fill="#0F766E" stroke="#2DD4BF" />
+                    <text x="250" y="319" fill="#FFFFFF" font-size="10" font-weight="bold" text-anchor="middle">تأكيد تفاصيل الحجز والكشفية</text>
+                    <line x1="250" y1="330" x2="250" y2="355" stroke="#64748B" stroke-width="1.5" />
+
+                    <!-- Decision Atomic Conflict -->
+                    <polygon points="250,355 330,385 250,415 170,385" fill="#0F172A" stroke="#38BDF8" stroke-width="1.2" />
+                    <text x="250" y="388" fill="#38BDF8" font-size="9" text-anchor="middle">هل الفترة شاغرة ذرياً؟</text>
+
+                    <!-- Conflict No -->
+                    <line x1="170" y1="385" x2="90" y2="385" stroke="#EF4444" stroke-width="1.2" />
+                    <text x="130" y="378" fill="#EF4444" font-size="9">تضارب زمني</text>
+                    <rect x="30" y="400" width="120" height="30" rx="5" fill="#1E293B" stroke="#EF4444" />
+                    <text x="90" y="419" fill="#FCA5A5" font-size="9" text-anchor="middle">تنبيه: محجوز للتو</text>
+                    <path d="M 90 400 L 90 174 L 160 174" fill="none" stroke="#EF4444" stroke-width="1.2" stroke-dasharray="3,3" />
+
+                    <!-- Conflict Yes -->
+                    <line x1="250" y1="415" x2="250" y2="445" stroke="#10B981" stroke-width="1.5" />
+                    <text x="265" y="432" fill="#10B981" font-size="9">شاغرة</text>
+
+                    <!-- Save & Done -->
+                    <rect x="160" y="445" width="180" height="30" rx="5" fill="#047857" stroke="#34D399" />
+                    <text x="250" y="464" fill="#FFFFFF" font-size="10" font-weight="bold" text-anchor="middle">حفظ الموعد وعرض التأكيد</text>
+                    <line x1="250" y1="475" x2="250" y2="495" stroke="#64748B" stroke-width="1.5" />
+
+                    <circle cx="250" cy="505" r="10" fill="#0F172A" stroke="#10B981" stroke-width="3" />
+                    <circle cx="250" cy="505" r="5" fill="#10B981" />
+                </svg>
+            </div>
+            <div class="diagram-caption">الشكل 4: مخطط النشاط (Activity Diagram) لعملية حجز موعد طبي وتفادي التضارب</div>
+
+            <div class="page-footer">صفحة 14 من 35</div>
+        </div>
+
+        <!-- ==================== PAGE 15: SEQUENCE DIAGRAM ==================== -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>مخطط التسلسل (Sequence Diagram)</span>
+            </div>
+
+            <h1 class="section-title">7.4 مخطط التسلسل (Sequence Diagram)</h1>
+            <p>
+                يوضح مخطط التسلسل التفاعل الزمني بين الواجهة الأمامية (Front-end)، الخادم الخلفي (Next.js Actions)، وقاعدة البيانات (PostgreSQL/SQLite) أثناء تنفيذ عملية حجز موعد جديد ثم استرجاع قائمة المواعيد في حساب المريض:
+            </p>
+
+            <div class="diagram-wrapper">
+                <svg viewBox="0 0 720 480" width="100%" height="450">
+                    <rect width="720" height="480" fill="#0A0F1D" />
+
+                    <!-- Lifelines -->
+                    <!-- Actor -->
+                    <text x="70" y="30" fill="#38BDF8" font-size="11" font-weight="bold" text-anchor="middle">المريض (User)</text>
+                    <line x1="70" y1="45" x2="70" y2="450" stroke="#334155" stroke-dasharray="3,3" />
+
+                    <!-- Front-end -->
+                    <rect x="180" y="18" width="100" height="26" rx="4" fill="#1E293B" stroke="#475569" />
+                    <text x="230" y="35" fill="#E2E8F0" font-size="10" text-anchor="middle">Client (UI)</text>
+                    <line x1="230" y1="45" x2="230" y2="450" stroke="#334155" stroke-dasharray="3,3" />
+
+                    <!-- Server -->
+                    <rect x="360" y="18" width="120" height="26" rx="4" fill="#0F766E" stroke="#2DD4BF" />
+                    <text x="420" y="35" fill="#FFFFFF" font-size="10" font-weight="bold" text-anchor="middle">Next.js Server</text>
+                    <line x1="420" y1="45" x2="420" y2="450" stroke="#334155" stroke-dasharray="3,3" />
+
+                    <!-- Database -->
+                    <rect x="560" y="18" width="120" height="26" rx="4" fill="#1E293B" stroke="#F59E0B" />
+                    <text x="620" y="35" fill="#FDE68A" font-size="10" font-weight="bold" text-anchor="middle">Database (SQL)</text>
+                    <line x1="620" y1="45" x2="620" y2="450" stroke="#334155" stroke-dasharray="3,3" />
+
+                    <!-- Messages -->
+                    <!-- 1 -->
+                    <line x1="70" y1="75" x2="230" y2="75" stroke="#38BDF8" stroke-width="1.2" />
+                    <polygon points="225,71 230,75 225,79" fill="#38BDF8" />
+                    <text x="150" y="69" fill="#94A3B8" font-size="9" text-anchor="middle">اختيار الطبيب والفترة والضغط على تأكيد</text>
+
+                    <!-- 2 -->
+                    <line x1="230" y1="110" x2="420" y2="110" stroke="#2DD4BF" stroke-width="1.2" />
+                    <polygon points="415,106 420,110 415,114" fill="#2DD4BF" />
+                    <text x="325" y="104" fill="#2DD4BF" font-size="9" text-anchor="middle">bookAppointment(doctorId, slotId, token)</text>
+
+                    <!-- 3 Internal Server Verify -->
+                    <path d="M 420 125 L 450 125 L 450 145 L 420 145" fill="none" stroke="#2DD4BF" stroke-width="1" />
+                    <text x="460" y="138" fill="#94A3B8" font-size="8.5">التحقق من صحة الجلسة والمريض</text>
+
+                    <!-- 4 Server to DB -->
+                    <line x1="420" y1="175" x2="620" y2="175" stroke="#F59E0B" stroke-width="1.2" />
+                    <polygon points="615,171 620,175 615,179" fill="#F59E0B" />
+                    <text x="520" y="169" fill="#FDE68A" font-size="9" text-anchor="middle">INSERT INTO appointments (قيد استبعاد ذري)</text>
+
+                    <!-- DB response -->
+                    <line x1="620" y1="215" x2="420" y2="215" stroke="#10B981" stroke-width="1.2" stroke-dasharray="3,3" />
+                    <polygon points="425,211 420,215 425,219" fill="#10B981" />
+                    <text x="520" y="209" fill="#34D399" font-size="9" text-anchor="middle">201 Created (Appointment ID #1042)</text>
+
+                    <!-- Server to UI -->
+                    <line x1="420" y1="250" x2="230" y2="250" stroke="#10B981" stroke-width="1.2" stroke-dasharray="3,3" />
+                    <polygon points="235,246 230,250 235,254" fill="#10B981" />
+                    <text x="325" y="244" fill="#34D399" font-size="9" text-anchor="middle">{ success: true, appointment: data }</text>
+
+                    <!-- UI to User -->
+                    <line x1="230" y1="280" x2="70" y2="280" stroke="#38BDF8" stroke-width="1.2" />
+                    <polygon points="75,276 70,280 75,284" fill="#38BDF8" />
+                    <text x="150" y="274" fill="#38BDF8" font-size="9" text-anchor="middle">إظهار رسالة النجاح وبطاقة الموعد</text>
+
+                    <!-- Step 2: Query Appointments -->
+                    <line x1="70" y1="330" x2="230" y2="330" stroke="#38BDF8" stroke-width="1.2" />
+                    <polygon points="225,326 230,330 225,334" fill="#38BDF8" />
+                    <text x="150" y="324" fill="#94A3B8" font-size="9" text-anchor="middle">فتح صفحة "مواعيدي"</text>
+
+                    <line x1="230" y1="365" x2="420" y2="365" stroke="#2DD4BF" stroke-width="1.2" />
+                    <polygon points="415,361 420,365 415,369" fill="#2DD4BF" />
+                    <text x="325" y="359" fill="#2DD4BF" font-size="9" text-anchor="middle">getPatientAppointments(patientId)</text>
+
+                    <line x1="420" y1="395" x2="620" y2="395" stroke="#F59E0B" stroke-width="1.2" />
+                    <polygon points="615,391 620,395 615,399" fill="#F59E0B" />
+                    <text x="520" y="389" fill="#FDE68A" font-size="8.5" text-anchor="middle">SELECT * FROM appointments JOIN doctors WHERE patient_id = ?</text>
+
+                    <line x1="620" y1="425" x2="230" y2="425" stroke="#10B981" stroke-width="1.2" stroke-dasharray="3,3" />
+                    <polygon points="235,421 230,425 235,429" fill="#10B981" />
+                    <text x="420" y="419" fill="#34D399" font-size="9" text-anchor="middle">قائمة المواعيد مع تفاصيل العيادة والطبيب وحالة الموعد</text>
+                </svg>
+            </div>
+            <div class="diagram-caption">الشكل 5: مخطط التسلسل (Sequence Diagram) لعملية حجز موعد واسترجاعه</div>
+
+            <div class="page-footer">صفحة 15 من 35</div>
+        </div>
+
+        <!-- ==================== PAGE 16: DESIGN ARCHITECTURE ==================== -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>التصميم والبنية المعمارية</span>
+            </div>
+
+            <h1 class="section-title">8. التصميم</h1>
+            <h2 class="subsection-title">8.1 البنية المعمارية العامة (3-Tier Architecture)</h2>
+            <p>
+                اعتُمدت في تصميم نظام ClinicBook بنية معمارية ثلاثية الطبقات (3-Tier Architecture) تفصل بوضوح تام بين طبقة العرض (Presentation Layer)، طبقة منطق الأعمال والخدمات (Application Layer)، وطبقة تخزين البيانات والأمان (Data & Security Layer). يضمن هذا الفصل سهولة الصيانة وقابلية التوسع المستقبلي دون تأثر طبقة بأخرى:
+            </p>
+
+            <div class="diagram-wrapper">
+                <svg viewBox="0 0 650 360" width="100%" height="320">
+                    <rect width="650" height="360" fill="#0A0F1D" />
+
+                    <!-- Layer 1 -->
+                    <rect x="75" y="20" width="500" height="70" rx="8" fill="#1E293B" stroke="#38BDF8" stroke-width="1.5" />
+                    <text x="325" y="45" fill="#38BDF8" font-size="13" font-weight="bold" text-anchor="middle">Presentation Layer (واجهة المستخدم)</text>
+                    <text x="325" y="68" fill="#94A3B8" font-size="11" text-anchor="middle">Next.js 15 App Router + React 19 + Tailwind CSS + shadcn/ui (RTL)</text>
+
+                    <!-- Connector 1 -->
+                    <line x1="325" y1="90" x2="325" y2="130" stroke="#64748B" stroke-width="2" />
+                    <polygon points="320,125 325,130 330,125" fill="#64748B" />
+                    <text x="335" y="115" fill="#2DD4BF" font-size="10" font-family="'JetBrains Mono'">HTTPS / Server Actions</text>
+
+                    <!-- Layer 2 -->
+                    <rect x="75" y="130" width="500" height="90" rx="8" fill="#0F766E" stroke="#2DD4BF" stroke-width="1.5" />
+                    <text x="325" y="155" fill="#FFFFFF" font-size="13" font-weight="bold" text-anchor="middle">Application & Business Logic Layer (الخادم والخدمات)</text>
+                    <text x="325" y="178" fill="#CCFBF1" font-size="11" text-anchor="middle">Auth Controller + Booking Engine + Conflict Resolver + Zod Validation</text>
+                    <text x="325" y="198" fill="#E2E8F0" font-size="10">Session Cookies (HttpOnly) & RBAC Security Filters</text>
+
+                    <!-- Connector 2 -->
+                    <line x1="325" y1="220" x2="325" y2="260" stroke="#64748B" stroke-width="2" />
+                    <polygon points="320,255 325,260 330,255" fill="#64748B" />
+                    <text x="335" y="245" fill="#F59E0B" font-size="10" font-family="'JetBrains Mono'">SQL / Exclusion Queries</text>
+
+                    <!-- Layer 3 -->
+                    <rect x="75" y="260" width="500" height="75" rx="8" fill="#1E293B" stroke="#F59E0B" stroke-width="1.5" />
+                    <text x="325" y="285" fill="#F59E0B" font-size="13" font-weight="bold" text-anchor="middle">Data & Persistence Layer (طبقة البيانات والأمان)</text>
+                    <text x="325" y="308" fill="#CBD5E1" font-size="11" text-anchor="middle">PostgreSQL / SQLite + btree_gist Exclusion Constraint + Multi-Tenancy RLS</text>
+                </svg>
+            </div>
+            <div class="diagram-caption">الشكل 6: مخطط البنية المعمارية ثلاثية الطبقات لنظام ClinicBook</div>
+
+            <div class="page-footer">صفحة 16 من 35</div>
+        </div>
+
+        <!-- ==================== PAGE 17: UI/UX DESIGN ==================== -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>تصميم واجهة المستخدم وتجربة الحجز</span>
+            </div>
+
+            <h1 class="section-title">8.2 تصميم واجهة المستخدم (UI/UX)</h1>
+            <p>
+                رُوعي في تصميم الواجهة اتجاه الكتابة العربي من اليمين إلى اليسار (RTL) في كافة الشاشات والقوائم، مع اعتماد هوية بصرية سريرية موحدة تقوم على تدريج اللون الأخضر المزرق الطبي (Deep Medical Teal - <code>#0F766E</code>) كلون رئيسي يعبر عن الأمان والثقة الطبية، مع لون كحلي هادئ للخلفيات والأطر، وألوان وظيفية صارمة للحالات (الأخضر للمؤكد، والعنبري للمعلق، والأحمر للإلغاء والتضارب).
+            </p>
+            <p>
+                تتوزع الواجهة التفاعلية للمنصة على الصفحات والأقسام الحيوية التالية:
+            </p>
+            <ul>
+                <li><strong>الصفحة الرئيسية والدليل الطبي:</strong> تحتوي على شريط بحث ذكي، تصفح التخصصات السريرية، وأبرز الأطباء المعتمدين والموثقين.</li>
+                <li><strong>صفحة دليل الأطباء والفلترة:</strong> تعرض كامل قائمة الأطباء مع أدوات تصفية متعددة حسب المدينة والتخصص والحي ونطاق رسوم الكشفية.</li>
+                <li><strong>صفحة الملف الشخصي للطبيب:</strong> تعرض المؤهلات العلمية، العيادة، سنوات الخبرة، معرض صور العيادة، وصندوق حجز جانبي تفاعلي لحساب التكلفة واختيار الموعد فورياً.</li>
+                <li><strong>صفحة مواعيدي والملف الصحي للمريض:</strong> تعرض مواعيد المريض المؤكدة والسابقة، مع إمكانية إلغاء الموعد أو تنزيل الوصفة الطبية الرسمية بصيغة رقمية مجهزة للطباعة.</li>
+                <li><strong>لوحة تحكم موظف الاستقبال:</strong> إدارة طابور قاعة الانتظار اللحظي، تأكيد الحضور (Check-in)، وإضافة الحجوزات السريعة.</li>
+                <li><strong>لوحة الطبيب السريرية:</strong> استعراض مرضى اليوم، وتدوين التشخيص والروشتة والأدوية وتحديث حالة الزيارة إلى (Completed).</li>
+            </ul>
+
+            <h2 class="subsection-title">8.3 تصميم نموذج الحجز متعدد الخطوات</h2>
+            <p>
+                صُممت نافذة الحجز (Booking Modal) على شكل معالج من ثلاث خطوات متتالية وموجهة تضمن إتمام الموعد في أقل من 6 نقرات دون إرباك للمريض:
+            </p>
+            <ol style="line-height: 2;">
+                <li><strong>الخطوة الأولى (اختيار التاريخ والفترة):</strong> يحدد المريض اليوم من التقويم، فتظهر الفترات الزمنية المتاحة كأزرار خضراء واضحة، مع حجب الفترات المحجوزة بالأحمر.</li>
+                <li><strong>الخطوة الثانية (بيانات المريض والشكوى):</strong> اختيار نوع الزيارة (كشف أول مرة أو مراجعة)، وإدخال سبب الزيارة المبدئي مع استرجاع بيانات المريض تلقائياً من حسابه المسجل.</li>
+                <li><strong>الخطوة الثالثة (التأكيد والتحصيل):</strong> عرض التكلفة الإجمالية بوضوح، واختيار الدفع في الاستقبال أو المحاكاة الإلكترونية، ثم الضغط على "تأكيد الحجز النهائي" الذي يستدعي محرك الفحص الذري ويصدر رقم الحجز فوراً.</li>
+            </ol>
+
+            <div class="page-footer">صفحة 17 من 35</div>
+        </div>
+
+        <!-- ==================== PAGE 18: TECH STACK JUSTIFICATION ==================== -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>التقانات المستخدمة وتبرير استخدامها</span>
+            </div>
+
+            <h1 class="section-title">9. التقانات المستخدمة للتنفيذ مع تبرير استخدامها</h1>
+            <p>
+                جرى اختيار التقانات المستخدمة في مشروع ClinicBook بناءً على معايير الموثوقية العالية في التطبيقات الطبية، سرعة التطوير، الدعم المتفوق للغة العربية (RTL)، والانسجام مع المعايير الصناعية المعاصرة:
+            </p>
+
+            <table class="academic-table">
+                <thead>
+                    <tr>
+                        <th style="width: 22%;">التقانة</th>
+                        <th style="width: 38%;">الاستخدام في المشروع</th>
+                        <th>مبرر الاختيار</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Next.js 15 (App Router)</strong></td>
+                        <td>إطار العمل الشامل للواجهات الأمامية والخادم الخلفي (Full-Stack).</td>
+                        <td>يوفر دعماً أصلياً لـ Server Components وServer Actions، مما ينقل منطق الأعمال الحساس إلى الخادم ويحمي مفاتيح الأمان مع تحقيق تصيير سريع (SSR).</td>
+                    </tr>
+                    <tr>
+                        <td><strong>React 19 & TypeScript</strong></td>
+                        <td>بناء واجهات المستخدم التفاعلية وضبط الأنواع الصارم (Strict Typing).</td>
+                        <td>كتابة كود خالٍ من أخطاء الأنواع غير المعرفة (Zero Any)، مع اكتمال تلقائي وتوثيق ذاتي لكافة الكائنات الطبية (Doctor, Patient, Appointment).</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Tailwind CSS & shadcn/ui</strong></td>
+                        <td>تنسيق الواجهات وبناء نظام التصميم والوصولية.</td>
+                        <td>توفير تحكم دقيق في الألوان المخصصة ودعم كامل لاتجاه الكتابة العربي (RTL)، مع التزام تام بمعايير الوصولية العالمية لذوي الاحتياجات الخاصة (WCAG AA).</td>
+                    </tr>
+                    <tr>
+                        <td><strong>PostgreSQL / SQLite</strong></td>
+                        <td>قاعدة البيانات العلائقية لحفظ المنشآت والكوادر والمواعيد.</td>
+                        <td>أداء فائق في العلاقات المترابطة، مع دعم إضافة <code>btree_gist</code> لتطبيق قيد الاستبعاد الزمني الذري على مستوى النواة.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>btree_gist Exclusion</strong></td>
+                        <td>القيد الرياضي لمنع تقاطع الفترات الزمنية لنفس الطبيب.</td>
+                        <td>يمنع الحجز المزدوج قطعياً على مستوى محرك قاعدة البيانات حتى في أجزاء الألف من الثانية، متفوقاً على مجرد التعطيل في الواجهات.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Zod Validation</strong></td>
+                        <td>التحقق الصارم من صحة البيانات والمدخلات في الخادم.</td>
+                        <td>فحص وتدقيق كل طلب قبل تمريره لقاعدة البيانات، لمنع هجمات حقن البيانات أو تمرير تواريخ غير صالحة.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>bcrypt & HttpOnly Cookies</strong></td>
+                        <td>تشفير كلمات مرور المستخدمين وإدارة الجلسات الآمنة.</td>
+                        <td>خوارزمية معيارية مقاومة لهجمات القوة الغاشمة، مع تخزين معرفات الجلسة في ملفات تعريف ارتباط مشفرة يستحيل اختراقها عبر XSS.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="page-footer">صفحة 18 من 35</div>
+        </div>
+
+        <!-- ==================== PAGE 19: IMPLEMENTATION & API ==================== -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>التنفيذ البرمجي وقاعدة البيانات</span>
+            </div>
+
+            <h1 class="section-title">10. التنفيذ</h1>
+            <h2 class="subsection-title">10.1 هيكلية قاعدة البيانات وقيد الاستبعاد الذري</h2>
+            <p>
+                نُفذت قاعدة البيانات بجداول رئيسية تعكس الكيانات المحللة، مع قيد فريد يمنع الحجز المزدوج في جدول <code>appointments</code>:
+            </p>
+
+            <pre class="code-block">
+CREATE TABLE appointments (
+    id SERIAL PRIMARY KEY,
+    doctor_id INT REFERENCES doctors(id) ON DELETE CASCADE,
+    patient_id INT REFERENCES patients(id) ON DELETE CASCADE,
+    start_at TIMESTAMPTZ NOT NULL,
+    end_at TIMESTAMPTZ NOT NULL,
+    status VARCHAR(50) DEFAULT 'confirmed', -- confirmed, checked_in, completed, cancelled
+    total_fee DECIMAL(10,2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT appointment_no_overlap EXCLUDE USING gist (
+        doctor_id WITH =,
+        tstzrange(start_at, end_at, '[)') WITH &&
+    ) WHERE (status IN ('confirmed', 'checked_in'))
+);
+            </pre>
+
+            <h2 class="subsection-title">10.2 واجهات برمجة التطبيقات والمسارات (REST API & Server Actions)</h2>
+            <table class="academic-table">
+                <thead>
+                    <tr>
+                        <th style="width: 15%;">الطريقة</th>
+                        <th style="width: 35%;">المسار / الإجراء</th>
+                        <th>الوظيفة والبيانات المعالجة</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="font-weight: 700; color: #10B981;">POST</td>
+                        <td><code>/api/auth/register</code></td>
+                        <td>تسجيل حساب مريض جديد وتشفير كلمة المرور عبر bcrypt.</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 700; color: #10B981;">POST</td>
+                        <td><code>/api/auth/login</code></td>
+                        <td>التحقق من بيانات الدخول وإصدار جلسة مصادقة مشفرة.</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 700; color: #0284C7;">GET</td>
+                        <td><code>/api/doctors</code></td>
+                        <td>جلب قائمة الأطباء المعتمدين مع الفلترة حسب المدينة والتخصص.</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 700; color: #0284C7;">GET</td>
+                        <td><code>/api/doctors/:id/slots</code></td>
+                        <td>حساب الفترات المتاحة للطبيب لتاريخ محدد مع حجب المحجوز.</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 700; color: #10B981;">POST</td>
+                        <td><code>/api/appointments/book</code></td>
+                        <td>إنشاء حجز جديد مع الفحص الذري لمنع التضارب الزمني.</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 700; color: #EAB308;">PUT</td>
+                        <td><code>/api/appointments/:id/cancel</code></td>
+                        <td>إلغاء الموعد وتحديث حالته إلى Cancelled وتحرير الفترة.</td>
+                    </tr>
+                    <tr>
+                        <td style="font-weight: 700; color: #EAB308;">PUT</td>
+                        <td><code>/api/reception/check-in/:id</code></td>
+                        <td>تسجيل وصول المريض وتحديث حالته إلى Checked-in في الطابور.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2 class="subsection-title">10.3 آلية المصادقة والتفويض</h2>
+            <p>
+                عند تسجيل الدخول، يُشفر الخادم الجلسة ويعين ملف تعريف ارتباط آمن <code>HttpOnly</code> يحمل صلاحيات المستخدم (مريض، طبيب، موظف استقبال). وفي كل عملية حجز أو تعديل، يفحص الخادم الجلسة ويستخرج معرف المريض من الجلسة الموثقة حصراً، مانعاً أي تلاعب بالمعرفات عبر المتصفح.
+            </p>
+
+            <div class="page-footer">صفحة 19 من 35</div>
+        </div>
+
+        <!-- ==================== PAGE 20: FEATURES, PAYMENTS & AI ==================== -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>الميزات، نظام الدفع، ووحدة الذكاء الاصطناعي</span>
+            </div>
+
+            <h1 class="section-title">10.4 حساب تكلفة الكشفية وآلة حالات الموعد</h1>
+            <p>
+                تُحسب التكلفة تلقائياً وفق نوع الزيارة: إذا كانت كشفاً أولياً تُعتمد رسوم الكشفية الكاملة للطبيب، وإذا كانت مراجعة يُطبق الخصم النظامي (عادة مجاناً أو 50%). وتتحرك حالة الموعد عبر مسار آمن وصارم:
+            </p>
+            <div style="text-align: center; margin: 15px 0; font-family: var(--font-mono); font-weight: bold; color: var(--primary);">
+                Confirmed ➔ Checked-in (الوصول للاستقبال) ➔ Completed (الكشف وإصدار الوصفة)
+            </div>
+
+            <h2 class="subsection-title">10.5 الميزات المنجزة فعلياً</h2>
+            <ul>
+                <li>واجهة ويب متكاملة متعددة الشاشات بكامل التصميم والتفاعلية ودعم RTL والوضع الداكن/الفاتح.</li>
+                <li>قاعدة بيانات حقيقية بجداول مترابطة وقيد استبعاد ذري يمنع الحجز المزدوج بنسبة 100%.</li>
+                <li>تسجيل حسابات المرضى وتسجيل الدخول المحمي بجلسات مشفرة.</li>
+                <li>حجز مواعيد حقيقي يُحفظ مباشرة في قاعدة البيانات مع إصدار رقم موعد فريد.</li>
+                <li>طابور لحظي لموظف الاستقبال لتسجيل وصول المرضى في العيادة.</li>
+                <li>لوحة سريرية للطبيب لتدوين التشخيص والأدوية وطباعة الوصفة الطبية الرسمية.</li>
+            </ul>
+
+            <h2 class="subsection-title">10.6 نظام الدفع والتحصيل (Payment Module)</h2>
+            <p>
+                نظراً للطبيعة التعليمية والظروف المحلية، صُمم نظام الدفع ليدعم مسارين:
+            </p>
+            <ol>
+                <li><strong>الدفع عند الاستقبال (Cash at Clinic):</strong> المسار الأساسي المعتمد في سوريا، حيث يُثبت الموعد ويُسدد المريض في العيادة عند موظف الاستقبال مع إصدار إيصال فوري.</li>
+                <li><strong>واجهة الدفع الإلكتروني الشكلية (Mock Interface):</strong> نموذج إدخال بطاقة مصرفية (اسم حامل البطاقة، الرقم، تاريخ الانتهاء، وCVV) لمحاكاة الدفع عبر الإنترنت، مما يسهل استبداله مستقبلاً ببوابات حقيقية (مثل Stripe أو بوابات الدفع السورية كـ إي-كاش وشام كاش) دون المساس بالبنية الأساسية.</li>
+            </ol>
+
+            <h2 class="subsection-title">10.7 وحدة المساعد الطبي الذكي وفرز الأعراض (AI Clinical Assistant)</h2>
+            <p>
+                تم تضمين تصميم معماري متقدم لوحدة الذكاء الاصطناعي لتقديم دعم تشخيصي استرشادي:
+            </p>
+            <ul>
+                <li><strong>محرك فرز الأعراض الذكي (AI Symptom Triage):</strong> يقوم المريض بإدخال شكواه بلغة طبيعية، فيقوم النموذج بتحليل الأعراض وتوجيهه نحو التخصص الأنسب وترتيب أطباء التخصص تلقائياً.</li>
+                <li><strong>المساعد السريري للوصفات (Clinical CDS):</strong> يفحص الأدوية التي يصفها الطبيب للمريض للتنبيه الفوري بأي تداخل دوائي خطير أو تعارض مع حساسية المريض المسجلة.</li>
+            </ul>
+
+            <div class="page-footer">صفحة 20 من 35</div>
+        </div>
+
+        <!-- ==================== PAGE 21: FUNCTIONAL TESTING TABLE ==================== -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>الاختبارات والتقييم (Testing & Evaluation)</span>
+            </div>
+
+            <h1 class="section-title">11. الاختبارات والتقييم</h1>
+            <p>
+                خضع نظام ClinicBook لسلسلة من الاختبارات الوظيفية اليدوية (Manual Functional Testing) غطت السيناريوهات الأساسية والحالات الحدية (Edge Cases) للتأكد من سلامة تدفق العمليات الحرجة كالتسجيل، الدخول، حجز الفترات، منع الحجز المزدوج، وإلغاء المواعيد، وتوثيق السجل الطبي. ويلخص الجدول التالي أبرز حالات الاختبار المنفذة ونتائجها:
+            </p>
+
+            <table class="academic-table">
+                <thead>
+                    <tr>
+                        <th style="width: 10%; text-align: center;">الرمز</th>
+                        <th style="width: 22%;">حالة الاختبار</th>
+                        <th style="width: 33%;">خطوات التنفيذ</th>
+                        <th style="width: 25%;">النتيجة المتوقعة</th>
+                        <th style="width: 10%; text-align: center;">الحالة</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">TC-01</td>
+                        <td>إنشاء حساب مريض ببيانات صحيحة</td>
+                        <td>ملء نموذج التسجيل (الاسم، البريد، الهاتف، كلمة المرور) وإرسال الطلب</td>
+                        <td>إنشاء الحساب في جدول patients وتفعيل الجلسة وعرض رسالة نجاح</td>
+                        <td style="text-align: center;"><span class="badge-pass">ناجح ✅</span></td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">TC-02</td>
+                        <td>إنشاء حساب ببريد مستخدم مسبقاً</td>
+                        <td>التسجيل بنفس البريد الإلكتروني المحفوظ مرتين</td>
+                        <td>رفض الطلب وعرض رسالة خطأ (UNIQUE constraint)</td>
+                        <td style="text-align: center;"><span class="badge-pass">ناجح ✅</span></td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">TC-03</td>
+                        <td>تسجيل الدخول ببيانات صحيحة</td>
+                        <td>إدخال البريد وكلمة المرور الصحيحين والضغط على دخول</td>
+                        <td>إصدار الجلسة وتفعيل حساب المريض وظهور اسمه في الشريط</td>
+                        <td style="text-align: center;"><span class="badge-pass">ناجح ✅</span></td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">TC-04</td>
+                        <td>تسجيل الدخول ببيانات خاطئة</td>
+                        <td>إدخال كلمة مرور غير صحيحة وإرسال الطلب</td>
+                        <td>رفض الدخول وعرض رسالة خطأ واضحة تمنع الولوج</td>
+                        <td style="text-align: center;"><span class="badge-pass">ناجح ✅</span></td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">TC-05</td>
+                        <td>حجز موعد كزائر دون تسجيل دخول</td>
+                        <td>الضغط على زر (احجز الآن) عند الطبيب كزائر غير مسجل</td>
+                        <td>توجيه المستخدم لنافذة تسجيل الدخول/الحساب قبل المتابعة</td>
+                        <td style="text-align: center;"><span class="badge-pass">ناجح ✅</span></td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">TC-06</td>
+                        <td>إنشاء حجز موعد كامل وصحيح</td>
+                        <td>اختيار اليوم والفترة وإدخال الشكوى وتأكيد الحجز</td>
+                        <td>تخزين الحجز في appointments وعرض رقم الموعد المرجعي</td>
+                        <td style="text-align: center;"><span class="badge-pass">ناجح ✅</span></td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">TC-07</td>
+                        <td>منع الحجز المزدوج في نفس الفترة</td>
+                        <td>محاولة حجز نفس الفترة الزمنية المأخوذة لنفس الطبيب</td>
+                        <td>رفض الطلب فوراً (409 Conflict) وإظهار تنبيه بأن الفترة مشغولة</td>
+                        <td style="text-align: center;"><span class="badge-pass">ناجح ✅</span></td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">TC-08</td>
+                        <td>إلغاء حجز قائم من صفحة المريض</td>
+                        <td>الضغط على زر (إلغاء الموعد) في صفحة مواعيدي وتأكيد الإلغاء</td>
+                        <td>تحديث status إلى cancelled وتحرير الفترة فوراً في جدول الطبيب</td>
+                        <td style="text-align: center;"><span class="badge-pass">ناجح ✅</span></td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">TC-09</td>
+                        <td>البحث والفلترة حسب التخصص</td>
+                        <td>اختيار تخصص معين (مثلاً: جراحة عظام) وتحديد المدينة</td>
+                        <td>تحديث فوري لقائمة الأطباء وعرض المطابقين فقط</td>
+                        <td style="text-align: center;"><span class="badge-pass">ناجح ✅</span></td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">TC-10</td>
+                        <td>تسجيل حضور المريض بالاستقبال</td>
+                        <td>دخول موظف الاستقبال والضغط على (تسجيل الحضور) للمراجع</td>
+                        <td>تحويل حالة الموعد إلى Checked-in وتحديث لون مؤشر الطابور</td>
+                        <td style="text-align: center;"><span class="badge-pass">ناجح ✅</span></td>
+                    </tr>
+                    <tr>
+                        <td style="text-align: center; font-weight: 700;">TC-11</td>
+                        <td>تدوين الكشف وإصدار الوصفة</td>
+                        <td>دخول الطبيب وتدوين التشخيص والأدوية وحفظ السجل الطبي</td>
+                        <td>تحديث الموعد إلى Completed وتوليد وصفة طبية قابلة للطباعة</td>
+                        <td style="text-align: center;"><span class="badge-pass">ناجح ✅</span></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="page-footer">صفحة 21 من 35</div>
+        </div>
+
+        <!-- ==================== PAGES 22 TO 33: VISUAL TEST SCREEN DEMOS ==================== -->
+        <!-- TC-01 Page -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>توثيق الاختبارات: TC-01 (إنشاء حساب جديد)</span>
+            </div>
+            <h1 class="section-title">TC – 01: إنشاء حساب مريض جديد بنجاح</h1>
+            <p><strong>الهدف:</strong> التحقق من سلامة تسجيل مريض جديد في النظام وتشفير كلمة المرور عبر bcrypt وحفظ السجل في قاعدة البيانات.</p>
+            
+            <div class="ui-mockup-frame">
+                <div class="mockup-header-bar">
+                    <div class="mockup-dots"><span class="mockup-dot dot-red"></span><span class="mockup-dot dot-yellow"></span><span class="mockup-dot dot-green"></span></div>
+                    <span style="font-family: var(--font-mono); color: #38BDF8;">https://clinicbook.local/auth/register</span>
+                    <span>واجهة تسجيل مريض جديد</span>
+                </div>
+                <div style="background: #1E293B; border-radius: 6px; padding: 25px; max-width: 450px; margin: 15px auto; border: 1px solid #334155;">
+                    <div style="text-align: center; margin-bottom: 18px;">
+                        <div style="font-size: 16px; font-weight: bold; color: #FFFFFF;">🩺 إنشاء حساب مريض في ClinicBook</div>
+                        <div style="font-size: 11px; color: #94A3B8;">أدخل بياناتك لحجز مواعيدك الطبية ومتابعة سجلاتك</div>
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <label style="font-size: 11px; color: #94A3B8; display: block; margin-bottom: 4px;">الاسم الكامل:</label>
+                        <input type="text" value="مصعب أميري" readonly style="width: 100%; background: #0F172A; border: 1px solid #334155; padding: 8px 12px; color: #FFF; border-radius: 4px; font-family: inherit;">
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <label style="font-size: 11px; color: #94A3B8; display: block; margin-bottom: 4px;">البريد الإلكتروني:</label>
+                        <input type="email" value="mossab.amiri@gmail.com" readonly style="width: 100%; background: #0F172A; border: 1px solid #334155; padding: 8px 12px; color: #FFF; border-radius: 4px; font-family: inherit;">
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <label style="font-size: 11px; color: #94A3B8; display: block; margin-bottom: 4px;">رقم الهاتف:</label>
+                        <input type="text" value="0987281019" readonly style="width: 100%; background: #0F172A; border: 1px solid #334155; padding: 8px 12px; color: #FFF; border-radius: 4px; font-family: inherit;">
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label style="font-size: 11px; color: #94A3B8; display: block; margin-bottom: 4px;">كلمة المرور:</label>
+                        <input type="password" value="••••••••••••" readonly style="width: 100%; background: #0F172A; border: 1px solid #334155; padding: 8px 12px; color: #FFF; border-radius: 4px; font-family: inherit;">
+                    </div>
+                    <div style="background: #0F766E; color: #FFF; text-align: center; padding: 10px; border-radius: 4px; font-weight: bold; font-size: 13px;">
+                        إنشاء الحساب وتفعيل الجلسة
+                    </div>
+                    <div style="margin-top: 15px; background: rgba(16, 185, 129, 0.15); border: 1px solid #10B981; padding: 8px 12px; border-radius: 4px; font-size: 11px; color: #34D399; text-align: center;">
+                        ✓ تم إنشاء الحساب بنجاح وتم تسجيل الدخول تلقائياً
+                    </div>
+                </div>
+            </div>
+
+            <div class="page-footer">صفحة 22 من 35</div>
+        </div>
+
+        <!-- TC-02 & TC-03 Page -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>توثيق الاختبارات: TC-02 & TC-03</span>
+            </div>
+            
+            <h1 class="section-title">TC-02: محاولة التسجيل ببريد مستخدم مسبقاً</h1>
+            <p><strong>الهدف:</strong> اختبار قيد البريد الإلكتروني الفريد (UNIQUE constraint) لمنع تكرار الحسابات وإظهار رسالة خطأ واضحة للمستخدم.</p>
+            <div class="ui-mockup-frame" style="margin-bottom: 25px;">
+                <div style="background: #1E293B; border-radius: 6px; padding: 15px; max-width: 420px; margin: 0 auto; border: 1px solid #EF4444;">
+                    <div style="font-size: 12px; color: #94A3B8; margin-bottom: 6px;">البريد الإلكتروني:</div>
+                    <input type="text" value="mossab.amiri@gmail.com" readonly style="width: 100%; background: #0F172A; border: 1px solid #EF4444; padding: 7px; color: #FFF; border-radius: 4px;">
+                    <div style="margin-top: 10px; background: rgba(239, 68, 68, 0.2); border: 1px solid #EF4444; padding: 8px; border-radius: 4px; font-size: 11px; color: #FCA5A5; text-align: center;">
+                        ⚠️ تنبيه: هذا البريد الإلكتروني مسجل مسبقاً في النظام!
+                    </div>
+                </div>
+            </div>
+
+            <h1 class="section-title">TC-03: تسجيل الدخول ببيانات صحيحة</h1>
+            <p><strong>الهدف:</strong> التحقق من مطابقة كلمة المرور المشفرة وإصدار جلسة المصادقة بنجاح وعرض اسم المريض في شريط النظام.</p>
+            <div class="ui-mockup-frame">
+                <div style="background: #1E293B; border-radius: 6px; padding: 15px; max-width: 550px; margin: 0 auto; border: 1px solid #334155;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; padding-bottom: 8px; margin-bottom: 12px;">
+                        <span style="font-weight: bold; color: #2DD4BF;">🩺 ClinicBook منصة العيادات</span>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 11px; color: #E2E8F0;">مرحباً، مصعب أميري</span>
+                            <span style="background: #0F766E; color: #FFF; font-size: 10px; padding: 2px 8px; border-radius: 12px;">مريض موثق</span>
+                        </div>
+                    </div>
+                    <div style="font-size: 12px; color: #94A3B8; text-align: center;">
+                        ✓ تم تفعيل الجلسة الآمنة عبر HttpOnly Cookie بنجاح
+                    </div>
+                </div>
+            </div>
+
+            <div class="page-footer">صفحة 23 من 35</div>
+        </div>
+
+        <!-- TC-04 & TC-05 Page -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>توثيق الاختبارات: TC-04 & TC-05</span>
+            </div>
+
+            <h1 class="section-title">TC-04: تسجيل الدخول ببيانات خاطئة</h1>
+            <p><strong>الهدف:</strong> التأكد من رفض الدخول في حال إدخال كلمة مرور خاطئة مع إظهار تنبيه يمنع اختراق الحساب.</p>
+            <div class="ui-mockup-frame" style="margin-bottom: 25px;">
+                <div style="background: #1E293B; border-radius: 6px; padding: 15px; max-width: 420px; margin: 0 auto; border: 1px solid #EF4444;">
+                    <div style="margin-bottom: 8px;">
+                        <div style="font-size: 11px; color: #94A3B8;">كلمة المرور المدخلة:</div>
+                        <input type="password" value="wrongpassword" readonly style="width: 100%; background: #0F172A; border: 1px solid #EF4444; padding: 6px; color: #FFF; border-radius: 4px;">
+                    </div>
+                    <div style="background: rgba(239, 68, 68, 0.2); border: 1px solid #EF4444; padding: 8px; border-radius: 4px; font-size: 11px; color: #FCA5A5; text-align: center;">
+                        ⚠️ كلمة المرور غير صحيحة، يرجى المحاولة مرة أخرى.
+                    </div>
+                </div>
+            </div>
+
+            <h1 class="section-title">TC-05: محاولة حجز موعد كزائر دون تسجيل دخول</h1>
+            <p><strong>الهدف:</strong> التأكد من توجيه الزائر غير المسجل لنافذة تسجيل الدخول فوراً عند النقر على "حجز موعد" لحماية النظام من الحجوزات الوهمية.</p>
+            <div class="ui-mockup-frame">
+                <div style="background: #1E293B; border-radius: 6px; padding: 20px; max-width: 450px; margin: 0 auto; border: 1px solid #F59E0B; text-align: center;">
+                    <div style="font-size: 24px; margin-bottom: 8px;">🔒</div>
+                    <div style="font-size: 14px; font-weight: bold; color: #FDE68A; margin-bottom: 6px;">يلزم تسجيل الدخول لإتمام الحجز</div>
+                    <div style="font-size: 11px; color: #94A3B8; margin-bottom: 15px;">لضمان تثبيت موعدك الطبي وحفظ سجلاتك ووصفاتك، يرجى الدخول لحسابك أو إنشاء حساب خلال دقيقة واحدة.</div>
+                    <div style="background: #D97706; color: #FFF; padding: 8px; border-radius: 4px; font-weight: bold; font-size: 12px; cursor: pointer;">
+                        الانتقال لتسجيل الدخول / إنشاء حساب
+                    </div>
+                </div>
+            </div>
+
+            <div class="page-footer">صفحة 24 من 35</div>
+        </div>
+
+        <!-- TC-06 Page -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>توثيق الاختبارات: TC-06 (حجز موعد بنجاح)</span>
+            </div>
+
+            <h1 class="section-title">TC-06: إنشاء حجز موعد كامل وصحيح بنجاح</h1>
+            <p><strong>الهدف:</strong> فحص مسار الحجز ثلاثي الخطوات: اختيار الطبيب، تحديد التاريخ والفترة الزمنية الشاغرة، وتأكيد الحجز وحفظه في جدول <code>appointments</code>.</p>
+            
+            <div class="ui-mockup-frame">
+                <div class="mockup-header-bar">
+                    <div class="mockup-dots"><span class="mockup-dot dot-red"></span><span class="mockup-dot dot-yellow"></span><span class="mockup-dot dot-green"></span></div>
+                    <span style="font-family: var(--font-mono); color: #2DD4BF;">نافذة حجز موعد طبي مؤكد</span>
+                    <span>خطوة 3 من 3</span>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 15px 0;">
+                    <div style="background: #1E293B; padding: 15px; border-radius: 6px; border: 1px solid #334155;">
+                        <div style="font-size: 12px; font-weight: bold; color: #38BDF8; margin-bottom: 8px;">بيانات الطبيب والموعد:</div>
+                        <div style="font-size: 11px; color: #CBD5E1; line-height: 1.8;">
+                            • الطبيب: <strong>د. سمير النجار</strong> (استشاري جراحة عظام)<br>
+                            • المركز: مجمع الشفاء الطبي - دمشق<br>
+                            • التاريخ: <strong>26 أكتوبر 2026</strong><br>
+                            • الفترة الزمنية: <strong>05:30 م - 06:00 م</strong><br>
+                            • نوع الزيارة: كشف استشاري أول مرة
+                        </div>
+                    </div>
+                    <div style="background: #1E293B; padding: 15px; border-radius: 6px; border: 1px solid #334155;">
+                        <div style="font-size: 12px; font-weight: bold; color: #F59E0B; margin-bottom: 8px;">التفاصيل المالية والدفع:</div>
+                        <div style="font-size: 11px; color: #CBD5E1; line-height: 1.8;">
+                            • رسوم الكشفية: <strong>45,000 ل.س</strong><br>
+                            • طريقة السداد: <strong>نقداً في قاعة الاستقبال بالعيادة</strong><br>
+                            • حالة الحجز المبدئية: مؤكد (Confirmed)
+                        </div>
+                    </div>
+                </div>
+
+                <div style="background: #047857; padding: 15px; border-radius: 6px; text-align: center; color: #FFFFFF; border: 1px solid #34D399;">
+                    <div style="font-size: 18px; font-weight: bold; margin-bottom: 4px;">🎉 تم تأكيد حجز موعدك بنجاح!</div>
+                    <div style="font-size: 12px; color: #D1FAE5;">رقم الموعد المرجعي: <strong>#CB-2026-1042</strong></div>
+                    <div style="font-size: 11px; margin-top: 6px; color: #A7F3D0;">تمت إضافة الموعد إلى جدول مواعيدك وتم إخطار موظف الاستقبال في العيادة فورياً.</div>
+                </div>
+            </div>
+
+            <div class="page-footer">صفحة 25 من 35</div>
+        </div>
+
+        <!-- TC-07 Page -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>توثيق الاختبارات: TC-07 (منع الحجز المزدوج)</span>
+            </div>
+
+            <h1 class="section-title">TC-07: محاولة حجز فترة محجوزة مسبقاً (منع الحجز المزدوج)</h1>
+            <p><strong>الهدف:</strong> اختبار قيد الاستبعاد الذري (PostgreSQL Exclusion Constraint / Concurrency Guard) عند محاولة مريض آخر حجز نفس الفترة لنفس الطبيب في لحظة متزامنة.</p>
+            
+            <div class="ui-mockup-frame">
+                <div class="mockup-header-bar">
+                    <div class="mockup-dots"><span class="mockup-dot dot-red"></span><span class="mockup-dot dot-yellow"></span><span class="mockup-dot dot-green"></span></div>
+                    <span style="font-family: var(--font-mono); color: #EF4444;">HTTP 409 Conflict Response</span>
+                    <span>محرك منع التضارب الذري</span>
+                </div>
+
+                <div style="background: #1E293B; border-radius: 6px; padding: 20px; max-width: 550px; margin: 15px auto; border: 1px solid #EF4444;">
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                        <span style="font-size: 26px;">🚫</span>
+                        <div>
+                            <div style="font-size: 14px; font-weight: bold; color: #FCA5A5;">تعذر إتمام الحجز — تضارب زمني مؤكد!</div>
+                            <div style="font-size: 11px; color: #94A3B8;">خطأ قاعدة البيانات: <code>23P01 (Exclusion Constraint Violation)</code></div>
+                        </div>
+                    </div>
+                    
+                    <p style="font-size: 11.5px; color: #E2E8F0; line-height: 1.8; margin-bottom: 15px;">
+                        الفترة الزمنية المختارة (<strong>05:30 م - 06:00 م</strong>) لدى د. سمير النجار قد حُجزت للتو من قبل مريض آخر بالتزامن. لحماية نزاهة الجدول ومنع أي حجز مزدوج، تم إلغاء طلبك تلقائياً دون خصم أي رسوم.
+                    </p>
+
+                    <div style="background: #0F172A; border-radius: 4px; padding: 10px; border: 1px dashed #475569; text-align: center;">
+                        <div style="font-size: 11px; color: #38BDF8; font-weight: bold; margin-bottom: 6px;">الفترات البديلة الأقرب المتاحة اليوم:</div>
+                        <div style="display: flex; justify-content: center; gap: 8px;">
+                            <span style="background: #0F766E; color: #FFF; font-size: 10.5px; padding: 4px 10px; border-radius: 4px;">06:00 م - 06:30 م</span>
+                            <span style="background: #0F766E; color: #FFF; font-size: 10.5px; padding: 4px 10px; border-radius: 4px;">06:30 م - 07:00 م</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="page-footer">صفحة 26 من 35</div>
+        </div>
+
+        <!-- TC-08 Page -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>توثيق الاختبارات: TC-08 (إلغاء الموعد)</span>
+            </div>
+
+            <h1 class="section-title">TC-08: إلغاء موعد قائم وتحديث حالته فورياً</h1>
+            <p><strong>الهدف:</strong> اختبار قدرة المريض على إلغاء موعده القادم من لوحة "مواعيدي"، والتأكد من تغيير حالة السجل إلى <code>cancelled</code> وتحرير الفترة الزمنية في جدول الطبيب ليتمكن مريض آخر من حجزها فوراً.</p>
+            
+            <div class="ui-mockup-frame">
+                <div class="mockup-header-bar">
+                    <div class="mockup-dots"><span class="mockup-dot dot-red"></span><span class="mockup-dot dot-yellow"></span><span class="mockup-dot dot-green"></span></div>
+                    <span style="font-family: var(--font-mono); color: #38BDF8;">لوحة تحكم المريض / مواعيدي</span>
+                    <span>إدارة المواعيد السابقة والحالية</span>
+                </div>
+
+                <div style="background: #1E293B; border-radius: 6px; padding: 16px; margin: 15px 0; border: 1px solid #334155;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <div>
+                            <span style="font-weight: bold; color: #FFFFFF; font-size: 13px;">د. سمير النجار — استشاري عظام</span>
+                            <span style="font-size: 10px; color: #94A3B8; margin-right: 8px;">#CB-2026-1042</span>
+                        </div>
+                        <span style="background: rgba(239, 68, 68, 0.2); color: #FCA5A5; border: 1px solid #EF4444; font-size: 10px; padding: 3px 10px; border-radius: 12px; font-weight: bold;">
+                            ملغى (Cancelled)
+                        </span>
+                    </div>
+
+                    <div style="font-size: 11px; color: #94A3B8; line-height: 1.8;">
+                        التاريخ: 26 أكتوبر 2026 | الفترة: 05:30 م - 06:00 م | مجمع الشفاء الطبي<br>
+                        سبب الإلغاء: تم الإلغاء بناءً على طلب المريض قبل انقضاء المهلة المحددة.
+                    </div>
+
+                    <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #334155; font-size: 10.5px; color: #2DD4BF;">
+                        ✓ تم تحرير الفترة الزمنية بنجاح وأصبحت متاحة في جدول الحجوزات العام.
+                    </div>
+                </div>
+            </div>
+
+            <div class="page-footer">صفحة 27 من 35</div>
+        </div>
+
+        <!-- TC-09 Page -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>توثيق الاختبارات: TC-09 (البحث والفلترة)</span>
+            </div>
+
+            <h1 class="section-title">TC-09: البحث المتقدم والفلترة حسب التخصص والمدينة</h1>
+            <p><strong>الهدف:</strong> التحقق من فاعلية أدوات الفلترة في دليل الأطباء، وتصفية النتائج اللحظية استناداً إلى التخصص الطبي، المدينة، ورسوم الكشفية.</p>
+            
+            <div class="ui-mockup-frame">
+                <div class="mockup-header-bar">
+                    <div class="mockup-dots"><span class="mockup-dot dot-red"></span><span class="mockup-dot dot-yellow"></span><span class="mockup-dot dot-green"></span></div>
+                    <span style="font-family: var(--font-mono); color: #38BDF8;">دليل الأطباء والعيادات / البحث المتقدم</span>
+                    <span>نتائج الفلترة: جراحة عظام - دمشق</span>
+                </div>
+
+                <div style="background: #1E293B; border-radius: 6px; padding: 12px; margin-bottom: 12px; display: flex; gap: 10px; font-size: 11px;">
+                    <span style="background: #0F766E; color: #FFF; padding: 4px 10px; border-radius: 4px;">التخصص: جراحة عظام ✕</span>
+                    <span style="background: #0F766E; color: #FFF; padding: 4px 10px; border-radius: 4px;">المدينة: دمشق ✕</span>
+                    <span style="background: #334155; color: #CBD5E1; padding: 4px 10px; border-radius: 4px;">الكشفية: أقل من 50,000 ل.س</span>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div style="background: #1E293B; padding: 12px; border-radius: 6px; border: 1px solid #334155;">
+                        <div style="font-weight: bold; color: #FFFFFF; font-size: 12px;">د. سمير النجار</div>
+                        <div style="font-size: 10.5px; color: #2DD4BF;">استشاري جراحة عظام ومفاصل</div>
+                        <div style="font-size: 10px; color: #94A3B8; margin-top: 4px;">دمشق — مجمع الشفاء | الكشفية: 45,000 ل.س</div>
+                        <div style="margin-top: 8px; background: #0F766E; color: #FFF; text-align: center; font-size: 10px; padding: 5px; border-radius: 4px;">احجز موعداً</div>
+                    </div>
+                    <div style="background: #1E293B; padding: 12px; border-radius: 6px; border: 1px solid #334155;">
+                        <div style="font-weight: bold; color: #FFFFFF; font-size: 12px;">د. كنان الباشا</div>
+                        <div style="font-size: 10.5px; color: #2DD4BF;">أخصائي إصابات رياضية وتنظير مفاصل</div>
+                        <div style="font-size: 10px; color: #94A3B8; margin-top: 4px;">دمشق — العفيف | الكشفية: 40,000 ل.س</div>
+                        <div style="margin-top: 8px; background: #0F766E; color: #FFF; text-align: center; font-size: 10px; padding: 5px; border-radius: 4px;">احجز موعداً</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="page-footer">صفحة 28 من 35</div>
+        </div>
+
+        <!-- TC-10 Page -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>توثيق الاختبارات: TC-10 (طابور الاستقبال)</span>
+            </div>
+
+            <h1 class="section-title">TC-10: تسجيل حضور المريض في قاعة الاستقبال</h1>
+            <p><strong>الهدف:</strong> اختبار لوحة موظف الاستقبال في قاعة الانتظار، وتحويل حالة المريض الحاضر إلى (Checked-in) وإدراجه في طابور الكشف السريري للطبيب لحظياً.</p>
+            
+            <div class="ui-mockup-frame">
+                <div class="mockup-header-bar">
+                    <div class="mockup-dots"><span class="mockup-dot dot-red"></span><span class="mockup-dot dot-yellow"></span><span class="mockup-dot dot-green"></span></div>
+                    <span style="font-family: var(--font-mono); color: #F59E0B;">لوحة موظف الاستقبال / طابور الحضور اللحظي</span>
+                    <span>تحديث فوري لجدول اليوم</span>
+                </div>
+
+                <table style="width: 100%; border-collapse: collapse; font-size: 11px; color: #E2E8F0; text-align: right;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid #334155; color: #94A3B8;">
+                            <th style="padding: 6px;">الوقت</th>
+                            <th style="padding: 6px;">اسم المريض</th>
+                            <th style="padding: 6px;">الطبيب</th>
+                            <th style="padding: 6px;">الحالة</th>
+                            <th style="padding: 6px; text-align: center;">الإجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="border-bottom: 1px solid #1E293B;">
+                            <td style="padding: 8px;">05:00 م</td>
+                            <td style="padding: 8px;">أحمد العلي</td>
+                            <td style="padding: 8px;">د. سمير النجار</td>
+                            <td style="padding: 8px;"><span style="color: #34D399;">مكتمل ✓</span></td>
+                            <td style="padding: 8px; text-align: center; color: #64748B;">—</td>
+                        </tr>
+                        <tr style="background: rgba(2, 132, 199, 0.15); border-bottom: 1px solid #1E293B;">
+                            <td style="padding: 8px; font-weight: bold; color: #38BDF8;">05:30 م</td>
+                            <td style="padding: 8px; font-weight: bold;">مصعب أميري</td>
+                            <td style="padding: 8px;">د. سمير النجار</td>
+                            <td style="padding: 8px;"><span style="background: #0284C7; color: #FFF; padding: 2px 8px; border-radius: 4px; font-size: 10px;">حاضر بالعيادة (Checked-in)</span></td>
+                            <td style="padding: 8px; text-align: center;"><span style="color: #38BDF8; font-weight: bold;">في قاعة الانتظار</span></td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px;">06:00 م</td>
+                            <td style="padding: 8px;">خالد المحمود</td>
+                            <td style="padding: 8px;">د. سمير النجار</td>
+                            <td style="padding: 8px;"><span style="color: #FBBF24;">مؤكد (قادم)</span></td>
+                            <td style="padding: 8px; text-align: center;"><button style="background: #0F766E; color: #FFF; border: none; padding: 3px 8px; border-radius: 3px; font-size: 10px; cursor: pointer;">تسجيل الحضور</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="page-footer">صفحة 29 من 35</div>
+        </div>
+
+        <!-- TC-11 Page -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>توثيق الاختبارات: TC-11 (الوصفة السريرية)</span>
+            </div>
+
+            <h1 class="section-title">TC-11: تدوين الكشف وإصدار الوصفة الطبية (EMR)</h1>
+            <p><strong>الهدف:</strong> اختبار لوحة الطبيب لمعاينة المريض الحاضر، وتوثيق التشخيص والأدوية وجرعاتها وإتمام الزيارة الطبية وتوليد وصفة رقمية رسمية قابلة للطباعة.</p>
+            
+            <div class="ui-mockup-frame">
+                <div class="mockup-header-bar">
+                    <div class="mockup-dots"><span class="mockup-dot dot-red"></span><span class="mockup-dot dot-yellow"></span><span class="mockup-dot dot-green"></span></div>
+                    <span style="font-family: var(--font-mono); color: #34D399;">لوحة الطبيب السريرية / السجل الطبي الإلكتروني</span>
+                    <span>إصدار الروشتة الرسمية</span>
+                </div>
+
+                <div style="background: #FFFFFF; color: #0F172A; border-radius: 6px; padding: 20px; max-width: 550px; margin: 10px auto; border: 2px solid #0F766E;">
+                    <div style="display: flex; justify-content: space-between; border-bottom: 2px solid #0F766E; padding-bottom: 8px; margin-bottom: 10px;">
+                        <div>
+                            <div style="font-weight: bold; font-size: 13px; color: #0F766E;">د. سمير النجار — استشاري جراحة عظام</div>
+                            <div style="font-size: 9.5px; color: #64748B;">ترخيص نقابة الأطباء رقم: #40921 | مجمع الشفاء الطبي</div>
+                        </div>
+                        <div style="font-size: 11px; font-weight: bold; color: #0F766E;">Rx Medical</div>
+                    </div>
+
+                    <div style="font-size: 10.5px; margin-bottom: 10px; color: #334155;">
+                        اسم المريض: <strong>مصعب أميري</strong> | التاريخ: <strong>26/10/2026</strong> | الموعد: <strong>#CB-2026-1042</strong>
+                    </div>
+
+                    <div style="background: #F8FAFC; padding: 8px; border-radius: 4px; font-size: 11px; margin-bottom: 10px;">
+                        <strong>التشخيص السريري:</strong> التهاب أوتار الكتف الأيمن الناتج عن إجهاد عضلي حاد.
+                    </div>
+
+                    <div style="font-size: 11px; line-height: 1.8; margin-bottom: 12px;">
+                        1. <strong>Celebrex 200mg</strong> — كبسولة واحدة يومياً بعد الغداء لمدة 10 أيام.<br>
+                        2. <strong>Muscadol</strong> — قرص مرتين يومياً عند اللزوم لتسكين الألم وإرخاء العضلات.<br>
+                        3. جلسات علاج فيزيائي خفيف مع تجنب رفع الأوزان الثقيلة.
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #CBD5E1; padding-top: 8px; font-size: 10px; color: #64748B;">
+                        <span>توقيع الطبيب المعتمد الإلكتروني ✓</span>
+                        <span style="background: #0F766E; color: #FFF; padding: 2px 8px; border-radius: 3px; font-weight: bold;">طباعة الوصفة (PDF)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="page-footer">صفحة 30 من 35</div>
+        </div>
+
+        <!-- ==================== PAGE 31: RESULTS & CONCLUSION ==================== -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>النتائج والخلاصة</span>
+            </div>
+
+            <h1 class="section-title">12. النتائج والخلاصة</h1>
+            <h2 class="subsection-title">12.1 النتائج المحققة</h2>
+            <p>
+                حقق مشروع <strong>ClinicBook</strong> أهدافه الأساسية المحددة في بداية التقرير بنجاح، حيث تم تصميم وتطوير منصة ويب سحابية متكاملة لإدارة المراكز الطبية وحجز المواعيد تتضمن واجهة مستخدم غنية بصرياً وسهلة الاستخدام تدعم اللغة العربية (RTL)، مدعومة بخادم خلفي حقيقي وقاعدة بيانات علائقية محصنة بدلاً من الاكتفاء بنموذج تجريبي شكلي. كما تم تطبيق آليات أمان معيارية تشمل تشفير كلمات المرور وجلسات العمل المحمية بما ينسجم مع أفضل الممارسات المتبعة في تطوير تطبيقات الويب الحديثة.
+            </p>
+            <p>
+                ومن أبرز نقاط القوة التي تحققت في المشروع:
+            </p>
+            <ul>
+                <li><strong>القضاء التام على الحجز المزدوج:</strong> تطبيق قيد استبعاد ذري في قاعدة البيانات يضمن استحالة حجز نفس الفترة لنفس الطبيب تحت مختلف ظروف الضغط والتزامن.</li>
+                <li><strong>الربط التكاملي بين المريض والعيادة:</strong> توفير بيئة عمل تربط حجز المريض بطابور الحضور اللحظي في قاعة الاستقبال والسجل السريري الإلكتروني للطبيب.</li>
+                <li><strong>الامتثال لمعايير الوصولية العالمية (WCAG AA):</strong> دعم كامل لقارئات الشاشة وحبس التركيز وتباين الألوان الملائم لكبار السن والمرضى.</li>
+            </ul>
+
+            <h2 class="subsection-title">12.2 محدوديات النظام الحالي</h2>
+            <ul>
+                <li>عدم وجود بوابة دفع إلكتروني بنكية سورية حقيقية بسبب القيود المصرفية الحالية، والاكتفاء بالتحصيل النقدي في العيادة ونموذج المحاكاة الإلكترونية.</li>
+                <li>عدم تكامل النظام مع الرسائل الفورية وتطبيق WhatsApp لإرسال التذكيرات التلقائية للمرضى قبل الموعد.</li>
+                <li>اقتصار السجل الطبي على النصوص والجرعات دون دعم تخزين صور الأشعة والتحاليل الطبية الضخمة (DICOM).</li>
+            </ul>
+
+            <h2 class="subsection-title">12.3 التوصيات والعمل المستقبلي والتشخيص الذكي</h2>
+            <ol style="line-height: 2;">
+                <li><strong>دمج نماذج الذكاء الاصطناعي التشخيصي (AI Medical Diagnostics):</strong>
+                    <ul>
+                        <li>تطوير خوارزميات لتحليل صور الرنين المغناطيسي والأشعة السينية وتقديم مؤشرات أولية استرشادية للطبيب.</li>
+                        <li>تفعيل المساعد الصوتي السريري لتحويل إملاء الطبيب الشفهي إلى وصفة طبية منظمة تلقائياً.</li>
+                    </ul>
+                </li>
+                <li><strong>التكامل مع WhatsApp Business API:</strong> إرسال رسائل تذكير آلية قبل 24 ساعة لتقليص نسب التخلف عن الحضور إلى أدنى حد ممكن.</li>
+                <li><strong>الربط مع بوابات الدفع المحلية:</strong> دمج بوابات مثل سيريتل كاش وإي-كاش وشام كاش بمجرد توفر واجهاتها الرسمية.</li>
+            </ol>
+
+            <h2 class="subsection-title">12.4 الخلاصة</h2>
+            <p>
+                يمثل هذا المشروع تطبيقاً عملياً متكاملاً لمفاهيم هندسة البرمجيات وتطوير الويب الحديثة في خدمة قطاع الرعاية الصحية، ابتداءً من التحليل الدقيق ومروراً بالتصميم والتنفيذ والاختبار المنهجي. وينجح في تجسيد الوظائف الجوهرية لأي منصة طبية حقيقية ضمن نطاق متقدم لمشروع فصلي، مع الحفاظ على مرونة البنية المعمارية لتوسعته نحو منصة وطنية شاملة في المستقبل.
+            </p>
+
+            <div class="page-footer">صفحة 34 من 35</div>
+        </div>
+
+        <!-- ==================== PAGE 32: REFERENCES ==================== -->
+        <div class="page">
+            <div class="page-header">
+                <span>تقرير مشروع فصلي — نظام ClinicBook</span>
+                <span>قائمة المراجع</span>
+            </div>
+
+            <h1 class="section-title">13. قائمة المراجع</h1>
+            <ol style="line-height: 2.2; margin-top: 25px; font-family: var(--font-mono); font-size: 13px;">
+                <li>Sommerville, Ian. <em>Software Engineering</em>. 10th ed., Pearson, 2015.</li>
+                <li>Fowler, Martin. <em>Patterns of Enterprise Application Architecture</em>. Addison-Wesley Professional, 2002.</li>
+                <li>Casciaro, Mario, and Luciano Mammino. <em>Node.js Design Patterns</em>. 3rd ed., Packt Publishing, 2020.</li>
+                <li>Hoffman, Andrew. <em>Web Application Security: Exploitation and Countermeasures for Modern Web Applications</em>. O'Reilly Media, 2024.</li>
+                <li>Tahaghoghi, Seyed M.M., and Hugh E. Williams. <em>Learning MySQL / Relational Database Design</em>. O'Reilly Media, 2021.</li>
+                <li>Madden, Neil. <em>API Security in Action</em>. Manning Publications, 2020.</li>
+                <li>Shortliffe, Edward H., and James J. Cimino. <em>Biomedical Informatics: Computer Applications in Health Care and Biomedicine</em>. 5th ed., Springer, 2021.</li>
+                <li>Next.js Engineering Team. <em>Next.js Architecture, Server Components and Actions Reference Guide</em>. Vercel Docs, 2025.</li>
+                <li>PostgreSQL Global Development Group. <em>PostgreSQL 16 Documentation: GiST Indexing & Exclusion Constraints</em>. PostgreSQL.org, 2024.</li>
+                <li>World Wide Web Consortium (W3C). <em>Web Content Accessibility Guidelines (WCAG) 2.1</em>. W3C Recommendation, 2023.</li>
+            </ol>
+
+            <div class="page-footer">صفحة 35 من 35</div>
+        </div>
+
+    </div>
+
+</body>
+</html>

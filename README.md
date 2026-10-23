@@ -80,6 +80,14 @@ node scripts/a11y.mjs
 
 راجع `docs/POSTGRES_TESTING.md` لتشغيل اختبار PostgreSQL المعزول.
 
+## التوثيق والتقارير الأكاديمية
+
+- **التقرير الأكاديمي الشامل:** [`docs/ACADEMIC_REPORT.md`](docs/ACADEMIC_REPORT.md) — [نسخة HTML منسقة للطباعة](docs/ACADEMIC_REPORT.html)
+- **المقترح المتكامل وخطة العمل:** [`docs/COMPREHENSIVE_PROPOSAL.md`](docs/COMPREHENSIVE_PROPOSAL.md) — [نسخة HTML](docs/COMPREHENSIVE_PROPOSAL.html)
+- **مخطط المساعد الطبي الذكي Eve:** [`docs/AI_AGENT_EVE_BLUEPRINT.md`](docs/AI_AGENT_EVE_BLUEPRINT.md)
+- **تقرير إمكانية الوصول A11y (WCAG 2.1 AA):** [`docs/ACCESSIBILITY_AUDIT_REPORT.md`](docs/ACCESSIBILITY_AUDIT_REPORT.md)
+- **مواصفات ومخططات النظام والهندسة المعمارية:** [`docs/specifications/`](docs/specifications/)
+
 ## المكدس والتنظيم
 
 Next.js **15.5.27** / App Router، React 19، TypeScript، Tailwind 4، مكونات Button/Dialog بنمط shadcn/Radix مع RTL وfocus trapping، Motion، Lucide، Zod، Vitest، Playwright، SQLite، ومكتبات Supabase.
