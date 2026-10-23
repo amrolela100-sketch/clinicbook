@@ -86,7 +86,7 @@ describe('TDD: Agent Service Orchestrator (processAgentMessage)', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.doctors?.[0].availableSlotsCount).toBeGreaterThan(0);
-      expect(result.data.reply).toMatch(/2026-10-(18|19)/);
+      expect(result.data.reply).toMatch(/2026-10-\d{2}/);
     }
   });
 

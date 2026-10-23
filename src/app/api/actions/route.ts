@@ -86,6 +86,107 @@ export async function POST(request: Request) {
           tier: z.enum(['solo_starter', 'clinic_pro']),
         })
         .parse(p);
+
+      const isAuthenticated = !!user;
+      const { isSupabaseConfigured } = await import('@/lib/supabase/config');
+      const supabaseActive = isSupabaseConfigured();
+
+      if (supabaseActive && isAuthenticated) {
+        // ── Supabase-authenticated onboarding ──
+        if (user!.organizationId) {
+          throw new ActionError('تم إنشاء المركز مسبقاً.', 409);
+        }
+
+        // Check email uniqueness excluding current user
+        if (all<User>('user').some((u) => u.email === b.email && u.id !== user!.id))
+          throw new ActionError('هذا البريد مستخدم بالفعل.');
+
+        const id = randomUUID(),
+          did = randomUUID(),
+          cid = randomUUID();
+
+        db.transaction(() => {
+          put('organization', id, {
+            id,
+            name: b.name,
+            city: b.city,
+            district: b.district,
+            phone: b.phone,
+            license: b.license,
+            tier: b.tier,
+            status: 'pending',
+            subscriptionStatus: 'trialing',
+            periodEnd: new Date(Date.now() + 14 * 86400000).toISOString(),
+            cancelHours: 2,
+            leadMinutes: 60,
+            pendingHours: 12,
+            expiryMinutes: 60,
+            timezone: 'Asia/Damascus',
+          } satisfies Organization);
+          // Update existing authenticated user (don't create new)
+          put('user', user!.id, {
+            ...user!,
+            id: user!.id,
+            name: b.doctorName,
+            email: user!.email, // from session, not from request
+            organizationId: id,
+            clinicId: cid,
+            role: 'clinic_owner',
+          });
+          const cleanName = cleanDoctorName(b.doctorName);
+          put('doctor', did, {
+            id: did,
+            name: cleanName,
+            organizationId: id,
+            clinicId: cid,
+            clinic: b.name,
+            city: b.city,
+            district: b.district,
+            specialty: 'الطب العام',
+            fee: 25,
+            followUpFee: 15,
+            rating: 4.8,
+            reviews: 12,
+            experience: 10,
+            bio: 'طبيب معتمد، رعاية أولية واستشارات طبية شاملة.',
+            color: '#e1eeeb',
+            image: pickDoctorImage(),
+            verified: false,
+            license: b.license,
+          } satisfies Doctor);
+          put('user', did, {
+            id: did,
+            name: cleanName,
+            email: `${did}@clinicbook.demo`,
+            organizationId: id,
+            clinicId: cid,
+            role: 'doctor',
+          });
+          put('verification', id, {
+            id,
+            name: b.name,
+            type: 'مركز طبي',
+            city: b.city,
+            license: b.license,
+            status: 'pending',
+            organizationId: id,
+            doctorId: did,
+          });
+          put('schedule', did, []);
+          put('branch', cid, {
+            id: cid,
+            organizationId: id,
+            name: 'الفرع الرئيسي',
+            city: b.city,
+            district: b.district,
+            phone: b.phone,
+          });
+        })();
+        // No createSession needed — user is already authenticated via Supabase
+        return NextResponse.json({ success: true, data: { id } });
+      }
+
+      // ── SQLite-only (demo) onboarding — original path ──
       if (all<User>('user').some((u) => u.email === b.email))
         throw new ActionError('هذا البريد مستخدم بالفعل.');
       const id = randomUUID(),

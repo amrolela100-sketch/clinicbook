@@ -1,16 +1,16 @@
 import { cookies } from 'next/headers';
 import { randomBytes, createHash } from 'node:crypto';
-import { db, get } from '../demo-db';
+import { db, get, put } from '../demo-db';
 import type { User, Role } from '../types';
 
-export const isSupabaseConfigured = () =>
-  Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+export { isSupabaseConfigured } from '../supabase/config';
+import { isSupabaseConfigured } from '../supabase/config';
 
 export const demoEnabled = () =>
   process.env.CLINICBOOK_MODE !== 'production' || !isSupabaseConfigured();
 
 export async function currentUser(): Promise<User | null> {
-  // 1. Check Supabase Auth session if token exists
+  // 1. Check Supabase Auth session (cookie-based, refreshed by middleware)
   if (isSupabaseConfigured()) {
     try {
       const { createSupabaseServer } = await import('../supabase/server');
@@ -20,6 +20,11 @@ export async function currentUser(): Promise<User | null> {
       } = await client.auth.getUser();
 
       if (authUser) {
+        // Prefer SQLite mirror (single source of truth after onboarding)
+        const mirror = get<User>('user', authUser.id);
+        if (mirror) return mirror;
+
+        // No mirror yet — build one from public.users
         const { data: profile } = await client
           .from('users')
           .select('id, full_name, email, role')
@@ -27,22 +32,16 @@ export async function currentUser(): Promise<User | null> {
           .maybeSingle();
 
         if (profile) {
-          const { data: clinic } = await client
-            .from('clinics')
-            .select('id, name')
-            .eq('doctor_id', profile.id)
-            .limit(1)
-            .maybeSingle();
-
-          const mappedRole = profile.role === 'admin' ? 'super_admin' : profile.role;
-          return {
+          const mappedRole: Role =
+            profile.role === 'admin' ? 'super_admin' : (profile.role as Role);
+          const newMirror: User = {
             id: profile.id,
             name: profile.full_name,
             email: profile.email,
-            role: mappedRole as Role,
-            organizationId: clinic?.id ?? profile.id,
-            clinicId: clinic?.id,
+            role: mappedRole,
           };
+          put('user', profile.id, newMirror);
+          return newMirror;
         }
       }
     } catch {
@@ -60,40 +59,6 @@ export async function currentUser(): Promise<User | null> {
     .get(hash, new Date().toISOString()) as { user_id: string; role?: string } | undefined;
 
   if (!row) return null;
-
-  // Check if this user exists in Supabase
-  if (isSupabaseConfigured()) {
-    try {
-      const { createSupabaseAdmin } = await import('../supabase/admin');
-      const adminClient = createSupabaseAdmin();
-      const { data: profile } = await adminClient
-        .from('users')
-        .select('id, full_name, email, role')
-        .eq('id', row.user_id)
-        .maybeSingle();
-
-      if (profile) {
-        const { data: clinic } = await adminClient
-          .from('clinics')
-          .select('id, name')
-          .eq('doctor_id', profile.id)
-          .limit(1)
-          .maybeSingle();
-
-        const mappedRole = (row.role as Role) || (profile.role === 'admin' ? 'super_admin' : (clinic && profile.role === 'doctor' ? 'clinic_owner' : profile.role));
-        return {
-          id: profile.id,
-          name: profile.full_name,
-          email: profile.email,
-          role: mappedRole as Role,
-          organizationId: clinic?.id ?? profile.id,
-          clinicId: clinic?.id,
-        };
-      }
-    } catch {
-      // Fallback to SQLite store
-    }
-  }
 
   const u = get<User>('user', row.user_id);
   if (u) {

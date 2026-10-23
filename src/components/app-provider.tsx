@@ -60,7 +60,7 @@ interface AppContext {
   toast: (message: string, error?: boolean) => void;
   act: (action: string, payload: unknown, message?: string) => Promise<boolean>;
   login: (roleOrCredentials: string | { email: string; password: string }, destination?: string) => Promise<boolean>;
-  signup: (payload: { fullName: string; email: string; password: string; phone?: string }) => Promise<boolean>;
+  signup: (payload: { fullName: string; email: string; password: string; phone?: string; intent?: 'patient' | 'clinic_owner' }) => Promise<boolean>;
 }
 const Ctx = createContext<AppContext>(null!);
 export const useApp = () => useContext(Ctx);
@@ -132,6 +132,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const userRole = j.data?.role;
       window.location.href =
         destination ??
+        j.redirectTo ??
         (userRole === 'patient'
           ? '/my-appointments'
           : userRole === 'super_admin'
@@ -143,7 +144,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return false;
     }
   };
-  const signup = async (payload: { fullName: string; email: string; password: string; phone?: string }) => {
+  const signup = async (payload: { fullName: string; email: string; password: string; phone?: string; intent?: 'patient' | 'clinic_owner' }) => {
     try {
       const r = await fetch('/api/session', {
         method: 'POST',
@@ -151,12 +152,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ mode: 'signup', ...payload }),
       });
       const j = await r.json();
+      if (j.needsConfirmation) {
+        toast(j.error ?? 'تم إرسال رابط التأكيد إلى بريدك الإلكتروني.');
+        return true;
+      }
       if (!j.success) {
         toast(j.error ?? 'تعذر إنشاء الحساب.', true);
         return false;
       }
       toast('تم إنشاء الحساب بنجاح! أهلاً بك.');
-      window.location.href = '/my-appointments';
+      window.location.href = j.redirectTo ?? '/my-appointments';
       return true;
     } catch {
       toast('تعذر إنشاء الحساب. حاول مجدداً.', true);

@@ -35,6 +35,7 @@ export function Login() {
   const [signUpEmail, setSignUpEmail] = useState('');
   const [signUpPhone, setSignUpPhone] = useState('');
   const [signUpPassword, setSignUpPassword] = useState('');
+  const [signUpRole, setSignUpRole] = useState<'patient' | 'clinic_owner'>('patient');
 
   async function handleSignIn(e: FormEvent) {
     e.preventDefault();
@@ -67,6 +68,7 @@ export function Login() {
         email: signUpEmail.trim(),
         password: signUpPassword,
         phone: signUpPhone.trim() || undefined,
+        intent: signUpRole,
       });
     } finally {
       setBusy(false);
@@ -100,7 +102,7 @@ export function Login() {
               className={`auth-tab-btn ${mode === 'signup' ? 'active' : ''}`}
               onClick={() => setMode('signup')}
             >
-              حساب مريض جديد
+              حساب جديد
             </button>
           </div>
 
@@ -155,7 +157,28 @@ export function Login() {
                 <br />
                 تبدأ من حسابك.
               </h1>
-              <p>أنشئ حساب مريض جديد لإدارة مواعيدك وسجلاتك الطبية.</p>
+              <p>أنشئ حسابك لإدارة مواعيدك وسجلاتك الطبية أو لتسجيل مركزك.</p>
+
+              <div className="demo-role-grid" style={{ marginBottom: '1rem' }}>
+                <button
+                  type="button"
+                  className={signUpRole === 'patient' ? 'selected' : ''}
+                  onClick={() => setSignUpRole('patient')}
+                  style={{ border: signUpRole === 'patient' ? '2px solid var(--primary)' : undefined }}
+                >
+                  <UserRound size={20} strokeWidth={1.6} />
+                  <span>مريض</span>
+                </button>
+                <button
+                  type="button"
+                  className={signUpRole === 'clinic_owner' ? 'selected' : ''}
+                  onClick={() => setSignUpRole('clinic_owner')}
+                  style={{ border: signUpRole === 'clinic_owner' ? '2px solid var(--primary)' : undefined }}
+                >
+                  <Building2 size={20} strokeWidth={1.6} />
+                  <span>عيادة أو مركز طبي</span>
+                </button>
+              </div>
 
               <form onSubmit={handleSignUp}>
                 <Field label="الاسم الكامل">
@@ -210,7 +233,7 @@ export function Login() {
                 </Field>
                 <Button className="full-width" variant="default" type="submit" disabled={busy}>
                   {busy ? <LoaderCircle className="spin" size={17} /> : <Check size={17} />}
-                  {busy ? 'جارٍ إنشاء الحساب...' : 'إنشاء حساب مريض'}
+                  {busy ? 'جارٍ إنشاء الحساب...' : 'إنشاء حساب'}
                 </Button>
               </form>
             </>
@@ -298,7 +321,8 @@ function ArrowUpLeftIcon() {
   );
 }
 export function Onboarding() {
-  const { act } = useApp();
+  const { act, data } = useApp();
+  const authUser = data?.user;
   const [step, setStep] = useState(1),
     [busy, setBusy] = useState(false),
     [done, setDone] = useState(false);
@@ -307,8 +331,8 @@ export function Onboarding() {
     city: 'دمشق',
     district: '',
     phone: '',
-    doctorName: '',
-    email: '',
+    doctorName: authUser?.name ?? '',
+    email: authUser?.email ?? '',
     license: '',
     tier: 'clinic_pro',
   });
@@ -457,6 +481,8 @@ export function Onboarding() {
                       dir="ltr"
                       value={form.email}
                       onChange={(e) => change('email', e.target.value)}
+                      readOnly={!!authUser}
+                      style={authUser ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
                     />
                   </Field>
                   <Field label="رقم الترخيص الطبي">
