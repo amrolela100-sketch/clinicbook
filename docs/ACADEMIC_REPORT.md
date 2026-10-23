@@ -636,18 +636,18 @@ CREATE TABLE medical_records (
 ---
 
 ### التوثيق الصوري لحالات الاختبار وشاشات التنفيذ (TC-01 إلى TC-11)
-*(يتم تضمين المعاينة البصرية واللقطات الحية لواجهات نظام ClinicBook لكل حالة اختبار بدقة في التقرير المنسق)*
+*(تم التقاط المعاينة البصرية واللقطات الحية لواجهات نظام ClinicBook لكل حالة اختبار بدقة عالية Retina ومحفوظة في مجلد `screenshots/showcase/`)*
 
-* **TC-01:** شاشة تسجيل حساب المريض الجديد مع إشعار النجاح.
-* **TC-02:** رسالة التحقق عند محاولة إدخال بريد مكرر.
-* **TC-03 & TC-04:** واجهة تسجيل الدخول وحالات التحقق السليم ورفض كلمة المرور الخاطئة.
-* **TC-05:** توجيه الزائر غير المسجل لنافذة تسجيل الحساب عند طلب الحجز.
-* **TC-06:** معالج الحجز متعدد الخطوات واختيار الفترة وظهور بطاقة النجاح الخضراء.
-* **TC-07:** ظهور تنبيه التضارب الزمني ومنع الحجز المزدوج بنجاح.
-* **TC-08:** قائمة مواعيد المريض في صفحة "مواعيدي" وظهور حالة الموعد الملغى.
-* **TC-09:** شاشة نتائج البحث وتطبيق فلاتر التخصص والمدينة ومستوى الكشفية.
-* **TC-10:** لوحة طابور الاستقبال اللحظي وتغيير حالة المريض إلى حاضر (Checked-in).
-* **TC-11:** واجهة تدوين الوصفة الطبية الإلكترونية وظهور التقرير الطبي بصيغة قابلة للتصدير والطباعة.
+* **TC-01 & TC-02:** شاشات التسجيل والتحقق من الحسابات: [`screenshots/showcase/05-multi-role-login.png`](screenshots/showcase/05-multi-role-login.png)
+* **TC-03 & TC-04:** واجهة تسجيل الدخول متعددة الأدوار (5 أدوار للمستخدمين): [`screenshots/showcase/05-multi-role-login.png`](screenshots/showcase/05-multi-role-login.png)
+* **TC-05 & TC-06 & TC-07:** اختيار فترات الطبيب وتأكيد الحجز ومنع التعارض الزمني: [`screenshots/showcase/03-doctor-profile-slots.png`](screenshots/showcase/03-doctor-profile-slots.png)
+* **TC-08:** بوابة المريض وقائمة مواعيده (سجل الزيارات والباركود والإلغاء): [`screenshots/showcase/06-patient-appointments.png`](screenshots/showcase/06-patient-appointments.png)
+* **TC-09:** محرك البحث الطبي والفلترة المتقدمة حسب التخصص والمدينة: [`screenshots/showcase/02-search-and-filters.png`](screenshots/showcase/02-search-and-filters.png)
+* **TC-10:** لوحة الاستقبال وإدارة طابور المراجعين وتسجيل الوصول اللحظي (Check-in): [`screenshots/showcase/08-reception-appointments.png`](screenshots/showcase/08-reception-appointments.png)
+* **TC-11:** العيادة السريرية الرقمية والوصفة الطبية الإلكترونية وتصدير السجل: [`screenshots/showcase/09-doctor-clinical-emr.png`](screenshots/showcase/09-doctor-clinical-emr.png)
+* **فرز الأعراض والذكاء الاصطناعي (Eve AI Triage):** محادثة المساعد الطبي الذكي وتحليل الأعراض: [`screenshots/showcase/04-ai-assistant-eve.png`](screenshots/showcase/04-ai-assistant-eve.png)
+* **لوحة تحكم المركز الطبي (Clinic Owner Dashboard):** المؤشرات الحيوية والإحصائيات: [`screenshots/showcase/07-clinic-owner-dashboard.png`](screenshots/showcase/07-clinic-owner-dashboard.png)
+* **دليل التوثيق الصوري الكامل:** متاح في المعرض المصور [`screenshots/README.md`](screenshots/README.md).
 
 ---
 

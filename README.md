@@ -86,6 +86,7 @@ node scripts/a11y.mjs
 - **المقترح المتكامل وخطة العمل:** [`docs/COMPREHENSIVE_PROPOSAL.md`](docs/COMPREHENSIVE_PROPOSAL.md) — [نسخة HTML](docs/COMPREHENSIVE_PROPOSAL.html)
 - **مخطط المساعد الطبي الذكي Eve:** [`docs/AI_AGENT_EVE_BLUEPRINT.md`](docs/AI_AGENT_EVE_BLUEPRINT.md)
 - **تقرير إمكانية الوصول A11y (WCAG 2.1 AA):** [`docs/ACCESSIBILITY_AUDIT_REPORT.md`](docs/ACCESSIBILITY_AUDIT_REPORT.md)
+- **معرض لقطات الشاشة والواجهات (Showcase):** [`docs/screenshots/README.md`](docs/screenshots/README.md)
 - **مواصفات ومخططات النظام والهندسة المعمارية:** [`docs/specifications/`](docs/specifications/)
 
 ## المكدس والتنظيم
