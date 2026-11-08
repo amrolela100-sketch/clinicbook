@@ -32,11 +32,11 @@ ClinicBook is an Arabic medical SaaS platform built on Next.js 15 (App Router), 
 
 ## Milestones
 
-| #   | Name                                              | Scope                                                                                                            | Dependencies | Status  |
-| --- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------ | ------- |
-| M1  | Visual Identity & Doctor Portraits                | Image assets, name formatting helper, UI call-site wiring, database & seed sanitization, CSS visual enhancements | none         | PLANNED |
-| M2  | Authentic Medical Copywriting & Disclaimers Purge | Purge all 21+ demo disclaimers across public, clinical, management, and auth views; update E2E test assertion    | M1           | PLANNED |
-| M3  | Quality Assurance & Acceptance Verification       | Execute full typecheck, unit tests, accessibility E2E suite, adversarial verification, forensic audit            | M1, M2       | PLANNED |
+| #   | Name                                              | Scope                                                                                                            | Dependencies | Status    |
+| --- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------ | --------- |
+| M1  | Visual Identity & Doctor Portraits                | Image assets, name formatting helper, UI call-site wiring, database & seed sanitization, CSS visual enhancements | none         | COMPLETED |
+| M2  | Authentic Medical Copywriting & Disclaimers Purge | Purge all 21+ demo disclaimers across public, clinical, management, and auth views; update E2E test assertion    | M1           | COMPLETED |
+| M3  | Quality Assurance & Acceptance Verification       | Execute full typecheck, unit tests, accessibility E2E suite, adversarial verification, forensic audit            | M1, M2       | COMPLETED |
 
 ## Interface Contracts
 

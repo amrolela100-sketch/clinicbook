@@ -1,13 +1,25 @@
 import { db, appointments } from '../src/lib/demo-db';
 const base = process.env.APP_URL ?? 'http://localhost:3000';
+
 async function run() {
-  const login = await fetch(base + '/api/session', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role: 'receptionist' }),
-  });
+  let login: Response;
+  try {
+    login = await fetch(base + '/api/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'receptionist' }),
+    });
+  } catch (err) {
+    throw new Error(
+      `Cannot connect to ClinicBook server at ${base}. Please ensure the server is running (e.g. via 'npm run dev' or 'npm run start') before executing the concurrency suite.`,
+    );
+  }
   const cookie = login.headers.get('set-cookie')?.split(';')[0];
-  if (!cookie) throw Error('Demo login failed');
+  if (!cookie) {
+    throw new Error(
+      `Demo login failed (HTTP ${login.status}). Ensure the ClinicBook server is active on ${base}.`,
+    );
+  }
   let slot: { start: string; end: string } | undefined;
   for (let days = 3; days < 10 && !slot; days++) {
     const date = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);

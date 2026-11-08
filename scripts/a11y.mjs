@@ -1,7 +1,10 @@
 import { chromium } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import fs from 'node:fs';
-const b = await chromium.launch();
+const b = await chromium.launch({
+  channel: process.env.PLAYWRIGHT_CHROMIUM_CHANNEL ?? 'chrome',
+  headless: true,
+});
 const ctx = await b.newContext();
 const p = await ctx.newPage();
 const output = [];

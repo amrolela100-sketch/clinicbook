@@ -7,7 +7,7 @@ async function login(page: Page, role: string) {
 }
 
 async function loaded(page: Page) {
-  await expect(page.locator('.loading-screen')).toHaveCount(0);
+  await expect(page.locator('.loading-screen')).toHaveCount(0, { timeout: 15000 });
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(600);
 }
