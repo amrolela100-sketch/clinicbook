@@ -27,30 +27,42 @@ export default async function Page({ params }: { params: Promise<{ path?: string
     !/^\/workspace\/patients\/[^/]+$/.test(route)
   )
     notFound();
-  if (route.startsWith('/workspace') || route === '/admin' || route === '/my-appointments' || route === '/register-clinic') {
+  if (route === '/login') {
+    const user = await currentUser();
+    if (user) {
+      const { redirectForUser } = await import('@/lib/auth/session');
+      redirect(redirectForUser(user));
+    }
+  }
+  if (
+    route.startsWith('/workspace') ||
+    route === '/admin' ||
+    route === '/my-appointments' ||
+    route === '/register-clinic'
+  ) {
     const user = await currentUser();
     if (route === '/register-clinic') {
       // Clinic registration requires authentication when Supabase is active
       const { isSupabaseConfigured } = await import('@/lib/supabase/config');
-      if (isSupabaseConfigured() && !user) redirect('/login?next=/register-clinic');
+      const { demoEnabled } = await import('@/lib/auth/session');
+      if (!demoEnabled() && isSupabaseConfigured() && !user) {
+        redirect('/login?next=/register-clinic');
+      }
     } else if (!user) {
-      redirect('/login');
+      redirect(`/login?next=${encodeURIComponent(route)}`);
     }
     if (user) {
-      if (route === '/admin' && user.role !== 'super_admin') redirect('/login');
+      const { redirectForUser } = await import('@/lib/auth/session');
+      if (route === '/admin' && user.role !== 'super_admin') redirect(redirectForUser(user));
       if (
         route.startsWith('/workspace') &&
         !['clinic_owner', 'doctor', 'receptionist'].includes(user.role)
       )
-        redirect('/login');
-      if (route === '/my-appointments' && user.role !== 'patient') redirect('/login');
+        redirect(redirectForUser(user));
+      if (route === '/my-appointments' && user.role !== 'patient') redirect(redirectForUser(user));
       // Clinic owner without org → must complete onboarding
-      if (
-        route.startsWith('/workspace') &&
-        user.role === 'clinic_owner' &&
-        !user.organizationId
-      )
-        redirect('/register-clinic');
+      if (route.startsWith('/workspace') && user.role === 'clinic_owner' && !user.organizationId)
+        redirect('/register-clinic?onboarding=1');
       if (
         [
           '/workspace/billing',

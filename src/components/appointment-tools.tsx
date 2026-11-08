@@ -42,7 +42,8 @@ export function WalkInButton({ className = '' }: { className?: string }) {
     }
     return true;
   });
-  const doctors = clinicDoctors.length > 0 ? clinicDoctors : (data?.doctors?.filter((d) => d.verified) ?? []);
+  const doctors =
+    clinicDoctors.length > 0 ? clinicDoctors : (data?.doctors?.filter((d) => d.verified) ?? []);
 
   useEffect(() => {
     if ((!doctorId || !doctors.some((d) => d.id === doctorId)) && doctors[0]) {
@@ -119,7 +120,8 @@ export function WalkInButton({ className = '' }: { className?: string }) {
         {!['doctor', 'receptionist', 'clinic_owner', 'super_admin'].includes(role ?? '') ? (
           <>
             <div className="info-note">
-              للحفاظ على فصل الصلاحيات، تُضاف الحجوزات المباشرة من حساب الطبيب أو موظف الاستقبال أو إدارة المركز.
+              للحفاظ على فصل الصلاحيات، تُضاف الحجوزات المباشرة من حساب الطبيب أو موظف الاستقبال أو
+              إدارة المركز.
             </div>
             <RoleLogin />
           </>
@@ -186,7 +188,8 @@ export function WalkInButton({ className = '' }: { className?: string }) {
               </select>
               {!slotLoading && slots.length === 0 && doctorId && (
                 <small style={{ color: '#8a6414', display: 'block', marginTop: '6px' }}>
-                  انتهت فترات العمل المتاحة لهذا اليوم ({date}). يرجى اختيار تاريخ عمل قادم (مثل الغد).
+                  انتهت فترات العمل المتاحة لهذا اليوم ({date}). يرجى اختيار تاريخ عمل قادم (مثل
+                  الغد).
                 </small>
               )}
             </Field>
@@ -215,11 +218,10 @@ export function WalkInButton({ className = '' }: { className?: string }) {
   );
 }
 function RoleLogin() {
-  const { login } = useApp();
   return (
-    <Button className="full-width" onClick={() => login('receptionist')}>
-      الدخول بحساب موظف الاستقبال <ArrowLeft size={18} />
-    </Button>
+    <Link className="btn btn-primary full-width" href="/login">
+      تسجيل الدخول بحساب موظف الاستقبال <ArrowLeft size={18} />
+    </Link>
   );
 }
 export function AppointmentTable({
@@ -237,9 +239,12 @@ export function AppointmentTable({
   const user = data?.user;
   const doAction = async (action: string, payload: unknown, msg: string) => {
     setBusy(true);
-    const ok = await act(action, payload, msg);
-    setBusy(false);
-    if (ok) setSelected(null);
+    try {
+      const ok = await act(action, payload, msg);
+      if (ok) setSelected(null);
+    } finally {
+      setBusy(false);
+    }
   };
   if (!appointments.length)
     return (
@@ -354,7 +359,7 @@ export function AppointmentTable({
               <Badge status={selected.status} />
             </div>
             <div className="appointment-actions">
-              {['doctor', 'receptionist'].includes(user?.role ?? '') && (
+              {['doctor', 'receptionist', 'clinic_owner'].includes(user?.role ?? '') && (
                 <>
                   {selected.status === 'pending' && (
                     <>
@@ -433,12 +438,6 @@ export function AppointmentTable({
                     فتح الملف وكتابة الوصفة
                   </Link>
                 )}
-              {user?.role === 'clinic_owner' && (
-                <div className="info-note">
-                  حساب المدير يعرض تفاصيل الموعد. الإجراءات السريرية وتسجيل الوصول متاحة للطبيب
-                  وموظف الاستقبال.
-                </div>
-              )}
               {['cancelled', 'expired', 'rejected', 'no_show', 'completed'].includes(
                 selected.status,
               ) && (

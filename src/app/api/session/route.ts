@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { randomUUID } from 'node:crypto';
-import { createSession, deleteSession, isSupabaseConfigured, currentUser } from '@/lib/auth/session';
-import { roles, put, get, db } from '@/lib/demo-db';
+import { randomUUID, createHash } from 'node:crypto';
+import {
+  createSession,
+  deleteSession,
+  isSupabaseConfigured,
+  currentUser,
+  demoEnabled,
+  redirectForUser,
+} from '@/lib/auth/session';
+import { roles, put, get, db, all } from '@/lib/demo-db';
 import type { User, Role } from '@/lib/types';
 
 const sessionSchema = z.object({
@@ -21,21 +28,14 @@ function translateAuthError(msg: string): string {
     return 'هذا البريد مسجل بالفعل.';
   if (msg.includes('Invalid login credentials'))
     return 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
-  if (msg.includes('Email not confirmed'))
-    return 'يرجى تأكيد بريدك الإلكتروني أولاً.';
+  if (msg.includes('Email not confirmed')) return 'يرجى تأكيد بريدك الإلكتروني أولاً.';
   if (msg.includes('rate limit') || msg.includes('too many requests'))
     return 'محاولات كثيرة جداً. حاول بعد قليل.';
   if (msg.includes('password') && msg.includes('short'))
     return 'كلمة المرور قصيرة جداً (6 أحرف على الأقل).';
+  if (msg.includes('fetch failed') || msg.includes('ENOTFOUND') || msg.includes('NetworkError'))
+    return 'تعذر الاتصال بخادم السحابة (Supabase). يرجى التحقق من إعدادات الربط والإنترنت.';
   return msg;
-}
-
-/** Determine post-login redirect based on user role & state. */
-function redirectForUser(user: User): string {
-  if (user.role === 'patient') return '/my-appointments';
-  if (user.role === 'clinic_owner' && !user.organizationId) return '/register-clinic?onboarding=1';
-  if (user.role === 'super_admin') return '/admin';
-  return '/workspace/dashboard';
 }
 
 export async function POST(request: Request) {
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
 
     const effectiveIntent = intent ?? 'patient';
 
-    if (isSupabaseConfigured()) {
+    if (!demoEnabled() && isSupabaseConfigured()) {
       try {
         const { createSupabaseServer } = await import('@/lib/supabase/server');
         const client = await createSupabaseServer();
@@ -92,9 +92,23 @@ export async function POST(request: Request) {
           });
         }
 
-        // Session obtained — create SQLite mirror
+        // Session obtained — ensure public.users record and create mirror
         const userId = data.user!.id;
         const userRole: Role = effectiveIntent === 'clinic_owner' ? 'clinic_owner' : 'patient';
+        try {
+          const { createSupabaseAdmin } = await import('@/lib/supabase/admin');
+          const admin = createSupabaseAdmin();
+          await admin.from('users').upsert({
+            id: userId,
+            email,
+            full_name: fullName,
+            phone: phone ?? null,
+            role: userRole,
+            status: 'active',
+          });
+        } catch {
+          // Admin sync fallback
+        }
         put('user', userId, {
           id: userId,
           name: fullName,
@@ -118,16 +132,32 @@ export async function POST(request: Request) {
     }
 
     // Fallback: SQLite demo
+    const existing = all<User>('user').find((u) => u.email?.toLowerCase() === email.toLowerCase());
+    if (existing) {
+      return NextResponse.json(
+        { success: false, error: 'هذا البريد مسجل بالفعل.' },
+        { status: 409 },
+      );
+    }
     const id = randomUUID();
-    const user: User = { id, name: fullName, email, role: 'patient' };
-    put('user', id, user);
-    await createSession(id);
-    return NextResponse.json({ success: true, data: user, redirectTo: '/my-appointments' });
+    const userRole: Role = effectiveIntent === 'clinic_owner' ? 'clinic_owner' : 'patient';
+    const passwordHash = createHash('sha256').update(password).digest('hex');
+    put('user', id, {
+      id,
+      name: fullName,
+      email,
+      role: userRole,
+      phone: phone ?? undefined,
+      passwordHash,
+    });
+    await createSession(id, userRole);
+    const user: User = { id, name: fullName, email, role: userRole };
+    return NextResponse.json({ success: true, data: user, redirectTo: redirectForUser(user) });
   }
 
   // ─── 2. Sign In (email + password) ─────────────────────────
   if (email && password) {
-    if (isSupabaseConfigured()) {
+    if (!demoEnabled() && isSupabaseConfigured()) {
       try {
         const { createSupabaseServer } = await import('@/lib/supabase/server');
         const client = await createSupabaseServer();
@@ -163,23 +193,65 @@ export async function POST(request: Request) {
     }
 
     // Fallback: SQLite demo
-    const existing = db
-      .prepare('SELECT id, name, email, role FROM users WHERE email = ?')
-      .get(email) as User | undefined;
-    if (existing) {
-      await createSession(existing.id);
-      return NextResponse.json({ success: true, data: existing });
+    const existing = all<User & { passwordHash?: string }>('user').find(
+      (u) => u.email?.toLowerCase() === email.toLowerCase(),
+    );
+    if (!existing) {
+      return NextResponse.json(
+        { success: false, error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' },
+        { status: 401 },
+      );
     }
-    const newId = randomUUID();
-    const newUser: User = { id: newId, name: email.split('@')[0], email, role: 'patient' };
-    put('user', newId, newUser);
-    await createSession(newId);
-    return NextResponse.json({ success: true, data: newUser });
+    const hash = createHash('sha256').update(password).digest('hex');
+    if (existing.passwordHash) {
+      if (hash !== existing.passwordHash) {
+        return NextResponse.json(
+          { success: false, error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' },
+          { status: 401 },
+        );
+      }
+    } else {
+      const { DEFAULT_DEMO_PASSWORD_HASH } = await import('@/lib/demo-db');
+      if (
+        hash !== DEFAULT_DEMO_PASSWORD_HASH &&
+        password !== 'demo1234' &&
+        password !== 'password123'
+      ) {
+        return NextResponse.json(
+          { success: false, error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' },
+          { status: 401 },
+        );
+      }
+    }
+    await createSession(existing.id, existing.role);
+    const user: User = {
+      id: existing.id,
+      name: existing.name,
+      email: existing.email,
+      role: existing.role,
+      organizationId: existing.organizationId,
+      clinicId: existing.clinicId,
+    };
+    return NextResponse.json({
+      success: true,
+      data: user,
+      redirectTo: redirectForUser(user),
+    });
   }
 
   // ─── 3. Quick Role Preview (demo) ──────────────────────────
-  // TODO: remove before production — allows impersonating any role without password.
   if (role) {
+    if (!demoEnabled()) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'تسجيل الدخول السريع غير متاح في بيئة الإنتاج.',
+          code: 'FORBIDDEN',
+        },
+        { status: 403 },
+      );
+    }
+
     if (isSupabaseConfigured()) {
       try {
         const { createSupabaseServer } = await import('@/lib/supabase/server');

@@ -230,24 +230,40 @@ export function WorkspaceShell({ route, children }: { route: string; children: R
       <Modal
         open={switcher}
         onClose={() => setSwitcher(false)}
-        title="مساحتك، حسب دورك"
-        description="إدارة الصلاحيات والتبديل السريع بين حسابات فريق العمل."
+        title="حسابك الشخصي"
+        description="بياناتك وصلاحيات الدخول المعتمدة في كلينك بوك."
       >
-        <div className="role-switch-grid">
-          {Object.entries(roleLabels).map(([role, label]) => (
-            <button
-              key={role}
-              className={user?.role === role ? 'active' : ''}
-              onClick={() => login(role)}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem',
+            padding: '0.5rem 0 1rem',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <Avatar name={user?.name ?? ''} size="lg" />
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1.15rem' }}>{user?.name}</h3>
+              <p style={{ margin: '0.2rem 0', color: 'var(--muted)', fontSize: '0.9rem' }}>
+                {user?.email}
+              </p>
+              <Badge status="active">{roleLabels[user?.role ?? 'patient'] ?? user?.role}</Badge>
+            </div>
+          </div>
+          {data?.organization && (
+            <div
+              style={{
+                background: 'var(--muted-bg, rgba(0,0,0,0.04))',
+                padding: '0.75rem 1rem',
+                borderRadius: '8px',
+                fontSize: '0.875rem',
+              }}
             >
-              <Avatar name={label} />
-              <span>
-                <strong>{label}</strong>
-                <small>{role === user?.role ? 'حسابك الحالي' : 'الانتقال إلى صلاحيات هذا الدور'}</small>
-              </span>
-              {role === user?.role ? <Check size={19} /> : <ArrowLeft size={18} />}
-            </button>
-          ))}
+              <strong>المركز الطبي: </strong>
+              <span>{data.organization.name}</span>
+            </div>
+          )}
         </div>
         <Button
           variant="outline"
@@ -279,14 +295,20 @@ export function WorkspaceShell({ route, children }: { route: string; children: R
             <b>02</b>
             <span>
               <strong>تكامل الصلاحيات</strong>
-              <p>يتابع موظف الاستقبال تسجيل الوصول والتحصيل، بينما يتفرغ الأطباء لإدارة الكشوفات والوصفات الطبية.</p>
+              <p>
+                يتابع موظف الاستقبال تسجيل الوصول والتحصيل، بينما يتفرغ الأطباء لإدارة الكشوفات
+                والوصفات الطبية.
+              </p>
             </span>
           </div>
           <div>
             <b>03</b>
             <span>
               <strong>حفظ آمن للبيانات</strong>
-              <p>تُحفظ وتُوثّق جميع العمليات والسجلات الطبية بأعلى درجات الأمان والخصوصية والاعتمادية.</p>
+              <p>
+                تُحفظ وتُوثّق جميع العمليات والسجلات الطبية بأعلى درجات الأمان والخصوصية
+                والاعتمادية.
+              </p>
             </span>
           </div>
         </div>

@@ -8,7 +8,7 @@ import type { Doctor, Appointment } from '../../src/lib/types';
 
 describe('ClinicBook Eve AI Agent Tools & Schedules', () => {
   it('find_available_slots returns doctors and available slots', async () => {
-    const doctors = all<Doctor>('doctor');
+    const doctors = all<Doctor>('doctor').filter((d) => d.verified);
     expect(doctors.length).toBeGreaterThan(0);
 
     const firstDoctor = doctors[0];

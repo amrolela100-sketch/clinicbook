@@ -19,7 +19,7 @@ function cleanup() {
     db.prepare(
       "DELETE FROM entities WHERE kind='reference' AND json_extract(data,'$.name')='مدينة اختبار'",
     ).run();
-    db.prepare("DELETE FROM entities WHERE kind='medical' AND id='seed--1-4'").run();
+    db.prepare("DELETE FROM entities WHERE kind='medical'").run();
     const v = get<Record<string, unknown>>('verification', 'request-1');
     if (v) put('verification', 'request-1', { ...v, status: 'pending' });
   } catch {
@@ -46,6 +46,7 @@ test('1. Public discovery, filters, doctor slots and mobile layout', async ({ pa
 
   // 1. Home page
   await page.goto('/');
+  await loaded(page);
   await expect(page.locator('.hero')).toBeVisible();
   await expect(page.locator('.doctor-card').first()).toBeVisible();
   const initialHomeCount = await page.locator('.doctor-card').count();
@@ -54,6 +55,7 @@ test('1. Public discovery, filters, doctor slots and mobile layout', async ({ pa
   // 2. Search page
   await page.getByRole('button', { name: 'ابحث عن طبيب', exact: true }).click();
   await expect(page).toHaveURL(/search/);
+  await loaded(page);
   await expect(page.locator('.doctor-card').first()).toBeVisible();
   const searchCount = await page.locator('.doctor-card').count();
   expect(searchCount).toBeGreaterThanOrEqual(1);
@@ -67,7 +69,11 @@ test('1. Public discovery, filters, doctor slots and mobile layout', async ({ pa
   // 4. Doctor detail page
   await page.locator('.doctor-card a.book-link').first().click();
   await expect(page).toHaveURL(/\/doctors\//);
+  await loaded(page);
   await expect(page.locator('.profile-main h1')).toContainText(doctorName ?? '');
+  if ((await page.locator('.slot-grid button').count()) === 0) {
+    await page.locator('.days-carousel button').nth(1).click();
+  }
   await expect(page.locator('.slot-grid button').first()).toBeVisible();
 
   // 5. Mobile responsive check
@@ -84,7 +90,11 @@ test('2. Patient books real slot then cancels with persisted status', async ({ p
   await expect(page.locator('.doctor-card').first()).toBeVisible();
   await page.locator('.doctor-card a.book-link').first().click();
   await page.waitForURL(/\/doctors\//);
+  await loaded(page);
 
+  if ((await page.locator('.slot-grid button').count()) === 0) {
+    await page.locator('.days-carousel button').nth(1).click();
+  }
   await expect(page.locator('.slot-grid button').first()).toBeVisible();
   await page.locator('.slot-grid button').first().click();
   await page.getByRole('button', { name: 'متابعة الحجز' }).click();
@@ -109,7 +119,9 @@ test('2. Patient books real slot then cancels with persisted status', async ({ p
   }
 });
 
-test('3. Owner navigation, branch save, schedule save and permissions across workspace pages', async ({ page }) => {
+test('3. Owner navigation, branch save, schedule save and permissions across workspace pages', async ({
+  page,
+}) => {
   await login(page, 'clinic_owner');
   await page.goto('/workspace/dashboard');
   await expect(page.locator('.stat-card').first()).toBeVisible();
@@ -186,18 +198,28 @@ test('3. Owner navigation, branch save, schedule save and permissions across wor
 test('4. Reception direct booking, check-in and cash collection', async ({ page }) => {
   await login(page, 'receptionist');
   await page.goto('/workspace/appointments');
+  await loaded(page);
   await expect(page.getByRole('button', { name: 'موعد جديد', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'موعد جديد', exact: true }).click();
   await page.getByLabel('اسم المريض', { exact: true }).fill('مريض اختبار المتصفح');
   await page.getByLabel('رقم الهاتف', { exact: true }).fill('+963993333222');
 
   const select = page.getByLabel('الفترة المتاحة');
+  let bookedTomorrow = false;
+  if ((await select.locator('option').count()) <= 1) {
+    bookedTomorrow = true;
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    await page.getByRole('dialog').getByLabel('تاريخ الموعد').fill(tomorrow);
+  }
   await expect(select.locator('option')).not.toHaveCount(1);
   const value = await select.locator('option').last().getAttribute('value');
   await select.selectOption(value!);
   await page.getByRole('button', { name: 'إضافة وتأكيد الموعد' }).click();
   await expect(page.getByText('تمت إضافة الموعد وتأكيده بنجاح')).toBeVisible();
 
+  if (bookedTomorrow) {
+    await page.getByRole('button', { name: 'كل السجل' }).click();
+  }
   await page.getByPlaceholder('ابحث باسم المريض أو الهاتف…').fill('مريض اختبار المتصفح');
   const actionButton = page.getByRole('button', { name: 'إجراءات موعد مريض اختبار المتصفح' });
   await expect(actionButton).toBeVisible();
@@ -225,16 +247,17 @@ test('5. Doctor writes clinical record and printable prescription', async ({ pag
 
   if (targetAppt) {
     await page.goto(`/workspace/patients/${targetAppt.id}`);
-    await expect(page.getByLabel('التشخيص', { exact: true })).toBeVisible();
-    await page.getByLabel('التشخيص', { exact: true }).fill('متابعة صحية — بيانات اختبار');
+    await loaded(page);
+    await expect(page.getByRole('textbox', { name: 'التشخيص' })).toBeVisible();
+    await page.getByRole('textbox', { name: 'التشخيص' }).fill('متابعة صحية — بيانات اختبار');
     await page
-      .getByLabel('الشكوى الرئيسية', { exact: true })
+      .getByRole('textbox', { name: 'الشكوى الرئيسية' })
       .fill('معاينة توضيحية دون بيانات حقيقية');
     await page.getByRole('button', { name: 'إضافة دواء' }).click();
-    await page.getByLabel('اسم الدواء', { exact: true }).fill('دواء توضيحي');
-    await page.getByLabel('الجرعة', { exact: true }).fill('جرعة تجريبية');
-    await page.getByLabel('التكرار', { exact: true }).fill('حسب التعليمات');
-    await page.getByLabel('المدة', { exact: true }).fill('للعرض فقط');
+    await page.getByLabel('اسم الدواء', { exact: true }).last().fill('دواء توضيحي');
+    await page.getByLabel('الجرعة', { exact: true }).last().fill('جرعة تجريبية');
+    await page.getByLabel('التكرار', { exact: true }).last().fill('حسب التعليمات');
+    await page.getByLabel('المدة', { exact: true }).last().fill('للعرض فقط');
     await page.getByRole('button', { name: 'حفظ وإتمام الزيارة' }).click();
     await expect(page.getByText('حُفظ السجل الطبي وأُتمّت الزيارة')).toBeVisible();
     await page.getByRole('button', { name: 'عرض الوصفة', exact: true }).click();
@@ -255,7 +278,7 @@ test('6. Admin approves request and persists a reference', async ({ page }) => {
   const approveBtn = page.getByRole('button', { name: 'اعتماد', exact: true });
   if ((await approveBtn.count()) > 0) {
     await approveBtn.first().click();
-    await expect(page.getByText('تم اعتماد الطلب في بيئة العرض')).toBeVisible();
+    await expect(page.getByText('تم اعتماد الطلب وتفعيل المركز بنجاح')).toBeVisible();
   }
 
   await page.getByRole('button', { name: 'المدن والتخصصات' }).click();
@@ -265,7 +288,10 @@ test('6. Admin approves request and persists a reference', async ({ page }) => {
   await expect(page.locator('.reference-grid')).toContainText('مدينة اختبار');
 });
 
-test('7. Unauthenticated and cross-origin mutations blocked, and public portals verified', async ({ request, page }) => {
+test('7. Unauthenticated and cross-origin mutations blocked, and public portals verified', async ({
+  request,
+  page,
+}) => {
   // Unauthorized blocked
   const r = await request.post('/api/appointments', {
     data: { doctorId: '87d2da64-eb38-4053-94ca-c6d2aed951a9', start: new Date().toISOString() },
@@ -289,5 +315,5 @@ test('7. Unauthenticated and cross-origin mutations blocked, and public portals 
 
   // 404 Not Found page
   await page.goto('/page-does-not-exist');
-  await expect(page.locator('.not-found, .error-code, h1')).toBeVisible();
+  await expect(page.locator('.not-found, .error-code, h1').first()).toBeVisible();
 });

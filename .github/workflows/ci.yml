@@ -1,0 +1,69 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Release-Blocking Quality Gates
+    runs-on: ubuntu-24.04 # Pinned runner per CI gate standards (no floating -latest)
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (Pinned v22 LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install Clean Dependencies
+        run: npm ci
+
+      # Gate 1: Code Style & Formatting Contract
+      - name: Gate 1 - Prettier Format Freshness
+        run: npx prettier --check .
+
+      # Gate 2: Strict Static Analysis Contract
+      - name: Gate 2 - Strict TypeScript Typecheck
+        run: npm run typecheck
+
+      # Gate 3: Unit & Integration Logic Suite
+      - name: Gate 3 - Unit & Integration Tests (Vitest)
+        run: npm run test:unit
+
+      # Gate 4: Production Artifact & Route Build Contract
+      - name: Gate 4 - Production Next.js Build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+
+      # Gate 5: End-to-End & WCAG AA Accessibility Contract
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Gate 5 - Playwright E2E & WCAG AA Accessibility
+        run: npx playwright test
+        env:
+          CI: '1'
+
+      - name: Upload Diagnostic Report on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

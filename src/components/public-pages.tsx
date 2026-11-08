@@ -29,6 +29,7 @@ import {
   ArrowRight,
   UserRound,
   LoaderCircle,
+  LogOut,
 } from 'lucide-react';
 import { useApp } from './app-provider';
 import {
@@ -58,7 +59,7 @@ const specialties = [
   { name: 'طب العيون', icon: Eye },
 ];
 export function PublicShell({ children }: { children: ReactNode }) {
-  const { data, login } = useApp();
+  const { data, login, logout } = useApp();
   const [menu, setMenu] = useState(false);
   return (
     <div className="public-shell">
@@ -73,6 +74,27 @@ export function PublicShell({ children }: { children: ReactNode }) {
           <Link href="/search">اكتشف الأطباء</Link>
           <Link href="/#how-it-works">كيف نساعدك؟</Link>
           <Link href="/register-clinic">للأطباء والمراكز</Link>
+          {data?.user?.role === 'patient' && <Link href="/my-appointments">مواعيدي</Link>}
+          {data?.user && (
+            <button
+              type="button"
+              onClick={logout}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#843a3a',
+                font: 'inherit',
+                cursor: 'pointer',
+                textAlign: 'inherit',
+                padding: '6px 0',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <LogOut size={16} /> تسجيل الخروج
+            </button>
+          )}
         </nav>
         <div className="public-nav-actions">
           {data?.user ? (
@@ -94,9 +116,48 @@ export function PublicShell({ children }: { children: ReactNode }) {
               تسجيل الدخول
             </Link>
           )}
-          <Button variant="outline" onClick={() => login('clinic_owner')}>
-            جرّب مساحة العمل <ArrowUpLeft size={17} />
-          </Button>
+          {data?.user ? (
+            data.user.role === 'patient' ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Link href="/my-appointments" className="btn btn-outline">
+                  <CalendarDays size={16} /> مواعيدي
+                </Link>
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="btn btn-outline"
+                  title="تسجيل الخروج"
+                  aria-label="تسجيل الخروج"
+                  style={{ padding: '8px 12px', minWidth: 'auto' }}
+                >
+                  <LogOut size={16} />
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Link
+                  href={data.user.role === 'super_admin' ? '/admin' : '/workspace/dashboard'}
+                  className="btn btn-outline"
+                >
+                  مساحة العمل <ArrowUpLeft size={17} />
+                </Link>
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="btn btn-outline"
+                  title="تسجيل الخروج"
+                  aria-label="تسجيل الخروج"
+                  style={{ padding: '8px 12px', minWidth: 'auto' }}
+                >
+                  <LogOut size={16} />
+                </button>
+              </div>
+            )
+          ) : (
+            <Link href="/register-clinic" className="btn btn-outline">
+              سجّل عيادتك <ArrowUpLeft size={17} />
+            </Link>
+          )}
           <button
             className="mobile-menu icon-button"
             aria-label="فتح القائمة"
@@ -709,7 +770,8 @@ export function DoctorPage({ id }: { id: string }) {
         <Link href="/">الرئيسية</Link>
         <span>/</span>
         <Link href="/search">الأطباء</Link>
-        <span>/</span>{formatDoctorName(d.name)}
+        <span>/</span>
+        {formatDoctorName(d.name)}
       </div>
       <div className="doctor-profile-grid">
         <div>
@@ -740,8 +802,8 @@ export function DoctorPage({ id }: { id: string }) {
               <div className="profile-about">
                 <h3>تعرف إلى طبيبك</h3>
                 <p>
-                  {d.bio} نؤمن أن الاستماع الجيد هو البداية لرعاية أفضل، ونحرص على تقديم رعاية طبية مريحة
-                  وواضحة في كل زيارة.
+                  {d.bio} نؤمن أن الاستماع الجيد هو البداية لرعاية أفضل، ونحرص على تقديم رعاية طبية
+                  مريحة وواضحة في كل زيارة.
                 </p>
               </div>
               <div className="clinic-address">
@@ -778,7 +840,10 @@ export function DoctorPage({ id }: { id: string }) {
                   </div>
                 ))
             ) : (
-              <Empty title="كن أول من يشارك تقييمه للزيارة" text="تتاح كتابة التقييم بعد إتمام زيارتك." />
+              <Empty
+                title="كن أول من يشارك تقييمه للزيارة"
+                text="تتاح كتابة التقييم بعد إتمام زيارتك."
+              />
             )}
           </section>
         </div>
@@ -926,11 +991,11 @@ export function DoctorPage({ id }: { id: string }) {
             <div className="info-note">
               يرجى تسجيل الدخول بحساب المريض لإتمام حجز الموعد وتأكيده فورًا.
             </div>
-            <Button className="full-width" onClick={() => login('patient', `/doctors/${id}`)}>
-              المتابعة وتأكيد الحجز <ArrowLeft size={18} />
-            </Button>
-            <Link className="btn btn-outline full-width" href="/login">
-              تسجيل الدخول
+            <Link
+              className="btn btn-primary full-width"
+              href={`/login?next=${encodeURIComponent(`/doctors/${id}`)}`}
+            >
+              تسجيل الدخول لتأكيد الحجز <ArrowLeft size={18} />
             </Link>
           </>
         )}

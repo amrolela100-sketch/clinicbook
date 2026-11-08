@@ -12,8 +12,14 @@ export default defineTool({
   name: 'find_available_slots',
   description: 'البحث عن الأطباء المتاحين وجلب الفترات الزمنية الشاغرة لحجز موعد مؤكد',
   inputSchema: z.object({
-    specialty: z.string().optional().describe('التخصص الطبي المطلوب مثل: باطنية، أسنان، جلدية، أطفال'),
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('تاريخ اليوم المطلوب بالصيغة YYYY-MM-DD'),
+    specialty: z
+      .string()
+      .optional()
+      .describe('التخصص الطبي المطلوب مثل: باطنية، أسنان، جلدية، أطفال'),
+    date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .describe('تاريخ اليوم المطلوب بالصيغة YYYY-MM-DD'),
     doctorId: z.string().optional().describe('معرّف الطبيب إن كان محدداً سلفاً'),
   }),
   async execute({ specialty, date, doctorId }) {

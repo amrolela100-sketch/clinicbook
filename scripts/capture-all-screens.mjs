@@ -50,7 +50,7 @@ try {
   console.log('--- 3. Doctor Profile & Booking Slots ---');
   // Navigate to first doctor
   const firstDocCard = page.locator('.doctor-card a, a[href*="/doctors/"]').first();
-  if (await firstDocCard.count() > 0) {
+  if ((await firstDocCard.count()) > 0) {
     await firstDocCard.click();
     await page.waitForTimeout(800);
   } else {
@@ -61,21 +61,25 @@ try {
 
   console.log('--- 4. AI Assistant Eve (Triage Chat) ---');
   await page.goto('http://localhost:3000/');
-  const eveButton = page.locator('button:has-text("Eve"), button:has-text("المساعد"), [aria-label*="Eve"]').first();
-  if (await eveButton.count() > 0) {
+  const eveButton = page
+    .locator('button:has-text("Eve"), button:has-text("المساعد"), [aria-label*="Eve"]')
+    .first();
+  if ((await eveButton.count()) > 0) {
     await eveButton.click();
     await page.waitForTimeout(600);
     const chatInput = page.locator('input[placeholder*="اكتب"], textarea').first();
-    if (await chatInput.count() > 0) {
+    if ((await chatInput.count()) > 0) {
       await chatInput.fill('أشعر بألم متقطع وضيق في الصدر مع دوخة خفيفة');
-      const sendBtn = page.locator('button[type="submit"], button:has-text("إرسال"), button:has(svg)').last();
+      const sendBtn = page
+        .locator('button[type="submit"], button:has-text("إرسال"), button:has(svg)')
+        .last();
       await sendBtn.click();
       await page.waitForTimeout(2000);
     }
     await snap('04-ai-assistant-eve.png', false);
     // close drawer if open
     const closeBtn = page.locator('[aria-label="Close"], button:has-text("إغلاق")').first();
-    if (await closeBtn.count() > 0) await closeBtn.click();
+    if ((await closeBtn.count()) > 0) await closeBtn.click();
   }
 
   console.log('--- 5. Multi-Role Login ---');

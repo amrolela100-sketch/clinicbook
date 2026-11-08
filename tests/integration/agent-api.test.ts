@@ -1,7 +1,15 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { POST } from '../../src/app/api/agent/chat/route';
 
 describe('Integration: Agent Chat API Endpoint (/api/agent/chat)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-18T10:00:00+03:00'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
   it('handles chat action and returns 200 with structured agent response', async () => {
     const req = new Request('http://localhost:3000/api/agent/chat', {
       method: 'POST',

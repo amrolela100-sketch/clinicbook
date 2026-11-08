@@ -28,11 +28,7 @@ export async function checkUpcomingAppointmentsRetention(
 
   const upcoming = allAppts.filter((a) => {
     const startMs = new Date(a.start).getTime();
-    return (
-      startMs > nowMs &&
-      startMs <= maxMs &&
-      ['confirmed', 'pending'].includes(a.status)
-    );
+    return startMs > nowMs && startMs <= maxMs && ['confirmed', 'pending'].includes(a.status);
   });
 
   const candidates = upcoming.map((a) => {

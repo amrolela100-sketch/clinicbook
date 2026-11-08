@@ -54,7 +54,11 @@ export async function createSupabaseBooking(
 ): Promise<ActionResult<Record<string, unknown>>> {
   const p = bookingInputSchema.safeParse(input);
   if (!p.success)
-    return { success: false, code: 'VALIDATION_ERROR', error: 'بيانات الحجز غير صالحة، تحقق من الحقول.' };
+    return {
+      success: false,
+      code: 'VALIDATION_ERROR',
+      error: 'بيانات الحجز غير صالحة، تحقق من الحقول.',
+    };
 
   const raw = p.data;
   const doctorId = raw.doctor_id ?? raw.doctorId;
@@ -72,19 +76,61 @@ export async function createSupabaseBooking(
   const adminClient = createSupabaseAdmin();
 
   let clinicId = raw.clinic_id ?? raw.clinicId;
+  let organizationId = '';
+
+  const { data: docRecord } = await adminClient
+    .from('doctors')
+    .select('organization_id, consultation_fee, follow_up_fee')
+    .eq('id', doctorId)
+    .limit(1)
+    .maybeSingle();
+
+  if (docRecord?.organization_id) {
+    organizationId = docRecord.organization_id;
+  }
 
   if (!clinicId) {
-    const { data: clinic } = await adminClient
-      .from('clinics')
-      .select('id, timezone')
+    const { data: avail } = await adminClient
+      .from('availability')
+      .select('clinic_id')
       .eq('doctor_id', doctorId)
       .limit(1)
       .maybeSingle();
-    clinicId = clinic?.id;
+    if (avail?.clinic_id) clinicId = avail.clinic_id;
+
+    if (!clinicId) {
+      const { data: member } = await adminClient
+        .from('organization_members')
+        .select('clinic_id')
+        .eq('user_id', doctorId)
+        .limit(1)
+        .maybeSingle();
+      if (member?.clinic_id) clinicId = member.clinic_id;
+    }
+
+    if (!clinicId && organizationId) {
+      const { data: cl } = await adminClient
+        .from('clinics')
+        .select('id')
+        .eq('organization_id', organizationId)
+        .limit(1)
+        .maybeSingle();
+      if (cl?.id) clinicId = cl.id;
+    }
   }
 
   if (!clinicId) {
     return { success: false, code: 'VALIDATION_ERROR', error: 'العيادة غير محددة للطبيب.' };
+  }
+
+  if (!organizationId) {
+    const { data: cl } = await adminClient
+      .from('clinics')
+      .select('organization_id')
+      .eq('id', clinicId)
+      .limit(1)
+      .maybeSingle();
+    if (cl?.organization_id) organizationId = cl.organization_id;
   }
 
   let endAt = raw.end_at ?? raw.end;
@@ -154,7 +200,11 @@ export async function createSupabaseBooking(
     .gt('end_at', startAt);
 
   if (conflicts && conflicts.length > 0) {
-    return { success: false, code: 'SLOT_CONFLICT', error: 'حُجزت هذه الفترة للتو. يرجى اختيار فترة أخرى.' };
+    return {
+      success: false,
+      code: 'SLOT_CONFLICT',
+      error: 'حُجزت هذه الفترة للتو. يرجى اختيار فترة أخرى.',
+    };
   }
 
   // حد المواعيد ينطبق فقط على حجز المريض الإلكتروني
@@ -167,7 +217,11 @@ export async function createSupabaseBooking(
       .gt('end_at', new Date().toISOString());
 
     if (userActive && userActive.length >= 3) {
-      return { success: false, code: 'MAX_ACTIVE_REACHED', error: 'بلغت الحد الأقصى للحجوزات النشطة (3 مواعيد).' };
+      return {
+        success: false,
+        code: 'MAX_ACTIVE_REACHED',
+        error: 'بلغت الحد الأقصى للحجوزات النشطة (3 مواعيد).',
+      };
     }
   }
 
@@ -178,26 +232,50 @@ export async function createSupabaseBooking(
 
   const isStaff = ['doctor', 'receptionist', 'clinic_owner', 'super_admin'].includes(user.role);
   const initialStatus = isStaff ? 'confirmed' : 'pending';
+  const feeAmount =
+    visitType === 'follow_up'
+      ? Number(docRecord?.follow_up_fee ?? 15)
+      : Number(docRecord?.consultation_fee ?? 25);
 
   const { data: newAppt, error: insertError } = await adminClient
     .from('appointments')
     .insert({
       id: appointmentId,
+      organization_id: organizationId,
       patient_id: targetPatientId,
       doctor_id: doctorId,
       clinic_id: clinicId,
       start_at: startAt,
       end_at: endAt,
+      fee_amount: feeAmount,
       status: initialStatus,
       visit_type: visitType,
       expires_at: defaultExpiresAt,
+      walk_in_patient_name: isStaff && patientFullName ? patientFullName : null,
+      walk_in_patient_phone: isStaff && patientPhone ? patientPhone : null,
+      booking_source: isStaff
+        ? user.role === 'doctor'
+          ? 'doctor_direct'
+          : 'reception_desk'
+        : 'patient_portal',
     })
     .select()
     .single();
 
   if (insertError) {
+    if (insertError.code === '23P01' || insertError.message?.includes('overlap')) {
+      return {
+        success: false,
+        code: 'SLOT_CONFLICT',
+        error: 'عذراً، هذا الموعد تم حجزه للتو من قبل مريض آخر.',
+      };
+    }
     console.error('Supabase appointment insert error:', insertError);
-    return { success: false, code: 'INTERNAL_ERROR', error: insertError.message || 'تعذر حفظ الموعد.' };
+    return {
+      success: false,
+      code: 'INTERNAL_ERROR',
+      error: insertError.message || 'تعذر حفظ الموعد.',
+    };
   }
 
   return { success: true, data: newAppt };
@@ -231,7 +309,11 @@ export async function transitionSupabaseAppointment(
     updated_at: new Date().toISOString(),
   };
 
-  if (['cancelled', 'rejected'].includes(nextStatus)) {
+  if (nextStatus === 'checked_in') {
+    updates.checked_in_at = new Date().toISOString();
+  } else if (nextStatus === 'completed') {
+    updates.completed_at = new Date().toISOString();
+  } else if (['cancelled', 'rejected'].includes(nextStatus)) {
     updates.cancelled_by = user.id;
     updates.cancel_reason = reason ?? null;
   }
@@ -244,7 +326,11 @@ export async function transitionSupabaseAppointment(
     .single();
 
   if (updateError) {
-    return { success: false, code: 'INTERNAL_ERROR', error: updateError.message || 'تعذر تحديث حالة الموعد.' };
+    return {
+      success: false,
+      code: 'INTERNAL_ERROR',
+      error: updateError.message || 'تعذر تحديث حالة الموعد.',
+    };
   }
 
   return { success: true, data: updated };
@@ -261,16 +347,45 @@ export async function getSupabaseSlots(
   let targetClinicId = clinicId;
   let timezone = 'Asia/Damascus';
 
-  const { data: clinic } = await client
-    .from('clinics')
-    .select('id, timezone')
-    .eq('doctor_id', doctorId)
-    .limit(1)
-    .maybeSingle();
+  if (!targetClinicId) {
+    const { data: avail } = await client
+      .from('availability')
+      .select('clinic_id')
+      .eq('doctor_id', doctorId)
+      .limit(1)
+      .maybeSingle();
+    if (avail?.clinic_id) targetClinicId = avail.clinic_id;
 
-  if (clinic) {
-    targetClinicId = clinic.id;
-    if (clinic.timezone) timezone = clinic.timezone;
+    if (!targetClinicId) {
+      const { data: docData } = await client
+        .from('doctors')
+        .select('organization_id')
+        .eq('id', doctorId)
+        .limit(1)
+        .maybeSingle();
+      if (docData?.organization_id) {
+        const { data: cl } = await client
+          .from('clinics')
+          .select('id, timezone')
+          .eq('organization_id', docData.organization_id)
+          .limit(1)
+          .maybeSingle();
+        if (cl?.id) {
+          targetClinicId = cl.id;
+          if (cl.timezone) timezone = cl.timezone;
+        }
+      }
+    }
+  }
+
+  if (targetClinicId && !timezone) {
+    const { data: cl } = await client
+      .from('clinics')
+      .select('timezone')
+      .eq('id', targetClinicId)
+      .limit(1)
+      .maybeSingle();
+    if (cl?.timezone) timezone = cl.timezone;
   }
 
   if (!targetClinicId) {
@@ -282,6 +397,7 @@ export async function getSupabaseSlots(
     .from('availability')
     .select('day_of_week, start_time, end_time, slot_duration_minutes')
     .eq('clinic_id', targetClinicId)
+    .eq('doctor_id', doctorId)
     .eq('day_of_week', day);
 
   const typedAvail = (rawAvail as RawAvailabilityRow[] | null) ?? [];

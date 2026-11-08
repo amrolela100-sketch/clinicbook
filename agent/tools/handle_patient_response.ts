@@ -14,7 +14,9 @@ export default defineTool({
   description: 'معالجة رد المريض على رسالة التأكيد: تأكيد الحضور، أو طلب الإلغاء، أو الاعتذار',
   inputSchema: z.object({
     appointmentId: z.string().describe('معرف الموعد المراد تحديثه'),
-    action: z.enum(['confirm_attendance', 'cancel_appointment']).describe('الإجراء المطلوب بناءً على رد المريض'),
+    action: z
+      .enum(['confirm_attendance', 'cancel_appointment'])
+      .describe('الإجراء المطلوب بناءً على رد المريض'),
     reason: z.string().max(500).default('').describe('سبب الإلغاء في حال اعتذار المريض'),
   }),
   async execute({ appointmentId, action, reason }) {

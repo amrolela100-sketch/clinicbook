@@ -29,7 +29,11 @@ export default defineTool({
   name: 'get_clinic_summary',
   description: 'جلب ملخص مواعيد وإيرادات العيادة والضغط التشغيلي ليوم محدد',
   inputSchema: z.object({
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('تاريخ اليوم المطلوب YYYY-MM-DD'),
+    date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional()
+      .describe('تاريخ اليوم المطلوب YYYY-MM-DD'),
     organizationId: z.string().optional().describe('معرف المركز الطبي'),
   }),
   async execute({ date, organizationId }) {

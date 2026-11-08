@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import type { Appointment, Doctor, User, Shift } from './types';
 const dir = path.join(process.cwd(), 'data');
@@ -24,7 +24,9 @@ CREATE TRIGGER IF NOT EXISTS prevent_overlap_update BEFORE UPDATE ON appointment
 CREATE TABLE IF NOT EXISTS audit(id TEXT PRIMARY KEY,organization_id TEXT,actor_id TEXT,action TEXT NOT NULL,entity_id TEXT,created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id TEXT NOT NULL,expires_at TEXT NOT NULL,role TEXT);
 `);
-try { db.exec('ALTER TABLE sessions ADD COLUMN role TEXT'); } catch {}
+try {
+  db.exec('ALTER TABLE sessions ADD COLUMN role TEXT');
+} catch {}
 export function all<T>(kind: string): T[] {
   return (db.prepare('SELECT data FROM entities WHERE kind=?').all(kind) as { data: string }[]).map(
     (r) => JSON.parse(r.data),
@@ -80,7 +82,12 @@ export function expirePending() {
 export function localDate(offset = 0) {
   return formatInTimeZone(new Date(Date.now() + offset * 86400000), 'Asia/Damascus', 'yyyy-MM-dd');
 }
-export const roles: User[] = [
+export const DEFAULT_DEMO_PASSWORD = 'demo1234';
+export const DEFAULT_DEMO_PASSWORD_HASH = createHash('sha256')
+  .update(DEFAULT_DEMO_PASSWORD)
+  .digest('hex');
+
+export const roles: (User & { passwordHash?: string })[] = [
   {
     id: 'owner-1',
     name: 'عمر الشامي',
@@ -88,6 +95,7 @@ export const roles: User[] = [
     role: 'clinic_owner',
     organizationId: 'org-1',
     clinicId: 'clinic-1',
+    passwordHash: DEFAULT_DEMO_PASSWORD_HASH,
   },
   {
     id: 'doctor-1',
@@ -96,6 +104,7 @@ export const roles: User[] = [
     role: 'doctor',
     organizationId: 'org-1',
     clinicId: 'clinic-1',
+    passwordHash: DEFAULT_DEMO_PASSWORD_HASH,
   },
   {
     id: 'reception-1',
@@ -104,9 +113,22 @@ export const roles: User[] = [
     role: 'receptionist',
     organizationId: 'org-1',
     clinicId: 'clinic-1',
+    passwordHash: DEFAULT_DEMO_PASSWORD_HASH,
   },
-  { id: 'patient-1', name: 'سارة الخطيب', email: 'patient@clinicbook.demo', role: 'patient' },
-  { id: 'admin-1', name: 'مدير المنصة', email: 'admin@clinicbook.demo', role: 'super_admin' },
+  {
+    id: 'patient-1',
+    name: 'سارة الخطيب',
+    email: 'patient@clinicbook.demo',
+    role: 'patient',
+    passwordHash: DEFAULT_DEMO_PASSWORD_HASH,
+  },
+  {
+    id: 'admin-1',
+    name: 'مدير المنصة',
+    email: 'admin@clinicbook.demo',
+    role: 'super_admin',
+    passwordHash: DEFAULT_DEMO_PASSWORD_HASH,
+  },
 ];
 function seed() {
   if (get('meta', 'seeded')) return;
@@ -316,7 +338,8 @@ function seed() {
             appointmentId: a.id,
             diagnosis: 'زيارة متابعة دورية',
             complaint: 'متابعة الحالة الصحية',
-            notes: 'المريض بحالة صحية جيدة، تم فحص العلامات الحيوية وضغط الدم ضمن الحدود الطبيعية. استمرار على نمط الحياة الصحي.',
+            notes:
+              'المريض بحالة صحية جيدة، تم فحص العلامات الحيوية وضغط الدم ضمن الحدود الطبيعية. استمرار على نمط الحياة الصحي.',
             medications: [],
             followUp: '',
             visible: true,
@@ -377,7 +400,8 @@ if (!get('meta', 'history-v2')) {
         appointmentId: a.id,
         diagnosis: 'زيارة متابعة دورية',
         complaint: 'فحص دوري واستشارة سريرية',
-        notes: 'استقرار الحالة السريرية واستجابة ممتازة للخطة العلاجية المتبعة. إعادة التقييم بعد 6 أشهر أو عند اللزوم.',
+        notes:
+          'استقرار الحالة السريرية واستجابة ممتازة للخطة العلاجية المتبعة. إعادة التقييم بعد 6 أشهر أو عند اللزوم.',
         medications: [],
         followUp: '',
         visible: true,

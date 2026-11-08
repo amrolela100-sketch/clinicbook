@@ -17,12 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="font/ttf"
           crossOrigin="anonymous"
         />
-        <link
-          rel="preload"
-          as="image"
-          href="/images/care-editorial.jpg"
-          fetchPriority="high"
-        />
+        <link rel="preload" as="image" href="/images/care-editorial.jpg" fetchPriority="high" />
       </head>
       <body>
         <DirectionProvider dir="rtl">

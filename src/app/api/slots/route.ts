@@ -19,7 +19,10 @@ export async function GET(request: Request) {
     .safeParse(q);
 
   if (!p.success)
-    return NextResponse.json({ success: false, error: 'تاريخ أو معرف طبيب غير صالح' }, { status: 400 });
+    return NextResponse.json(
+      { success: false, error: 'تاريخ أو معرف طبيب غير صالح' },
+      { status: 400 },
+    );
 
   if (!demoEnabled()) {
     const result = await getSupabaseSlots(p.data.doctorId, p.data.date, p.data.clinicId);

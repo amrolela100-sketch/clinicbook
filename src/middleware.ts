@@ -31,30 +31,41 @@ export async function middleware(request: NextRequest) {
   // --- Supabase session refresh (all matched routes) ---
   let response = NextResponse.next({ request });
 
-  if (isSupabaseConfigured()) {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  if (
+    isSupabaseConfigured() &&
+    (process.env.CLINICBOOK_MODE === 'production' || process.env.FORCE_SUPABASE === 'true')
+  ) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
-    const supabase = createServerClient(url, key, {
-      cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll: (list) => {
-          list.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
-          list.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
-          );
-        },
-      },
-    });
+    if (url && key) {
+      try {
+        const supabase = createServerClient(url, key, {
+          cookies: {
+            getAll: () => request.cookies.getAll(),
+            setAll: (list) => {
+              list.forEach(({ name, value }) => request.cookies.set(name, value));
+              response = NextResponse.next({ request });
+              list.forEach(({ name, value, options }) =>
+                response.cookies.set(name, value, options),
+              );
+            },
+          },
+        });
 
-    // Refreshes the session token if expired — writes updated cookies via setAll
-    await supabase.auth.getUser();
+        // Refreshes the session token if expired — writes updated cookies via setAll
+        await supabase.auth.getUser();
+      } catch {
+        // Silently continue if Supabase is temporarily unreachable
+      }
+    }
   }
 
   // --- Security headers ---
   response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('X-Frame-Options', 'SAMEORIGIN');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   return response;
 }
 

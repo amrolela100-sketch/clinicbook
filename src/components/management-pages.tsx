@@ -789,7 +789,10 @@ export function SettingsPage() {
             </form>
           </section>
           <section className="card settings-card integration-card" id="integrations">
-            <CardHeading title="التكاملات الخارجية" subtitle="إدارة بوابات الربط والخدمات الخارجية للمنصة." />
+            <CardHeading
+              title="التكاملات الخارجية"
+              subtitle="إدارة بوابات الربط والخدمات الخارجية للمنصة."
+            />
             {[
               { name: 'Supabase', text: 'قاعدة بيانات الإنتاج والمصادقة وRealtime' },
               { name: 'Google OAuth', text: 'تسجيل الدخول بحساب Google' },
@@ -830,9 +833,9 @@ export function AdminPage() {
             <Globe size={17} />
             بوابة المرضى
           </Link>
-          <Button variant="ghost" onClick={() => login('clinic_owner')}>
+          <Link href="/workspace/dashboard" className="btn btn-ghost">
             مساحة العيادة <ArrowUpLeft size={17} />
-          </Button>
+          </Link>
         </div>
       </header>
       <main className="admin-content">
@@ -922,12 +925,15 @@ export function AdminPage() {
                                   disabled={busy}
                                   onClick={async () => {
                                     setBusy(true);
-                                    await act(
-                                      'verify',
-                                      { id: v.id, status: 'approved' },
-                                      'تم اعتماد الطلب في بيئة العرض',
-                                    );
-                                    setBusy(false);
+                                    try {
+                                      await act(
+                                        'verify',
+                                        { id: v.id, status: 'approved' },
+                                        'تم اعتماد الطلب وتفعيل المركز بنجاح',
+                                      );
+                                    } finally {
+                                      setBusy(false);
+                                    }
                                   }}
                                 >
                                   <Check size={16} />
@@ -952,7 +958,7 @@ export function AdminPage() {
             <>
               <CardHeading
                 title="مؤسسات المنصة"
-                subtitle="التفعيل اليدوي يُمدد الاشتراك 30 يومًا داخل بيئة العرض."
+                subtitle="التفعيل اليدوي يُمدد الاشتراك 30 يومًا إضافية."
               />
               <div className="table-scroll">
                 <table>
@@ -983,11 +989,16 @@ export function AdminPage() {
                             onSubmit={async (e) => {
                               e.preventDefault();
                               const f = new FormData(e.currentTarget);
-                              await act(
-                                'subscription',
-                                { id: o.id, tier: f.get('tier') },
-                                'تم تفعيل الاشتراك لمدة 30 يومًا',
-                              );
+                              setBusy(true);
+                              try {
+                                await act(
+                                  'subscription',
+                                  { id: o.id, tier: f.get('tier') },
+                                  'تم تفعيل الاشتراك لمدة 30 يومًا',
+                                );
+                              } finally {
+                                setBusy(false);
+                              }
                             }}
                           >
                             <select name="tier" defaultValue={o.tier}>
@@ -997,7 +1008,7 @@ export function AdminPage() {
                                 </option>
                               ))}
                             </select>
-                            <Button size="sm" type="submit">
+                            <Button size="sm" type="submit" disabled={busy}>
                               تفعيل
                             </Button>
                           </form>

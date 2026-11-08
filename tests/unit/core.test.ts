@@ -125,6 +125,47 @@ describe('appointment lifecycle', () => {
     expect(
       canTransition(appt, 'cancelled', 'doctor', new Date('2026-10-15T06:00:00Z')).success,
     ).toBe(false));
+  it('allows clinic_owner confirmation before expiry', () =>
+    expect(
+      canTransition(
+        { ...appt, status: 'pending', expiresAt: '2026-10-15T08:00:00Z' },
+        'confirmed',
+        'clinic_owner',
+        new Date('2026-10-15T06:00:00Z'),
+      ).success,
+    ).toBe(true));
+  it('denies clinic_owner confirmation after expiry', () =>
+    expect(
+      canTransition(
+        { ...appt, status: 'pending', expiresAt: '2026-10-15T05:00:00Z' },
+        'confirmed',
+        'clinic_owner',
+        new Date('2026-10-15T06:00:00Z'),
+      ).success,
+    ).toBe(false));
+  it('allows clinic_owner cancellation with reason', () =>
+    expect(
+      canTransition(
+        appt,
+        'cancelled',
+        'clinic_owner',
+        new Date('2026-10-15T06:00:00Z'),
+        2,
+        'ظرف طارئ في العيادة',
+      ).success,
+    ).toBe(true));
+  it('clinic_owner cancellation needs reason', () =>
+    expect(
+      canTransition(appt, 'cancelled', 'clinic_owner', new Date('2026-10-15T06:00:00Z')).success,
+    ).toBe(false));
+  it('allows clinic_owner completion after start', () =>
+    expect(
+      canTransition(appt, 'completed', 'clinic_owner', new Date('2026-10-15T10:00:00Z')).success,
+    ).toBe(true));
+  it('denies clinic_owner early completion before start', () =>
+    expect(
+      canTransition(appt, 'completed', 'clinic_owner', new Date('2026-10-15T08:00:00Z')).success,
+    ).toBe(false));
   it('terminal states cannot reopen', () =>
     expect(
       canTransition({ ...appt, status: 'completed' }, 'confirmed', 'doctor', new Date()).success,

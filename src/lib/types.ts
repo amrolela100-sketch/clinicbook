@@ -72,7 +72,7 @@ export interface MedicalRecord {
   diagnosis: string;
   complaint: string;
   notes: string;
-  medications: { name: string; dose: string; frequency: string; duration: string }[];
+  medications: { id?: string; name: string; dose: string; frequency: string; duration: string }[];
   followUp: string;
   visible: boolean;
 }

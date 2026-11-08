@@ -1,9 +1,17 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { processAgentMessage } from '../../src/lib/services/agent-service';
 import { all } from '../../src/lib/demo-db';
 import type { Doctor } from '../../src/lib/types';
 
 describe('TDD: Agent Service Orchestrator (processAgentMessage)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-18T10:00:00+03:00'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
   it('RED: detects emergency keywords and triggers emergency triage protocol', async () => {
     const result = await processAgentMessage({
       message: 'أشعر بألم حاد ومفاجئ في الصدر وضيق تنفس',
@@ -73,6 +81,8 @@ describe('TDD: Agent Service Orchestrator (processAgentMessage)', () => {
       expect(result.data.doctors).toHaveLength(1);
       expect(result.data.doctors?.[0].doctorName).toBe('أحمد الحسن');
       expect(result.data.doctors?.[0].specialty).toContain('القلب');
+      expect(result.data.doctors?.[0].date).toBe('2026-10-25');
+      expect(result.data.doctors?.[0].isFutureDate).toBe(false);
     }
   });
 
@@ -86,7 +96,7 @@ describe('TDD: Agent Service Orchestrator (processAgentMessage)', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.doctors?.[0].availableSlotsCount).toBeGreaterThan(0);
-      expect(result.data.reply).toMatch(/2026-10-\d{2}/);
+      expect(result.data.reply).toMatch(/2026-10-(18|19)/);
     }
   });
 
@@ -103,5 +113,68 @@ describe('TDD: Agent Service Orchestrator (processAgentMessage)', () => {
       expect(result.data.clinicSummary).toBeDefined();
     }
   });
-});
 
+  it('correctly maps abdominal pain symptoms to General Medicine', async () => {
+    const result = await processAgentMessage({
+      message: 'عندي مغص شديد وألم في البطن مع غثيان',
+      date: '2026-10-25',
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.intent).toBe('slots_found');
+      expect(result.data.doctors?.[0].specialty).toContain('الطب العام');
+    }
+  });
+
+  it('recognizes female doctor by name with title (دكتورة ليلى)', async () => {
+    const result = await processAgentMessage({
+      message: 'أريد حجز كشفية مع دكتورة ليلى',
+      date: '2026-10-25',
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.intent).toBe('slots_found');
+      expect(result.data.doctors).toHaveLength(1);
+      expect(result.data.doctors?.[0].doctorName).toBe('ليلى منصور');
+      expect(result.data.doctors?.[0].specialty).toContain('أطفال');
+    }
+  });
+
+  it('handles patient appointments lookup when logged in', async () => {
+    const mockPatient = {
+      id: 'patient-1',
+      name: 'سارة الخطيب',
+      email: 'sarah@example.com',
+      role: 'patient' as const,
+    };
+
+    const result = await processAgentMessage(
+      {
+        message: 'أين مواعيدي القادمة المسجلة؟',
+      },
+      mockPatient,
+    );
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.intent).toBe('general');
+      expect(result.data.reply).toBeDefined();
+      expect(result.data.suggestedActions).toContain('الانتقال إلى مواعيدي');
+    }
+  });
+
+  it('explains cancellation policy when asking to cancel an appointment', async () => {
+    const result = await processAgentMessage({
+      message: 'كيف ألغي موعدي في العيادة؟',
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.intent).toBe('general');
+      expect(result.data.reply).toContain('ساعتين');
+      expect(result.data.suggestedActions).toContain('الانتقال إلى مواعيدي');
+    }
+  });
+});

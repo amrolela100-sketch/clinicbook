@@ -2,13 +2,17 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { processAgentMessage } from '@/lib/services/agent-service';
 import bookAppointmentTool from '../../../../../agent/tools/book_appointment';
+import { currentUser } from '@/lib/auth/session';
 
 const chatRequestSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('chat'),
     message: z.string().trim().min(1, 'الرسالة مطلوبة'),
     sessionId: z.string().optional(),
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
   }),
   z.object({
     action: z.literal('book_slot'),
@@ -38,13 +42,17 @@ export async function POST(req: Request) {
     }
 
     const payload = parsed.data;
+    const user = await currentUser();
 
     if (payload.action === 'chat') {
-      const result = await processAgentMessage({
-        message: payload.message,
-        sessionId: payload.sessionId,
-        date: payload.date,
-      });
+      const result = await processAgentMessage(
+        {
+          message: payload.message,
+          sessionId: payload.sessionId,
+          date: payload.date,
+        },
+        user,
+      );
 
       return NextResponse.json(result, { status: result.success ? 200 : 422 });
     }
@@ -57,6 +65,8 @@ export async function POST(req: Request) {
         phone: payload.phone,
         visitType: payload.visitType,
         notes: payload.notes,
+        patientId: user?.role === 'patient' ? user.id : undefined,
+        patientEmail: user?.role === 'patient' ? user.email : undefined,
       });
 
       const isSuccess =

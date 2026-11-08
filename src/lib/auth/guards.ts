@@ -7,8 +7,7 @@ export function canAccess(
 ) {
   if (user.role === 'super_admin') return true;
   if (user.role === 'patient') return user.id === resource.patientId;
-  if (kind === 'medical')
-    return user.role === 'doctor' && user.id === resource.doctorId;
+  if (kind === 'medical') return user.role === 'doctor' && user.id === resource.doctorId;
   if (user.organizationId !== resource.organizationId) return false;
   if (user.role === 'doctor') return user.id === resource.doctorId;
   if (user.role === 'clinic_owner') return true;

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { currentUser, createSession, demoEnabled } from '@/lib/auth/session';
@@ -8,6 +9,16 @@ import { canTransition } from '@/lib/services/appointment-lifecycle';
 import { overlaps } from '@/lib/services/slots-engine';
 import type { Appointment, Doctor, MedicalRecord, Shift, User } from '@/lib/types';
 import type { Organization } from '@/lib/services/booking-service';
+
+function revalidateAppPaths() {
+  try {
+    revalidatePath('/workspace');
+    revalidatePath('/my-appointments');
+  } catch {
+    // Safe fallback if called outside Next.js request context (e.g. tests)
+  }
+}
+
 const text = z.string().trim().min(2).max(150);
 class ActionError extends Error {
   constructor(
@@ -48,29 +59,42 @@ export async function POST(request: Request) {
     const p = envelope.payload;
     const action = envelope.action;
 
-    if (!demoEnabled() && action === 'transition') {
-      const b = z
-        .object({
-          id: z.string(),
-          status: z.enum([
-            'confirmed',
-            'rejected',
-            'cancelled',
-            'checked_in',
-            'completed',
-            'no_show',
-          ]),
-          reason: z.string().max(500).optional(),
-        })
-        .parse(p);
-      const result = await transitionSupabaseAppointment(b.id, b.status, b.reason);
-      if (!result.success) {
+    if (!demoEnabled()) {
+      const user = await currentUser();
+      if (!user) {
         return NextResponse.json(
-          { success: false, error: result.error, code: result.code },
-          { status: result.code === 'FORBIDDEN' ? 403 : result.code === 'UNAUTHORIZED' ? 401 : 422 },
+          { success: false, error: 'يرجى تسجيل الدخول.', code: 'UNAUTHORIZED' },
+          { status: 401 },
         );
       }
-      return NextResponse.json({ success: true, data: result.data });
+
+      const { executeSupabaseAction, SupabaseActionError } =
+        await import('@/lib/services/supabase-actions-service');
+      try {
+        const result = await executeSupabaseAction(user, action, p);
+        if (result.success) {
+          revalidateAppPaths();
+        }
+        return NextResponse.json(result);
+      } catch (err) {
+        if (err instanceof SupabaseActionError) {
+          return NextResponse.json(
+            { success: false, error: err.message, code: err.code },
+            { status: err.status },
+          );
+        }
+        if (err instanceof z.ZodError) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'تحقق من الحقول المطلوبة وصحة القيم.',
+              code: 'VALIDATION_ERROR',
+            },
+            { status: 422 },
+          );
+        }
+        throw err;
+      }
     }
     let user = await currentUser();
     if (action === 'onboard') {
@@ -98,7 +122,11 @@ export async function POST(request: Request) {
         }
 
         // Check email uniqueness excluding current user
-        if (all<User>('user').some((u) => u.email === b.email && u.id !== user!.id))
+        if (
+          all<User>('user').some(
+            (u) => u.email?.toLowerCase() === b.email.toLowerCase() && u.id !== user!.id,
+          )
+        )
           throw new ActionError('هذا البريد مستخدم بالفعل.');
 
         const id = randomUUID(),
@@ -127,8 +155,8 @@ export async function POST(request: Request) {
           put('user', user!.id, {
             ...user!,
             id: user!.id,
-            name: b.doctorName,
-            email: user!.email, // from session, not from request
+            name: user!.name || b.name,
+            email: user!.email || b.email,
             organizationId: id,
             clinicId: cid,
             role: 'clinic_owner',
@@ -183,14 +211,32 @@ export async function POST(request: Request) {
           });
         })();
         // No createSession needed — user is already authenticated via Supabase
-        return NextResponse.json({ success: true, data: { id } });
+        revalidateAppPaths();
+        return NextResponse.json({ success: true, data: { id, clinicId: cid } });
       }
 
       // ── SQLite-only (demo) onboarding — original path ──
-      if (all<User>('user').some((u) => u.email === b.email))
+      if (user?.organizationId) {
+        throw new ActionError('تم إنشاء المركز مسبقاً.', 409);
+      }
+
+      // Check email uniqueness excluding current user
+      const currentUserId = user?.id;
+      const existingUserWithEmail = all<User>('user').find(
+        (u) => u.email?.toLowerCase() === b.email.toLowerCase(),
+      );
+      if (existingUserWithEmail && currentUserId && existingUserWithEmail.id !== currentUserId) {
         throw new ActionError('هذا البريد مستخدم بالفعل.');
+      }
+      if (existingUserWithEmail && !currentUserId && existingUserWithEmail.organizationId) {
+        throw new ActionError('هذا البريد مستخدم بالفعل ومسجل لمركز آخر.');
+      }
+
+      const ownerUser = user || existingUserWithEmail;
+      const ownerId = ownerUser?.id ?? randomUUID();
+      const ownerName = ownerUser?.name || b.name; // Keep manager's name, not doctor's name!
+
       const id = randomUUID(),
-        uid = randomUUID(),
         did = randomUUID(),
         cid = randomUUID();
       db.transaction(() => {
@@ -211,9 +257,10 @@ export async function POST(request: Request) {
           expiryMinutes: 60,
           timezone: 'Asia/Damascus',
         } satisfies Organization);
-        put('user', uid, {
-          id: uid,
-          name: b.doctorName,
+        put('user', ownerId, {
+          ...(ownerUser || {}),
+          id: ownerId,
+          name: ownerName,
           email: b.email,
           organizationId: id,
           clinicId: cid,
@@ -268,8 +315,9 @@ export async function POST(request: Request) {
           phone: b.phone,
         });
       })();
-      await createSession(uid);
-      return NextResponse.json({ success: true, data: { id } });
+      await createSession(ownerId, 'clinic_owner');
+      revalidateAppPaths();
+      return NextResponse.json({ success: true, data: { id, clinicId: cid } });
     }
     if (!user) throw new ActionError('يرجى تسجيل الدخول.', 401);
     const u: User = user;
@@ -373,7 +421,10 @@ export async function POST(request: Request) {
           }
           if (!a) deny();
           const target = a;
-          if (!['doctor', 'receptionist', 'clinic_owner', 'super_admin'].includes(u.role) || !canAccess(u, target, 'appointment'))
+          if (
+            !['doctor', 'receptionist', 'clinic_owner', 'super_admin'].includes(u.role) ||
+            !canAccess(u, target, 'appointment')
+          )
             deny();
           if (!['confirmed', 'checked_in', 'completed'].includes(target.status))
             throw new ActionError('لا يمكن تحصيل كشفية موعد غير مؤكد.');
@@ -390,7 +441,15 @@ export async function POST(request: Request) {
               complaint: z.string().max(1000),
               notes: z.string().max(3000),
               medications: z
-                .array(z.object({ name: text, dose: text, frequency: text, duration: text }))
+                .array(
+                  z.object({
+                    id: z.string().optional(),
+                    name: text,
+                    dose: text,
+                    frequency: text,
+                    duration: text,
+                  }),
+                )
                 .max(20),
               followUp: z.string(),
               visible: z.boolean(),
@@ -754,6 +813,7 @@ export async function POST(request: Request) {
           throw new ActionError('إجراء غير معروف.', 400);
       }
     }).immediate();
+    revalidateAppPaths();
     return NextResponse.json({ success: true, data: output });
   } catch (e) {
     if (e instanceof z.ZodError)

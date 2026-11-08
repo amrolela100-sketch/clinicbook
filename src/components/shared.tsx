@@ -122,13 +122,7 @@ export function Avatar({
   return (
     <span className={`avatar avatar-${size}`} style={{ background: color }}>
       {image ? (
-        <img
-          src={`/images/${image}`}
-          alt={name}
-          width={sizePx}
-          height={sizePx}
-          loading="lazy"
-        />
+        <img src={`/images/${image}`} alt={name} width={sizePx} height={sizePx} loading="lazy" />
       ) : (
         name
           .split(' ')

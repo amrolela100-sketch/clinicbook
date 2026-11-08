@@ -17,13 +17,24 @@ export default defineTool({
     phone: z.string().min(7).max(25).describe('رقم هاتف المريض للتواصل والتأكيد'),
     visitType: z.enum(['first_visit', 'follow_up', 'consultation']).default('first_visit'),
     notes: z.string().max(500).optional().describe('ملاحظات إضافية حول الزيارة'),
+    patientId: z.string().optional().describe('معرف المريض المسجل إن وجد'),
+    patientEmail: z.string().email().optional().describe('بريد المريض المسجل إن وجد'),
   }),
-  async execute({ doctorId, start, patientName, phone, visitType, notes }) {
+  async execute({
+    doctorId,
+    start,
+    patientName,
+    phone,
+    visitType,
+    notes,
+    patientId,
+    patientEmail,
+  }) {
     // تمثيل هوية المريض عبر جلسة النظام المحمية
     const patientUser: User = {
-      id: `agent-patient-${phone.replace(/\D/g, '').slice(-8) || 'guest'}`,
+      id: patientId || `agent-patient-${phone.replace(/\D/g, '').slice(-8) || 'guest'}`,
       name: patientName,
-      email: `${phone.replace(/\D/g, '') || 'patient'}@clinicbook.local`,
+      email: patientEmail || `${phone.replace(/\D/g, '') || 'patient'}@clinicbook.local`,
       role: 'patient',
     };
 
@@ -33,7 +44,9 @@ export default defineTool({
       visitType,
       patientName,
       phone,
-      notes: notes ? `[تم الحجز عبر مساعد ClinicBook الذكي] ${notes}` : '[تم الحجز عبر مساعد ClinicBook الذكي]',
+      notes: notes
+        ? `[تم الحجز عبر مساعد ClinicBook الذكي] ${notes}`
+        : '[تم الحجز عبر مساعد ClinicBook الذكي]',
     });
 
     if (!bookingResult.success) {

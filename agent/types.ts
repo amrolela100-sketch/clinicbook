@@ -4,7 +4,10 @@ export interface ToolDefinition<TInput extends z.ZodTypeAny, TOutput = unknown> 
   name?: string;
   description: string;
   inputSchema: TInput;
-  execute: (input: z.infer<TInput>, context?: Record<string, unknown>) => Promise<TOutput> | TOutput;
+  execute: (
+    input: z.infer<TInput>,
+    context?: Record<string, unknown>,
+  ) => Promise<TOutput> | TOutput;
 }
 
 export function defineTool<TInput extends z.ZodTypeAny, TOutput = unknown>(

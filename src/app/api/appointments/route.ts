@@ -1,7 +1,17 @@
 import { NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { currentUser, demoEnabled } from '@/lib/auth/session';
 import { createBooking } from '@/lib/services/booking-service';
 import { createSupabaseBooking } from '@/lib/services/supabase-booking-service';
+
+function revalidateAppPaths() {
+  try {
+    revalidatePath('/workspace');
+    revalidatePath('/my-appointments');
+  } catch {
+    // Safe fallback if called outside Next.js request context (e.g. tests)
+  }
+}
 
 export async function POST(request: Request) {
   const user = await currentUser();
@@ -15,6 +25,9 @@ export async function POST(request: Request) {
 
   if (!demoEnabled()) {
     const result = await createSupabaseBooking(body);
+    if (result.success) {
+      revalidateAppPaths();
+    }
     return NextResponse.json(result, {
       status: result.success
         ? 201
@@ -29,6 +42,9 @@ export async function POST(request: Request) {
   }
 
   const result = createBooking(user, body);
+  if (result.success) {
+    revalidateAppPaths();
+  }
   return NextResponse.json(result, {
     status: result.success
       ? 201

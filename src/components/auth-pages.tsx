@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -15,6 +15,9 @@ import {
   CalendarDays,
   LoaderCircle,
   Phone,
+  Eye,
+  EyeOff,
+  ArrowUpLeft,
 } from 'lucide-react';
 import { useApp } from './app-provider';
 import { Logo, Field, Submit } from './shared';
@@ -25,16 +28,31 @@ export function Login() {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [busy, setBusy] = useState(false);
   const [demoBusy, setDemoBusy] = useState('');
+  const [nextParam, setNextParam] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search);
+      const raw = p.get('next');
+      if (raw && raw.startsWith('/') && !raw.startsWith('//') && !raw.includes('\\')) {
+        setNextParam(raw);
+      }
+    }
+  }, []);
 
   // Sign In fields
   const [signInEmail, setSignInEmail] = useState('');
   const [signInPassword, setSignInPassword] = useState('');
+  const [showSignInPassword, setShowSignInPassword] = useState(false);
 
   // Sign Up fields
   const [fullName, setFullName] = useState('');
   const [signUpEmail, setSignUpEmail] = useState('');
   const [signUpPhone, setSignUpPhone] = useState('');
   const [signUpPassword, setSignUpPassword] = useState('');
+  const [signUpConfirmPassword, setSignUpConfirmPassword] = useState('');
+  const [showSignUpPassword, setShowSignUpPassword] = useState(false);
+  const [showSignUpConfirmPassword, setShowSignUpConfirmPassword] = useState(false);
   const [signUpRole, setSignUpRole] = useState<'patient' | 'clinic_owner'>('patient');
 
   async function handleSignIn(e: FormEvent) {
@@ -45,7 +63,7 @@ export function Login() {
     }
     setBusy(true);
     try {
-      await login({ email: signInEmail, password: signInPassword });
+      await login({ email: signInEmail.trim(), password: signInPassword }, nextParam);
     } finally {
       setBusy(false);
     }
@@ -61,15 +79,22 @@ export function Login() {
       toast('كلمة المرور يجب أن تكون 6 خانات على الأقل.', true);
       return;
     }
+    if (signUpPassword !== signUpConfirmPassword) {
+      toast('كلمتا المرور غير متطابقتين.', true);
+      return;
+    }
     setBusy(true);
     try {
-      await signup({
-        fullName: fullName.trim(),
-        email: signUpEmail.trim(),
-        password: signUpPassword,
-        phone: signUpPhone.trim() || undefined,
-        intent: signUpRole,
-      });
+      await signup(
+        {
+          fullName: fullName.trim(),
+          email: signUpEmail.trim(),
+          password: signUpPassword,
+          phone: signUpPhone.trim() || undefined,
+          intent: signUpRole,
+        },
+        nextParam,
+      );
     } finally {
       setBusy(false);
     }
@@ -82,7 +107,7 @@ export function Login() {
           <ArrowRight size={17} />
           العودة للرئيسية
         </Link>
-        <div className="auth-form-wrap">
+        <div className="auth-form-wrap auth-box">
           <Logo />
 
           <div className="auth-tab-group" role="tablist">
@@ -118,7 +143,7 @@ export function Login() {
 
               <form onSubmit={handleSignIn}>
                 <Field label="البريد الإلكتروني">
-                  <div className="input-icon">
+                  <div className="input-icon" dir="ltr">
                     <Mail size={18} />
                     <input
                       type="email"
@@ -131,16 +156,24 @@ export function Login() {
                   </div>
                 </Field>
                 <Field label="كلمة المرور">
-                  <div className="input-icon">
+                  <div className="input-icon" dir="ltr">
                     <LockKeyhole size={18} />
                     <input
-                      type="password"
+                      type={showSignInPassword ? 'text' : 'password'}
                       required
                       value={signInPassword}
                       onChange={(e) => setSignInPassword(e.target.value)}
                       placeholder="••••••••"
                       dir="ltr"
                     />
+                    <button
+                      type="button"
+                      className="input-end-action"
+                      onClick={() => setShowSignInPassword((v) => !v)}
+                      aria-label={showSignInPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+                    >
+                      {showSignInPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
                   </div>
                 </Field>
                 <Button className="full-width" variant="default" type="submit" disabled={busy}>
@@ -157,30 +190,31 @@ export function Login() {
                 <br />
                 تبدأ من حسابك.
               </h1>
-              <p>أنشئ حسابك لإدارة مواعيدك وسجلاتك الطبية أو لتسجيل مركزك.</p>
-
-              <div className="demo-role-grid" style={{ marginBottom: '1rem' }}>
-                <button
-                  type="button"
-                  className={signUpRole === 'patient' ? 'selected' : ''}
-                  onClick={() => setSignUpRole('patient')}
-                  style={{ border: signUpRole === 'patient' ? '2px solid var(--primary)' : undefined }}
-                >
-                  <UserRound size={20} strokeWidth={1.6} />
-                  <span>مريض</span>
-                </button>
-                <button
-                  type="button"
-                  className={signUpRole === 'clinic_owner' ? 'selected' : ''}
-                  onClick={() => setSignUpRole('clinic_owner')}
-                  style={{ border: signUpRole === 'clinic_owner' ? '2px solid var(--primary)' : undefined }}
-                >
-                  <Building2 size={20} strokeWidth={1.6} />
-                  <span>عيادة أو مركز طبي</span>
-                </button>
-              </div>
+              <p>أنشئ حسابك لإدارة مواعيدك وسجلاتك الطبية.</p>
 
               <form onSubmit={handleSignUp}>
+                <div className="auth-role-grid" role="radiogroup" aria-label="نوع الحساب">
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={signUpRole === 'patient'}
+                    className={signUpRole === 'patient' ? 'selected' : ''}
+                    onClick={() => setSignUpRole('patient')}
+                  >
+                    <UserRound size={20} strokeWidth={1.6} />
+                    <span>مريض</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={signUpRole === 'clinic_owner'}
+                    className={signUpRole === 'clinic_owner' ? 'selected' : ''}
+                    onClick={() => setSignUpRole('clinic_owner')}
+                  >
+                    <Building2 size={20} strokeWidth={1.6} />
+                    <span>عيادة أو مركز طبي</span>
+                  </button>
+                </div>
                 <Field label="الاسم الكامل">
                   <div className="input-icon">
                     <UserRound size={18} />
@@ -194,7 +228,7 @@ export function Login() {
                   </div>
                 </Field>
                 <Field label="رقم الهاتف (اختياري)">
-                  <div className="input-icon">
+                  <div className="input-icon" dir="ltr">
                     <Phone size={18} />
                     <input
                       type="tel"
@@ -206,7 +240,7 @@ export function Login() {
                   </div>
                 </Field>
                 <Field label="البريد الإلكتروني">
-                  <div className="input-icon">
+                  <div className="input-icon" dir="ltr">
                     <Mail size={18} />
                     <input
                       type="email"
@@ -219,16 +253,49 @@ export function Login() {
                   </div>
                 </Field>
                 <Field label="كلمة المرور" hint="6 أحرف أو أرقام على الأقل">
-                  <div className="input-icon">
+                  <div className="input-icon" dir="ltr">
                     <LockKeyhole size={18} />
                     <input
-                      type="password"
+                      type={showSignUpPassword ? 'text' : 'password'}
                       required
+                      minLength={6}
                       value={signUpPassword}
                       onChange={(e) => setSignUpPassword(e.target.value)}
                       placeholder="••••••••"
                       dir="ltr"
                     />
+                    <button
+                      type="button"
+                      className="input-end-action"
+                      onClick={() => setShowSignUpPassword((v) => !v)}
+                      aria-label={showSignUpPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+                    >
+                      {showSignUpPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </Field>
+                <Field label="تأكيد كلمة المرور">
+                  <div className="input-icon" dir="ltr">
+                    <LockKeyhole size={18} />
+                    <input
+                      type={showSignUpConfirmPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      value={signUpConfirmPassword}
+                      onChange={(e) => setSignUpConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      dir="ltr"
+                    />
+                    <button
+                      type="button"
+                      className="input-end-action"
+                      onClick={() => setShowSignUpConfirmPassword((v) => !v)}
+                      aria-label={
+                        showSignUpConfirmPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'
+                      }
+                    >
+                      {showSignUpConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
                   </div>
                 </Field>
                 <Button className="full-width" variant="default" type="submit" disabled={busy}>
@@ -239,42 +306,55 @@ export function Login() {
             </>
           )}
 
-          <div className="demo-login-panel">
-            <div className="demo-login-heading">
-              <span className="live-dot" />
-              <strong>تسجيل الدخول السريع للأدوار</strong>
-              <span>الوصول المباشر للمنظومة</span>
+          {mode === 'signin' && (
+            <div className="demo-login-panel">
+              <div className="demo-login-heading">
+                <span className="live-dot" />
+                <strong>تسجيل الدخول السريع للأدوار</strong>
+                <span>الوصول المباشر للمنظومة</span>
+              </div>
+              <p>اختر حسابك المعتمد للانتقال المباشر إلى مساحة العمل الخاصة بك.</p>
+              <div className="demo-role-grid">
+                {[
+                  { role: 'clinic_owner', label: 'مدير المركز', icon: Building2 },
+                  { role: 'doctor', label: 'طبيب', icon: Stethoscope },
+                  { role: 'receptionist', label: 'الاستقبال', icon: UsersRound },
+                  { role: 'patient', label: 'مريض', icon: UserRound },
+                  { role: 'super_admin', label: 'مدير المنصة', icon: ShieldCheck },
+                ].map((r) => (
+                  <button
+                    key={r.role}
+                    type="button"
+                    disabled={busy || !!demoBusy}
+                    onClick={() => {
+                      setDemoBusy(r.role);
+                      login(r.role, nextParam).finally(() => setDemoBusy(''));
+                    }}
+                  >
+                    {demoBusy === r.role ? (
+                      <LoaderCircle className="spin" size={20} />
+                    ) : (
+                      <r.icon size={20} strokeWidth={1.6} />
+                    )}
+                    <span>{r.label}</span>
+                    <ArrowUpLeft size={14} />
+                  </button>
+                ))}
+              </div>
             </div>
-            <p>اختر حسابك المعتمد للانتقال المباشر إلى مساحة العمل الخاصة بك.</p>
-            <div className="demo-role-grid">
-              {[
-                { role: 'clinic_owner', label: 'مدير المركز', icon: Building2 },
-                { role: 'doctor', label: 'طبيب', icon: Stethoscope },
-                { role: 'receptionist', label: 'الاستقبال', icon: UsersRound },
-                { role: 'patient', label: 'مريض', icon: UserRound },
-                { role: 'super_admin', label: 'مدير المنصة', icon: ShieldCheck },
-              ].map((r) => (
-                <button
-                  key={r.role}
-                  disabled={busy || !!demoBusy}
-                  onClick={() => {
-                    setDemoBusy(r.role);
-                    login(r.role).finally(() => setDemoBusy(''));
-                  }}
-                >
-                  {demoBusy === r.role ? (
-                    <LoaderCircle className="spin" size={20} />
-                  ) : (
-                    <r.icon size={20} strokeWidth={1.6} />
-                  )}
-                  <span>{r.label}</span>
-                  <ArrowUpLeftIcon />
-                </button>
-              ))}
-            </div>
-          </div>
+          )}
+
           <p className="auth-bottom">
-            هل تدير عيادة أو مركزًا طبيًا؟ <Link href="/register-clinic">ابدأ رحلتك معنا</Link>
+            هل تدير عيادة أو مركزًا طبيًا؟{' '}
+            <Link
+              href={
+                nextParam
+                  ? `/register-clinic?next=${encodeURIComponent(nextParam)}`
+                  : '/register-clinic'
+              }
+            >
+              ابدأ رحلتك معنا
+            </Link>
           </p>
         </div>
       </div>
@@ -306,20 +386,6 @@ export function Login() {
     </div>
   );
 }
-function ArrowUpLeftIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-    >
-      <path d="M17 17 7 7m0 10V7h10" />
-    </svg>
-  );
-}
 export function Onboarding() {
   const { act, data } = useApp();
   const authUser = data?.user;
@@ -331,11 +397,19 @@ export function Onboarding() {
     city: 'دمشق',
     district: '',
     phone: '',
-    doctorName: authUser?.name ?? '',
+    doctorName: '',
     email: authUser?.email ?? '',
     license: '',
     tier: 'clinic_pro',
   });
+  useEffect(() => {
+    if (authUser) {
+      setForm((f) => ({
+        ...f,
+        email: f.email || authUser.email || '',
+      }));
+    }
+  }, [authUser]);
   const change = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -382,7 +456,7 @@ export function Onboarding() {
           </p>
         </div>
       </div>
-      <div className="onboarding-form card">
+      <div className="onboarding-form card onboarding-card">
         {done ? (
           <div className="onboarding-success">
             <span className="success-illustration">
@@ -390,8 +464,8 @@ export function Onboarding() {
             </span>
             <h2>أهلاً بمركزك في كلينك بوك</h2>
             <p>
-              تم حفظ بيانات مركزك بنجاح وأُرسلت للمراجعة والاعتماد. يمكنك الآن البدء في تهيئة مساحة عملك
-              وإدارة العيادة.
+              تم حفظ بيانات مركزك بنجاح وأُرسلت للمراجعة والاعتماد. يمكنك الآن البدء في تهيئة مساحة
+              عملك وإدارة العيادة.
             </p>
             <Link href="/workspace/dashboard" className="btn btn-primary full-width">
               انتقل لمساحة العمل <ArrowLeft size={18} />
@@ -481,8 +555,12 @@ export function Onboarding() {
                       dir="ltr"
                       value={form.email}
                       onChange={(e) => change('email', e.target.value)}
-                      readOnly={!!authUser}
-                      style={authUser ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
+                      readOnly={Boolean(authUser?.email && form.email)}
+                      style={
+                        authUser?.email && form.email
+                          ? { opacity: 0.7, cursor: 'not-allowed' }
+                          : undefined
+                      }
                     />
                   </Field>
                   <Field label="رقم الترخيص الطبي">
@@ -536,7 +614,8 @@ export function Onboarding() {
                     ))}
                   </div>
                   <div className="info-note">
-                    فترة تجربة مجانية لمدة 14 يومًا بدون الحاجة لبطاقة ائتمانية. تحكم كامل بالباقات وإدارتها في أي وقت.
+                    فترة تجربة مجانية لمدة 14 يومًا بدون الحاجة لبطاقة ائتمانية. تحكم كامل بالباقات
+                    وإدارتها في أي وقت.
                   </div>
                 </>
               )}

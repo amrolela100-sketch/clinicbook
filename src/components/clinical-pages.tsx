@@ -20,6 +20,7 @@ import {
   AlertCircle,
   Palmtree,
   Save,
+  LogOut,
 } from 'lucide-react';
 import { useApp } from './app-provider';
 import {
@@ -495,7 +496,16 @@ export function MedicalPage({ id }: { id: string }) {
                   patch({
                     medications: [
                       ...form.medications,
-                      { name: '', dose: '', frequency: '', duration: '' },
+                      {
+                        id:
+                          typeof crypto !== 'undefined' && crypto.randomUUID
+                            ? crypto.randomUUID()
+                            : `med-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                        name: '',
+                        dose: '',
+                        frequency: '',
+                        duration: '',
+                      },
                     ],
                   })
                 }
@@ -504,8 +514,8 @@ export function MedicalPage({ id }: { id: string }) {
                 إضافة دواء
               </Button>
             </div>
-            {form.medications.map((m, i) => (
-              <div className="medication-row" key={i}>
+            {form.medications.map((med, i) => (
+              <div className="medication-row" key={med.id || `med-${i}`}>
                 {[
                   { key: 'name', label: 'اسم الدواء' },
                   { key: 'dose', label: 'الجرعة' },
@@ -516,7 +526,7 @@ export function MedicalPage({ id }: { id: string }) {
                     <input
                       required
                       minLength={2}
-                      value={m[f.key as keyof typeof m]}
+                      value={med[f.key as keyof typeof med] ?? ''}
                       onChange={(e) =>
                         patch({
                           medications: form.medications.map((v, n) =>
@@ -686,7 +696,9 @@ export function Prescription({
           </>
         )}
         {r.followUp && <p>المراجعة المقترحة: {r.followUp}</p>}
-        <div className="prescription-foot">ClinicBook · وثيقة طبية معتمدة إلكترونياً من المركز الطبي</div>
+        <div className="prescription-foot">
+          ClinicBook · وثيقة طبية معتمدة إلكترونياً من المركز الطبي
+        </div>
       </div>
       <Button onClick={() => window.print()} className="full-width no-print">
         <Printer size={18} />
@@ -696,7 +708,7 @@ export function Prescription({
   );
 }
 export function MyAppointments() {
-  const { data, act } = useApp();
+  const { data, act, logout } = useApp();
   const [tab, setTab] = useState('upcoming'),
     [review, setReview] = useState<Appointment | null>(null),
     [rating, setRating] = useState(5),
@@ -715,13 +727,24 @@ export function MyAppointments() {
     <div className="public-container my-appointments">
       <PageHeading
         eyebrow="مساحتك الشخصية"
-        title={`أهلاً ${data?.user?.name.split(' ')[0]}، صحتك أولاً.`}
+        title={`أهلاً ${data?.user?.name ? data.user.name.split(' ')[0] : 'بك'}، صحتك أولاً.`}
         description="مواعيدك، تفاصيل زياراتك، ووصفاتك. كلها قريبة منك."
       >
-        <Link href="/search" className="btn btn-primary">
-          <Plus size={18} />
-          احجز موعدًا جديدًا
-        </Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <Link href="/search" className="btn btn-primary">
+            <Plus size={18} />
+            احجز موعدًا جديدًا
+          </Link>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={logout}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            <LogOut size={16} />
+            تسجيل الخروج
+          </button>
+        </div>
       </PageHeading>
       <div className="patient-tabs">
         <button className={tab === 'upcoming' ? 'selected' : ''} onClick={() => setTab('upcoming')}>

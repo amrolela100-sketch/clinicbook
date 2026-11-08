@@ -61,6 +61,16 @@ test.describe('ClinicBook Comprehensive Accessibility Audit (axe-core)', () => {
       .analyze();
 
     expect(results.violations).toEqual([]);
+
+    // Also audit Sign Up tab
+    await page.getByRole('tab', { name: 'حساب جديد' }).click();
+    await expect(page.getByLabel('الاسم الكامل')).toBeVisible();
+
+    const signUpResults = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+
+    expect(signUpResults.violations).toEqual([]);
   });
 
   test('5. Clinic Registration Page (/register-clinic) meets WCAG AA', async ({ page }) => {
@@ -100,7 +110,9 @@ test.describe('ClinicBook Comprehensive Accessibility Audit (axe-core)', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('8. Workspace Appointments Table (/workspace/appointments) meets WCAG AA', async ({ page }) => {
+  test('8. Workspace Appointments Table (/workspace/appointments) meets WCAG AA', async ({
+    page,
+  }) => {
     await login(page, 'receptionist');
     await page.goto('/workspace/appointments');
     await loaded(page);

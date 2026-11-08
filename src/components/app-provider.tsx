@@ -59,8 +59,21 @@ interface AppContext {
   refresh: () => Promise<void>;
   toast: (message: string, error?: boolean) => void;
   act: (action: string, payload: unknown, message?: string) => Promise<boolean>;
-  login: (roleOrCredentials: string | { email: string; password: string }, destination?: string) => Promise<boolean>;
-  signup: (payload: { fullName: string; email: string; password: string; phone?: string; intent?: 'patient' | 'clinic_owner' }) => Promise<boolean>;
+  login: (
+    roleOrCredentials: string | { email: string; password: string },
+    destination?: string,
+  ) => Promise<boolean>;
+  signup: (
+    payload: {
+      fullName: string;
+      email: string;
+      password: string;
+      phone?: string;
+      intent?: 'patient' | 'clinic_owner';
+    },
+    destination?: string,
+  ) => Promise<boolean>;
+  logout: () => Promise<void>;
 }
 const Ctx = createContext<AppContext>(null!);
 export const useApp = () => useContext(Ctx);
@@ -112,11 +125,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return false;
     }
   };
-  const login = async (roleOrCredentials: string | { email: string; password: string }, destination?: string) => {
+  const login = async (
+    roleOrCredentials: string | { email: string; password: string },
+    destination?: string,
+  ) => {
     try {
-      const payload = typeof roleOrCredentials === 'string'
-        ? { role: roleOrCredentials }
-        : { email: roleOrCredentials.email, password: roleOrCredentials.password };
+      const payload =
+        typeof roleOrCredentials === 'string'
+          ? { role: roleOrCredentials }
+          : { email: roleOrCredentials.email, password: roleOrCredentials.password };
 
       const r = await fetch('/api/session', {
         method: 'POST',
@@ -128,11 +145,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
         toast(j.error ?? 'تعذر تسجيل الدخول.', true);
         return false;
       }
-      toast('تم تسجيل الدخول بنجاح');
       const userRole = j.data?.role;
+      const orgId = j.data?.organizationId;
+      let targetUrl = j.redirectTo;
+      if (
+        destination &&
+        destination.startsWith('/') &&
+        !destination.startsWith('//') &&
+        !destination.includes('\\')
+      ) {
+        if (
+          userRole === 'patient' &&
+          (destination.startsWith('/workspace') || destination.startsWith('/admin'))
+        ) {
+          targetUrl = '/my-appointments';
+        } else if (userRole === 'clinic_owner' && !orgId) {
+          targetUrl = '/register-clinic?onboarding=1';
+        } else {
+          targetUrl = destination;
+        }
+      }
       window.location.href =
-        destination ??
-        j.redirectTo ??
+        targetUrl ??
         (userRole === 'patient'
           ? '/my-appointments'
           : userRole === 'super_admin'
@@ -144,7 +178,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return false;
     }
   };
-  const signup = async (payload: { fullName: string; email: string; password: string; phone?: string; intent?: 'patient' | 'clinic_owner' }) => {
+  const signup = async (
+    payload: {
+      fullName: string;
+      email: string;
+      password: string;
+      phone?: string;
+      intent?: 'patient' | 'clinic_owner';
+    },
+    destination?: string,
+  ) => {
     try {
       const r = await fetch('/api/session', {
         method: 'POST',
@@ -161,15 +204,47 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return false;
       }
       toast('تم إنشاء الحساب بنجاح! أهلاً بك.');
-      window.location.href = j.redirectTo ?? '/my-appointments';
+      const userRole =
+        j.data?.role ?? (payload.intent === 'clinic_owner' ? 'clinic_owner' : 'patient');
+      const orgId = j.data?.organizationId;
+      let targetUrl = j.redirectTo;
+      if (userRole === 'clinic_owner' && !orgId) {
+        targetUrl = '/register-clinic?onboarding=1';
+      } else if (
+        destination &&
+        destination.startsWith('/') &&
+        !destination.startsWith('//') &&
+        !destination.includes('\\')
+      ) {
+        if (
+          userRole === 'patient' &&
+          (destination.startsWith('/workspace') || destination.startsWith('/admin'))
+        ) {
+          targetUrl = '/my-appointments';
+        } else {
+          targetUrl = destination;
+        }
+      }
+      window.location.href =
+        targetUrl ??
+        (userRole === 'clinic_owner' ? '/register-clinic?onboarding=1' : '/my-appointments');
       return true;
     } catch {
       toast('تعذر إنشاء الحساب. حاول مجدداً.', true);
       return false;
     }
   };
+  const logout = async () => {
+    try {
+      await fetch('/api/session', { method: 'DELETE' });
+      setData(null);
+      window.location.href = '/';
+    } catch {
+      window.location.href = '/';
+    }
+  };
   return (
-    <Ctx.Provider value={{ data, loading, error, refresh, toast, act, login, signup }}>
+    <Ctx.Provider value={{ data, loading, error, refresh, toast, act, login, signup, logout }}>
       {children}
       <div className="toast-stack" aria-live="polite">
         <AnimatePresence>

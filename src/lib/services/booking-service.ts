@@ -35,7 +35,7 @@ export type Organization = {
   autoConfirm?: boolean;
   timezone: string;
 };
-export function slotsFor(doctorId: string, date: string) {
+export function slotsFor(doctorId: string, date: string, now: Date = new Date()) {
   const d = get<Doctor>('doctor', doctorId);
   if (!d || !d.verified) return [];
   const org = get<Organization>('organization', d.organizationId);
@@ -43,7 +43,7 @@ export function slotsFor(doctorId: string, date: string) {
     !org ||
     org.status !== 'approved' ||
     !['active', 'trialing'].includes(org.subscriptionStatus) ||
-    new Date(org.periodEnd) <= new Date()
+    new Date(org.periodEnd) <= now
   )
     return [];
   const day = new Date(`${date}T12:00:00Z`).getUTCDay();
@@ -54,7 +54,7 @@ export function slotsFor(doctorId: string, date: string) {
     date,
     timezone: org.timezone,
     shifts,
-    now: new Date(),
+    now,
     leadMinutes: org.leadMinutes,
     horizonDays: org.tier === 'enterprise' ? 180 : org.tier === 'clinic_pro' ? 90 : 30,
     bookings: appointments().filter((a) => a.doctorId === doctorId),
@@ -162,7 +162,7 @@ export function createBooking(user: User, input: unknown): ActionResult<Appointm
           clinicId: d.clinicId,
           doctorId: d.id,
           patientId: patient ? user.id : undefined,
-          patientName: patient ? user.name : b.patientName!,
+          patientName: patient ? user.name : (b.patientName ?? user.name),
           phone: b.phone ?? '',
           start,
           end: slot.end,

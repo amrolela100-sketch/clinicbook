@@ -13,7 +13,7 @@ export function canTransition(
     code: 'INVALID_TRANSITION',
   });
   const before = now.getTime() < new Date(a.start).getTime();
-  const staff = ['doctor', 'receptionist'].includes(role);
+  const staff = ['doctor', 'receptionist', 'clinic_owner'].includes(role);
   if (a.status === 'pending') {
     if (next === 'cancelled' && role === 'patient') return { success: true, data: true };
     if (next === 'expired' && role === 'system' && a.expiresAt && new Date(a.expiresAt) <= now)
@@ -36,7 +36,7 @@ export function canTransition(
   if (
     ['confirmed', 'checked_in'].includes(a.status) &&
     next === 'completed' &&
-    role === 'doctor' &&
+    (role === 'doctor' || role === 'clinic_owner') &&
     !before
   )
     return { success: true, data: true };
