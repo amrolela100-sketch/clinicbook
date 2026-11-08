@@ -207,6 +207,15 @@ function seed() {
         'doctor-4.jpg',
       ],
       [
+        'وسيم الجراح',
+        'الطب العام',
+        'طبيب عام واستشاري طب الأسرة، تشخيص الحالات الباطنية العامة والمتابعة الصحية الوقائية.',
+        20,
+        14,
+        '#e8eff5',
+        'doctor-5.jpg',
+      ],
+      [
         'أمل الفايز',
         'طب العيون',
         'استشارية في طب وجراحة العيون، تصحيح البصر والمتابعة الوقائية لصحة العين.',
@@ -218,16 +227,16 @@ function seed() {
     ];
     specs.forEach((s, i) => {
       const id = `doctor-${i + 1}`,
-        org = i === 4 ? 'org-2' : 'org-1';
+        org = i === 5 ? 'org-2' : 'org-1';
       const d: Doctor = {
         id,
         name: s[0] as string,
         specialty: s[1] as string,
         organizationId: org,
-        clinicId: i === 4 ? 'clinic-2' : 'clinic-1',
-        clinic: i === 4 ? 'عيادة الندى' : 'مركز الحياة الطبي',
-        city: i === 4 ? 'حلب' : 'دمشق',
-        district: i === 4 ? 'الجميلية' : 'أبو رمانة',
+        clinicId: i === 5 ? 'clinic-2' : 'clinic-1',
+        clinic: i === 5 ? 'عيادة الندى' : 'مركز الحياة الطبي',
+        city: i === 5 ? 'حلب' : 'دمشق',
+        district: i === 5 ? 'الجميلية' : 'أبو رمانة',
         fee: s[3] as number,
         followUpFee: 10,
         rating: 4.9 - i * 0.1,
