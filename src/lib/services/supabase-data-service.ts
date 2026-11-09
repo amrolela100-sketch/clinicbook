@@ -4,27 +4,15 @@ import { currentUser } from '../auth/session';
 import type { AppData } from '@/components/app-provider';
 import type { Doctor, Appointment, Status, MedicalRecord, Shift, User, Role } from '../types';
 import type { Organization } from './booking-service';
-
-interface PublicDoctorRpcRow {
-  id: string;
-  full_name: string;
-  title_ar: string;
-  bio_ar: string | null;
-  specialty_id: string;
-  specialty_name: string | null;
-  organization_id: string;
-  clinic_id: string | null;
-  clinic_name: string | null;
-  city_name: string | null;
-  district: string | null;
-  consultation_fee: number;
-  follow_up_fee: number;
-  years_of_experience: number;
-  rating_avg: number;
-  reviews_count: number;
-  avatar_url: string | null;
-  license_number: string;
-}
+import type {
+  PublicDoctorDirectoryRow,
+  TenantDoctorDirectoryRow,
+  TenantAppointmentRpcRow,
+  TenantTeamMemberRpcRow,
+  TenantBillingRequestRpcRow,
+  PublicReviewRpcRow,
+  SuperAdminDashboardSnapshot,
+} from '../supabase/database.types';
 
 interface RawAvailability {
   id: string;
@@ -59,39 +47,43 @@ interface RawAppointment {
   created_at: string;
 }
 
-interface TenantAppointmentRpcRow {
-  id: string;
-  organization_id: string;
-  clinic_id: string;
-  doctor_id: string;
-  patient_id: string | null;
-  patient_name: string;
-  patient_phone: string;
-  start_at: string;
-  end_at: string;
-  status: Status;
-  visit_type: string;
-  booking_source: string;
-  fee_amount: number | null;
-  payment_status: string;
-  expires_at: string | null;
-  patient_notes: string | null;
-  cancel_reason: string | null;
-  created_at: string;
+interface RawOrgSubscription {
+  tier?: string;
+  status?: string;
+  current_period_end?: string;
 }
 
-export async function fetchSupabaseAppData(): Promise<AppData> {
-  const client = await createSupabaseServer();
-  const user = await currentUser();
+interface RawOrgClinic {
+  id: string;
+  name: string;
+  district: string;
+  address: string;
+  phone: string;
+  timezone: string;
+  cancel_window_hours: number;
+  min_lead_minutes: number;
+}
 
-  // 1. Fetch approved public doctors using public_doctor_directory RPC (no users table join / no leaks)
-  const { data: rawRpcDoctors, error: rpcDocsError } = await client.rpc('public_doctor_directory');
-  if (rpcDocsError) {
-    console.warn('public_doctor_directory RPC fallback warning:', rpcDocsError.message);
-  }
+interface RawBranchRow {
+  id: string;
+  organization_id: string;
+  name: string;
+  district: string;
+  phone: string;
+  cities?: { name_ar?: string } | Array<{ name_ar?: string }> | null;
+}
 
-  const typedRpcDoctors = (rawRpcDoctors as unknown as PublicDoctorRpcRow[] | null) ?? [];
-  const doctors: Doctor[] = typedRpcDoctors.map((d) => ({
+function toArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+function mapDoctorRow(
+  d: PublicDoctorDirectoryRow | TenantDoctorDirectoryRow,
+  verifiedOverride?: boolean,
+): Doctor {
+  const verified =
+    verifiedOverride ?? ('verification_status' in d ? d.verification_status === 'approved' : true);
+  return {
     id: d.id,
     name: d.full_name || 'طبيب معتمد',
     specialty: d.specialty_name ?? 'الطب العام',
@@ -108,33 +100,53 @@ export async function fetchSupabaseAppData(): Promise<AppData> {
     bio: d.bio_ar ?? '',
     color: '#e1eeeb',
     image: d.avatar_url ?? 'doctor-1.jpg',
-    verified: true,
+    verified,
     license: d.license_number ?? '',
     bookingHorizonDays: 30,
     cancelHours: 2,
-  }));
+  };
+}
 
-  // 2. Fetch references (cities and specialties) using public reference tables
-  const { data: rawCities } = await client.from('cities').select('id, name_ar, name_en');
-  const { data: rawSpecialties } = await client.from('specialties').select('id, name_ar, name_en');
+export async function fetchSupabaseAppData(preResolvedUser?: User | null): Promise<AppData> {
+  const client = await createSupabaseServer();
+  const user = preResolvedUser !== undefined ? preResolvedUser : await currentUser();
 
-  const typedCities = (rawCities as unknown as RawReference[] | null) ?? [];
-  const typedSpecialties = (rawSpecialties as unknown as RawReference[] | null) ?? [];
+  // 1. Execute independent public & directory reads in parallel (REM-01)
+  const [
+    { data: rawRpcDoctors, error: rpcDocsError },
+    { data: rawCities },
+    { data: rawSpecialties },
+    { data: rawAvailability },
+    { data: rawRpcReviews },
+  ] = await Promise.all([
+    client.rpc('public_doctor_directory'),
+    client.from('cities').select('id, name_ar, name_en'),
+    client.from('specialties').select('id, name_ar, name_en'),
+    client
+      .from('availability')
+      .select('id, doctor_id, clinic_id, day_of_week, start_time, end_time, slot_duration_minutes'),
+    client.rpc('public_reviews'),
+  ]);
+
+  if (rpcDocsError) {
+    console.warn('public_doctor_directory RPC fallback warning:', rpcDocsError.message);
+  }
+
+  const doctorMap = new Map<string, Doctor>();
+  for (const d of toArray<PublicDoctorDirectoryRow>(rawRpcDoctors)) {
+    doctorMap.set(d.id, mapDoctorRow(d, true));
+  }
+
+  const typedCities = toArray<RawReference>(rawCities);
+  const typedSpecialties = toArray<RawReference>(rawSpecialties);
 
   const references = [
     ...typedCities.map((c) => ({ id: c.id, name: c.name_ar, type: 'city' })),
     ...typedSpecialties.map((s) => ({ id: s.id, name: s.name_ar, type: 'specialty' })),
   ];
 
-  // 3. Fetch doctor schedules / availability directly
-  const { data: rawAvailability } = await client
-    .from('availability')
-    .select('id, doctor_id, clinic_id, day_of_week, start_time, end_time, slot_duration_minutes');
-
-  const typedAvailability = (rawAvailability as unknown as RawAvailability[] | null) ?? [];
   const schedules: Record<string, Shift[]> = {};
-
-  for (const a of typedAvailability) {
+  for (const a of toArray<RawAvailability>(rawAvailability)) {
     const docId = a.doctor_id;
     if (!docId) continue;
     if (!schedules[docId]) schedules[docId] = [];
@@ -147,18 +159,199 @@ export async function fetchSupabaseAppData(): Promise<AppData> {
     });
   }
 
-  // 4. Fetch user-specific appointments via user client (strictly zero service-role)
-  let appointments: Appointment[] = [];
-  if (user) {
-    if (user.role === 'patient') {
-      const { data: rawPatientAppts } = await client
-        .from('appointments')
-        .select('*')
-        .eq('patient_id', user.id)
-        .order('start_at', { ascending: true });
+  const reviews = toArray<PublicReviewRpcRow>(rawRpcReviews).map((rv) => ({
+    appointmentId: rv.appointment_id,
+    doctorId: rv.doctor_id,
+    rating: rv.rating,
+    comment: rv.comment ?? '',
+    name: rv.display_name || 'مريض',
+  }));
 
-      const typedAppts = (rawPatientAppts as RawAppointment[] | null) ?? [];
-      appointments = typedAppts.map((a) => {
+  // 2. Organization & Staff Scoped Queries (parallelized, strictly zero service-role)
+  let organization: Organization | null = null;
+  let team: User[] = [];
+  let branches: {
+    id: string;
+    organizationId: string;
+    name: string;
+    city: string;
+    district: string;
+    phone: string;
+  }[] = [];
+  let exceptions: {
+    id: string;
+    doctorId: string;
+    start: string;
+    end: string;
+    reason: string;
+    affected: number;
+  }[] = [];
+  let billingRequests: { id: string; tier: string; status: string; createdAt: string }[] = [];
+
+  if (user?.organizationId) {
+    const [
+      { data: orgRow },
+      { data: rawBranches },
+      { data: rawTeamMembers, error: teamRpcError },
+      { data: rawTenantDoctors, error: tenantDocsError },
+      { data: rawBillingRequests, error: billingRpcError },
+      { data: rawEx },
+    ] = await Promise.all([
+      client
+        .from('organizations')
+        .select(
+          'id, name, slug, tax_or_license_number, verification_status, is_active, subscriptions(tier, status, current_period_end), clinics(id, name, district, address, phone, timezone, cancel_window_hours, min_lead_minutes)',
+        )
+        .eq('id', user.organizationId)
+        .maybeSingle(),
+      client
+        .from('clinics')
+        .select('id, organization_id, name, district, phone, cities(name_ar)')
+        .eq('organization_id', user.organizationId),
+      client.rpc('team_directory', { p_org: user.organizationId }),
+      client.rpc('tenant_doctors_directory', { p_org: user.organizationId }),
+      client.rpc('tenant_billing_requests', { p_org: user.organizationId }),
+      client.from('availability_exceptions').select('id, doctor_id, start_at, end_at, reason'),
+    ]);
+
+    if (!tenantDocsError && rawTenantDoctors) {
+      for (const td of toArray<TenantDoctorDirectoryRow>(rawTenantDoctors)) {
+        doctorMap.set(td.id, mapDoctorRow(td));
+      }
+    }
+
+    if (orgRow) {
+      const subs = toArray<RawOrgSubscription>((orgRow as Record<string, unknown>).subscriptions);
+      const cls = toArray<RawOrgClinic>((orgRow as Record<string, unknown>).clinics);
+      const sub = subs[0];
+      const cl = cls[0];
+      organization = {
+        id: orgRow.id,
+        name: orgRow.name,
+        city: 'دمشق',
+        district: cl?.district ?? 'وسط المدينة',
+        phone: cl?.phone ?? '011-2233445',
+        license: orgRow.tax_or_license_number ?? 'SY-MED-2026',
+        tier: (sub?.tier as 'solo_starter' | 'clinic_pro' | 'enterprise') ?? 'clinic_pro',
+        status: (orgRow.verification_status as 'approved' | 'pending' | 'rejected') ?? 'approved',
+        subscriptionStatus:
+          (sub?.status as 'active' | 'trialing' | 'past_due' | 'canceled') ?? 'active',
+        periodEnd: sub?.current_period_end ?? new Date(Date.now() + 30 * 86400000).toISOString(),
+        cancelHours: cl?.cancel_window_hours ?? 2,
+        leadMinutes: cl?.min_lead_minutes ?? 60,
+        pendingHours: 12,
+        expiryMinutes: 60,
+        timezone: cl?.timezone ?? 'Asia/Damascus',
+      };
+    }
+
+    branches = toArray<RawBranchRow>(rawBranches).map((b) => {
+      const cityName = Array.isArray(b.cities) ? b.cities[0]?.name_ar : b.cities?.name_ar;
+      return {
+        id: b.id,
+        organizationId: b.organization_id,
+        name: b.name,
+        city: cityName ?? 'دمشق',
+        district: b.district,
+        phone: b.phone,
+      };
+    });
+
+    if (organization && branches[0]?.city) {
+      organization.city = branches[0].city;
+    }
+
+    if (!teamRpcError && rawTeamMembers) {
+      team = toArray<TenantTeamMemberRpcRow>(rawTeamMembers).map((m) => ({
+        id: m.id,
+        name: m.full_name || 'عضو الفريق',
+        email: m.email || '',
+        role: (m.member_role === 'owner' ? 'clinic_owner' : m.member_role) as Role,
+        organizationId: user.organizationId,
+        clinicId: m.clinic_id ?? undefined,
+      }));
+    }
+
+    if (!billingRpcError && rawBillingRequests) {
+      billingRequests = toArray<TenantBillingRequestRpcRow>(rawBillingRequests).map((r) => ({
+        id: r.id,
+        tier: r.tier,
+        status: r.status,
+        createdAt: r.created_at,
+      }));
+    }
+
+    if (rawEx) {
+      exceptions = rawEx.map((e) => ({
+        id: e.id,
+        doctorId: e.doctor_id,
+        start: e.start_at,
+        end: e.end_at,
+        reason: e.reason,
+        affected: 0,
+      }));
+    }
+  }
+
+  const doctors: Doctor[] = Array.from(doctorMap.values()).map((d) => {
+    if (organization && d.organizationId === organization.id) {
+      const horizon =
+        organization.tier === 'enterprise' ? 180 : organization.tier === 'clinic_pro' ? 90 : 30;
+      return {
+        ...d,
+        bookingHorizonDays: horizon,
+        cancelHours: organization.cancelHours ?? 2,
+      };
+    }
+    return d;
+  });
+
+  // 3. Appointments, Clinical Records, Notifications & Super-Admin Governance Console
+  let appointments: Appointment[] = [];
+  let records: MedicalRecord[] = [];
+  let notifications: {
+    id: string;
+    title: string;
+    body: string;
+    read: boolean;
+    createdAt: string;
+  }[] = [];
+  let admin: AppData['admin'] = null;
+
+  if (user) {
+    const notificationsPromise = client
+      .from('notifications')
+      .select('id, title, body, is_read, created_at')
+      .eq('user_id', user.id);
+
+    const recordsPromise =
+      user.role === 'patient'
+        ? client
+            .from('medical_records')
+            .select('*')
+            .eq('patient_id', user.id)
+            .eq('is_visible_to_patient', true)
+        : user.role === 'doctor'
+          ? client.from('medical_records').select('*').eq('doctor_id', user.id)
+          : Promise.resolve({ data: null });
+
+    const adminPromise =
+      user.role === 'super_admin'
+        ? client.rpc('super_admin_dashboard_data')
+        : Promise.resolve({ data: null, error: null });
+
+    if (user.role === 'patient') {
+      const [{ data: rawPatientAppts }, { data: rawMed }, { data: rawNotifs }] = await Promise.all([
+        client
+          .from('appointments')
+          .select('*')
+          .eq('patient_id', user.id)
+          .order('start_at', { ascending: true }),
+        recordsPromise,
+        notificationsPromise,
+      ]);
+
+      appointments = toArray<RawAppointment>(rawPatientAppts).map((a) => {
         const doc = doctors.find((d) => d.id === a.doctor_id);
         return {
           id: a.id,
@@ -181,16 +374,38 @@ export async function fetchSupabaseAppData(): Promise<AppData> {
           createdAt: a.created_at,
         };
       });
+
+      if (rawMed) {
+        records = rawMed.map((r) => ({
+          appointmentId: r.appointment_id,
+          diagnosis: r.diagnosis,
+          complaint: r.chief_complaint ?? '',
+          notes: r.doctor_notes ?? '',
+          medications: r.prescription_items ?? [],
+          followUp: r.follow_up_recommended_date ?? '',
+          visible: r.is_visible_to_patient ?? true,
+        }));
+      }
+
+      if (rawNotifs) {
+        notifications = rawNotifs.map((n) => ({
+          id: n.id,
+          title: n.title,
+          body: n.body,
+          read: n.is_read,
+          createdAt: n.created_at,
+        }));
+      }
     } else if (user.organizationId) {
-      // Staff uses get_tenant_appointments RPC — RLS checked on server
-      const { data: rawTenantAppts, error: tenantErr } = await client.rpc(
-        'get_tenant_appointments',
-        { p_org: user.organizationId },
-      );
+      const [{ data: rawTenantAppts, error: tenantErr }, { data: rawMed }, { data: rawNotifs }] =
+        await Promise.all([
+          client.rpc('get_tenant_appointments', { p_org: user.organizationId }),
+          recordsPromise,
+          notificationsPromise,
+        ]);
 
       if (!tenantErr && rawTenantAppts) {
-        const typedStaffAppts = rawTenantAppts as TenantAppointmentRpcRow[];
-        appointments = typedStaffAppts.map((a) => {
+        appointments = toArray<TenantAppointmentRpcRow>(rawTenantAppts).map((a) => {
           const doc = doctors.find((d) => d.id === a.doctor_id);
           return {
             id: a.id,
@@ -214,14 +429,12 @@ export async function fetchSupabaseAppData(): Promise<AppData> {
           };
         });
       } else {
-        // Fallback to direct scoped query if RPC not yet migrated in current DB
         const { data: rawStaffDirect } = await client
           .from('appointments')
           .select('*')
           .order('start_at', { ascending: true });
 
-        const typedDirect = (rawStaffDirect as RawAppointment[] | null) ?? [];
-        appointments = typedDirect.map((a) => {
+        appointments = toArray<RawAppointment>(rawStaffDirect).map((a) => {
           const doc = doctors.find((d) => d.id === a.doctor_id);
           return {
             id: a.id,
@@ -245,182 +458,9 @@ export async function fetchSupabaseAppData(): Promise<AppData> {
           };
         });
       }
-    }
-  }
 
-  // 5. Fetch organization data if authenticated clinic staff
-  let organization: Organization | null = null;
-  let team: User[] = [];
-  let branches: {
-    id: string;
-    organizationId: string;
-    name: string;
-    city: string;
-    district: string;
-    phone: string;
-  }[] = [];
-  let exceptions: {
-    id: string;
-    doctorId: string;
-    start: string;
-    end: string;
-    reason: string;
-    affected: number;
-  }[] = [];
-  let records: MedicalRecord[] = [];
-  let notifications: {
-    id: string;
-    title: string;
-    body: string;
-    read: boolean;
-    createdAt: string;
-  }[] = [];
-  let reviews: {
-    appointmentId: string;
-    doctorId: string;
-    rating: number;
-    comment: string;
-    name: string;
-  }[] = [];
-
-  if (user?.organizationId) {
-    const { data: orgRow } = await client
-      .from('organizations')
-      .select(
-        'id, name, slug, tax_or_license_number, verification_status, is_active, subscriptions(tier, status, current_period_end), clinics(id, name, district, address, phone, timezone, cancel_window_hours, min_lead_minutes)',
-      )
-      .eq('id', user.organizationId)
-      .maybeSingle();
-
-    if (orgRow) {
-      const sub = (
-        orgRow.subscriptions as unknown as {
-          tier?: string;
-          status?: string;
-          current_period_end?: string;
-        }[]
-      )?.[0];
-      const cl = (
-        orgRow.clinics as unknown as {
-          id: string;
-          name: string;
-          district: string;
-          address: string;
-          phone: string;
-          timezone: string;
-          cancel_window_hours: number;
-          min_lead_minutes: number;
-        }[]
-      )?.[0];
-      organization = {
-        id: orgRow.id,
-        name: orgRow.name,
-        city: 'دمشق',
-        district: cl?.district ?? 'وسط المدينة',
-        phone: cl?.phone ?? '011-2233445',
-        license: orgRow.tax_or_license_number ?? 'SY-MED-2026',
-        tier: (sub?.tier as 'solo_starter' | 'clinic_pro' | 'enterprise') ?? 'clinic_pro',
-        status: (orgRow.verification_status as 'approved' | 'pending' | 'rejected') ?? 'approved',
-        subscriptionStatus:
-          (sub?.status as 'active' | 'trialing' | 'past_due' | 'canceled') ?? 'active',
-        periodEnd: sub?.current_period_end ?? new Date(Date.now() + 30 * 86400000).toISOString(),
-        cancelHours: cl?.cancel_window_hours ?? 2,
-        leadMinutes: cl?.min_lead_minutes ?? 60,
-        pendingHours: 12,
-        expiryMinutes: 60,
-        timezone: cl?.timezone ?? 'Asia/Damascus',
-      };
-    }
-
-    const { data: rawBranches } = await client
-      .from('clinics')
-      .select('id, organization_id, name, district, phone, cities(name_ar)')
-      .eq('organization_id', user.organizationId);
-
-    if (rawBranches) {
-      const typedBranches = rawBranches as unknown as Array<{
-        id: string;
-        organization_id: string;
-        name: string;
-        district: string;
-        phone: string;
-        cities?: { name_ar?: string } | Array<{ name_ar?: string }> | null;
-      }>;
-      branches = typedBranches.map((b) => {
-        const cityName = Array.isArray(b.cities) ? b.cities[0]?.name_ar : b.cities?.name_ar;
-        return {
-          id: b.id,
-          organizationId: b.organization_id,
-          name: b.name,
-          city: cityName ?? 'دمشق',
-          district: b.district,
-          phone: b.phone,
-        };
-      });
-    }
-
-    // Call team_directory RPC (no users table cross-tenant join)
-    const { data: rawTeamMembers, error: teamRpcError } = await client.rpc('team_directory', {
-      p_org: user.organizationId,
-    });
-
-    if (!teamRpcError && rawTeamMembers) {
-      const typedMembers = rawTeamMembers as Array<{
-        id: string;
-        full_name: string;
-        email: string;
-        clinic_id: string | null;
-        member_role: string;
-      }>;
-      team = typedMembers.map((m) => ({
-        id: m.id,
-        name: m.full_name || 'عضو الفريق',
-        email: m.email || '',
-        role: (m.member_role === 'owner' ? 'clinic_owner' : m.member_role) as Role,
-        organizationId: user.organizationId,
-        clinicId: m.clinic_id ?? undefined,
-      }));
-    }
-
-    const { data: rawEx } = await client
-      .from('availability_exceptions')
-      .select('id, doctor_id, start_at, end_at, reason');
-
-    if (rawEx) {
-      exceptions = rawEx.map((e) => ({
-        id: e.id,
-        doctorId: e.doctor_id,
-        start: e.start_at,
-        end: e.end_at,
-        reason: e.reason,
-        affected: 0,
-      }));
-    }
-  }
-
-  // 6. Medical records (strictly via user client — RLS enforced; only query for patient or treating doctor)
-  if (user && (user.role === 'patient' || user.role === 'doctor')) {
-    let recQuery = client.from('medical_records').select('*');
-    if (user.role === 'patient') {
-      recQuery = recQuery.eq('patient_id', user.id).eq('is_visible_to_patient', true);
-    } else {
-      recQuery = recQuery.eq('doctor_id', user.id);
-    }
-
-    const { data: rawMed } = await recQuery;
-    if (rawMed) {
-      records = rawMed.map(
-        (r: {
-          id: string;
-          appointment_id: string;
-          diagnosis: string;
-          chief_complaint?: string | null;
-          doctor_notes?: string | null;
-          prescription_items?:
-            { name: string; dose: string; frequency: string; duration: string }[] | null;
-          follow_up_recommended_date?: string | null;
-          is_visible_to_patient?: boolean;
-        }) => ({
+      if (rawMed) {
+        records = rawMed.map((r) => ({
           appointmentId: r.appointment_id,
           diagnosis: r.diagnosis,
           complaint: r.chief_complaint ?? '',
@@ -428,45 +468,47 @@ export async function fetchSupabaseAppData(): Promise<AppData> {
           medications: r.prescription_items ?? [],
           followUp: r.follow_up_recommended_date ?? '',
           visible: r.is_visible_to_patient ?? true,
-        }),
-      );
+        }));
+      }
+
+      if (rawNotifs) {
+        notifications = rawNotifs.map((n) => ({
+          id: n.id,
+          title: n.title,
+          body: n.body,
+          read: n.is_read,
+          createdAt: n.created_at,
+        }));
+      }
+    } else {
+      const [{ data: rawNotifs }, { data: rawAdmin, error: adminErr }] = await Promise.all([
+        notificationsPromise,
+        adminPromise,
+      ]);
+
+      if (rawNotifs) {
+        notifications = rawNotifs.map((n) => ({
+          id: n.id,
+          title: n.title,
+          body: n.body,
+          read: n.is_read,
+          createdAt: n.created_at,
+        }));
+      }
+
+      if (user.role === 'super_admin' && !adminErr && rawAdmin && typeof rawAdmin === 'object') {
+        const snap = (Array.isArray(rawAdmin) ? rawAdmin[0] : rawAdmin) as
+          Partial<SuperAdminDashboardSnapshot> | undefined;
+        if (snap && (snap.organizations || snap.verifications || snap.audit)) {
+          admin = {
+            organizations: toArray<Organization>(snap.organizations),
+            verifications: toArray(snap.verifications),
+            references: toArray(snap.references).length ? toArray(snap.references) : references,
+            audit: toArray(snap.audit),
+          };
+        }
+      }
     }
-  }
-
-  if (user) {
-    const { data: rawNotifs } = await client
-      .from('notifications')
-      .select('id, title, body, is_read, created_at')
-      .eq('user_id', user.id);
-
-    if (rawNotifs) {
-      notifications = rawNotifs.map((n) => ({
-        id: n.id,
-        title: n.title,
-        body: n.body,
-        read: n.is_read,
-        createdAt: n.created_at,
-      }));
-    }
-  }
-
-  // 7. Reviews: uses public_reviews RPC with masked display names (e.g. "سارة ك.")
-  const { data: rawRpcReviews } = await client.rpc('public_reviews');
-  if (rawRpcReviews) {
-    const typedReviews = rawRpcReviews as Array<{
-      appointment_id: string;
-      doctor_id: string;
-      rating: number;
-      comment?: string | null;
-      display_name: string;
-    }>;
-    reviews = typedReviews.map((rv) => ({
-      appointmentId: rv.appointment_id,
-      doctorId: rv.doctor_id,
-      rating: rv.rating,
-      comment: rv.comment ?? '',
-      name: rv.display_name || 'مريض',
-    }));
   }
 
   return {
@@ -482,7 +524,7 @@ export async function fetchSupabaseAppData(): Promise<AppData> {
     schedules,
     exceptions,
     reviews,
-    billingRequests: [],
-    admin: null,
+    billingRequests,
+    admin,
   };
 }
