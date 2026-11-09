@@ -32,9 +32,7 @@ export async function executeSupabaseAction(
   payload: unknown,
 ): Promise<ActionResult<unknown>> {
   const { createSupabaseServer } = await import('../supabase/server');
-  const { createSupabaseAdmin } = await import('../supabase/admin');
   const serverClient = await createSupabaseServer();
-  const adminClient = createSupabaseAdmin();
 
   switch (action) {
     case 'transition': {
@@ -58,7 +56,13 @@ export async function executeSupabaseAction(
       if (!result.success) {
         throw new SupabaseActionError(
           result.error || 'تعذر تغيير حالة الموعد.',
-          result.code === 'FORBIDDEN' ? 403 : result.code === 'UNAUTHORIZED' ? 401 : 422,
+          result.code === 'FORBIDDEN'
+            ? 403
+            : result.code === 'UNAUTHORIZED'
+              ? 401
+              : result.code === 'NOT_FOUND'
+                ? 404
+                : 422,
           result.code || 'ACTION_ERROR',
         );
       }
@@ -83,6 +87,11 @@ export async function executeSupabaseAction(
         throw new SupabaseActionError('تم إنشاء المركز مسبقاً.', 409, 'ALREADY_EXISTS');
       }
 
+      // Administrative exception: User has no organization yet; bootstrapping tenant,
+      // subscription, and owner role upgrade requires service-role.
+      const { createSupabaseAdmin } = await import('../supabase/admin');
+      const adminClient = createSupabaseAdmin();
+
       // 1. Resolve city
       let cityId: string | null = null;
       const { data: cityAr } = await adminClient
@@ -105,7 +114,7 @@ export async function executeSupabaseAction(
 
       if (!cityId) {
         const newCityId = randomUUID();
-        await adminClient.from('cities').insert({
+        const { error: cityErr } = await adminClient.from('cities').insert({
           id: newCityId,
           name_ar: b.city,
           name_en: b.city,
@@ -113,6 +122,9 @@ export async function executeSupabaseAction(
           timezone: 'Asia/Damascus',
           is_active: true,
         });
+        if (cityErr) {
+          throw new SupabaseActionError(cityErr.message || 'تعذر تسجيل المدينة.', 500, 'DB_ERROR');
+        }
         cityId = newCityId;
       }
 
@@ -136,7 +148,7 @@ export async function executeSupabaseAction(
           specialtyId = anySpec.id;
         } else {
           const newSpecId = randomUUID();
-          await adminClient.from('specialties').insert({
+          const { error: specErr } = await adminClient.from('specialties').insert({
             id: newSpecId,
             name_ar: 'الطب العام',
             name_en: 'General Medicine',
@@ -144,6 +156,13 @@ export async function executeSupabaseAction(
             icon_name: 'Stethoscope',
             is_active: true,
           });
+          if (specErr) {
+            throw new SupabaseActionError(
+              specErr.message || 'تعذر تسجيل التخصص الطبي.',
+              500,
+              'DB_ERROR',
+            );
+          }
           specialtyId = newSpecId;
         }
       }
@@ -154,7 +173,7 @@ export async function executeSupabaseAction(
       const clinicSlug = `${slugify(b.name)}-main-${clinicId.slice(0, 8)}`;
 
       // 3. Upsert user first to satisfy organizations.owner_id foreign key constraint
-      await adminClient.from('users').upsert({
+      const { error: userErr } = await adminClient.from('users').upsert({
         id: user.id,
         email: user.email,
         role: 'clinic_owner',
@@ -162,6 +181,13 @@ export async function executeSupabaseAction(
         status: 'active',
         updated_at: new Date().toISOString(),
       });
+      if (userErr) {
+        throw new SupabaseActionError(
+          userErr.message || 'تعذر تحديث حساب المالك.',
+          500,
+          'DB_ERROR',
+        );
+      }
 
       const { error: orgErr } = await adminClient.from('organizations').insert({
         id: orgId,
@@ -181,7 +207,14 @@ export async function executeSupabaseAction(
         );
       }
 
-      await adminClient.from('subscriptions').insert({
+      const cleanupOrg = async () => {
+        const { error: delErr } = await adminClient.from('organizations').delete().eq('id', orgId);
+        if (delErr) {
+          console.error('[Onboard Rollback Error]:', delErr);
+        }
+      };
+
+      const { error: subErr } = await adminClient.from('subscriptions').insert({
         organization_id: orgId,
         tier: b.tier,
         status: 'trialing',
@@ -191,8 +224,12 @@ export async function executeSupabaseAction(
         current_period_start: new Date().toISOString(),
         current_period_end: new Date(Date.now() + 14 * 86400000).toISOString(),
       });
+      if (subErr) {
+        await cleanupOrg();
+        throw new SupabaseActionError(subErr.message || 'تعذر إنشاء الاشتراك.', 500, 'DB_ERROR');
+      }
 
-      await adminClient.from('clinics').insert({
+      const { error: clinicErr } = await adminClient.from('clinics').insert({
         id: clinicId,
         organization_id: orgId,
         city_id: cityId,
@@ -208,8 +245,16 @@ export async function executeSupabaseAction(
         auto_confirm_bookings: false,
         is_active: true,
       });
+      if (clinicErr) {
+        await cleanupOrg();
+        throw new SupabaseActionError(
+          clinicErr.message || 'تعذر إنشاء الفرع الرئيسي.',
+          500,
+          'DB_ERROR',
+        );
+      }
 
-      await adminClient.from('doctors').upsert({
+      const { error: docErr } = await adminClient.from('doctors').upsert({
         id: user.id,
         organization_id: orgId,
         specialty_id: specialtyId,
@@ -221,34 +266,36 @@ export async function executeSupabaseAction(
         verification_status: 'pending',
         is_listed_publicly: false,
       });
+      if (docErr) {
+        await cleanupOrg();
+        throw new SupabaseActionError(docErr.message || 'تعذر تسجيل ملف الطبيب.', 500, 'DB_ERROR');
+      }
 
-      await adminClient.from('organization_members').insert({
+      const { error: memberErr } = await adminClient.from('organization_members').insert({
         organization_id: orgId,
         clinic_id: clinicId,
         user_id: user.id,
         member_role: 'owner',
         is_active: true,
       });
+      if (memberErr) {
+        await cleanupOrg();
+        throw new SupabaseActionError(
+          memberErr.message || 'تعذر ربط المالك بالمركز.',
+          500,
+          'DB_ERROR',
+        );
+      }
 
-      await adminClient.from('audit_logs').insert({
+      const { error: auditErr } = await adminClient.from('audit_logs').insert({
         organization_id: orgId,
         actor_id: user.id,
         action: 'organization.created',
         entity_type: 'organization',
         entity_id: orgId,
       });
-
-      try {
-        const { put } = await import('../demo-db');
-        put('user', user.id, {
-          ...user,
-          name: user.name || b.name,
-          organizationId: orgId,
-          clinicId,
-          role: 'clinic_owner',
-        });
-      } catch {
-        // demo-db mirror is best-effort
+      if (auditErr) {
+        console.error('[Onboard Audit Error]:', auditErr);
       }
 
       return { success: true, data: { id: orgId, clinicId } };
@@ -256,17 +303,24 @@ export async function executeSupabaseAction(
 
     case 'payment': {
       const b = z.object({ id: text }).parse(payload);
-      if (!['doctor', 'receptionist', 'clinic_owner', 'super_admin'].includes(user.role)) {
+      if (!['doctor', 'receptionist', 'clinic_owner'].includes(user.role)) {
         throw new SupabaseActionError('غير مصرح لك بتنفيذ هذا الإجراء.', 403, 'FORBIDDEN');
       }
 
-      const { data: appt, error: fetchErr } = await adminClient
+      const { data: appt, error: fetchErr } = await serverClient
         .from('appointments')
         .select('id, organization_id, clinic_id, doctor_id, patient_id, status, payment_status')
         .eq('id', b.id)
         .maybeSingle();
 
-      if (fetchErr || !appt) {
+      if (fetchErr) {
+        throw new SupabaseActionError(
+          fetchErr.message || 'تعذر جلب بيانات الموعد.',
+          fetchErr.code === '42501' ? 403 : 500,
+          fetchErr.code === '42501' ? 'FORBIDDEN' : 'DB_ERROR',
+        );
+      }
+      if (!appt) {
         throw new SupabaseActionError('الموعد غير موجود.', 404, 'NOT_FOUND');
       }
 
@@ -291,31 +345,32 @@ export async function executeSupabaseAction(
         throw new SupabaseActionError('الكشفية محصلة مسبقاً.', 422, 'ALREADY_PAID');
       }
 
-      const { error: updateErr } = await adminClient
+      const { data: updatedAppts, error: updateErr } = await serverClient
         .from('appointments')
-        .update({ payment_status: 'paid_cash', updated_at: new Date().toISOString() })
-        .eq('id', b.id);
+        .update({ payment_status: 'paid_cash' })
+        .eq('id', b.id)
+        .select('id');
 
       if (updateErr) {
-        throw new SupabaseActionError(updateErr.message || 'تعذر تسجيل الدفع.', 500, 'DB_ERROR');
+        throw new SupabaseActionError(
+          updateErr.message || 'تعذر تسجيل الدفع.',
+          updateErr.code === '42501' ? 403 : 500,
+          updateErr.code === '42501' ? 'FORBIDDEN' : 'DB_ERROR',
+        );
+      }
+      if (!updatedAppts || updatedAppts.length === 0) {
+        throw new SupabaseActionError('غير مصرح لك بتسجيل الدفع لهذا الموعد.', 403, 'FORBIDDEN');
       }
 
-      await adminClient.from('audit_logs').insert({
+      const { error: auditErr } = await serverClient.from('audit_logs').insert({
         organization_id: appt.organization_id,
         actor_id: user.id,
         action: 'payment.cash',
         entity_type: 'appointment',
         entity_id: b.id,
       });
-
-      try {
-        const { appointments, saveAppointment } = await import('../demo-db');
-        const demoAppt = appointments().find((a) => a.id === b.id);
-        if (demoAppt) {
-          saveAppointment({ ...demoAppt, payment: 'paid_cash' });
-        }
-      } catch {
-        // demo-db mirror is best-effort
+      if (auditErr) {
+        console.error('[Payment Audit Error]:', auditErr);
       }
 
       return { success: true, data: { id: b.id, payment: 'paid_cash' } };
@@ -349,13 +404,20 @@ export async function executeSupabaseAction(
         throw new SupabaseActionError('غير مصرح لك بتسجيل السجل الطبي.', 403, 'FORBIDDEN');
       }
 
-      const { data: appt, error: apptErr } = await adminClient
+      const { data: appt, error: apptErr } = await serverClient
         .from('appointments')
         .select('id, organization_id, clinic_id, doctor_id, patient_id, status')
         .eq('id', b.appointmentId)
         .maybeSingle();
 
-      if (apptErr || !appt) {
+      if (apptErr) {
+        throw new SupabaseActionError(
+          apptErr.message || 'تعذر جلب بيانات الموعد.',
+          apptErr.code === '42501' ? 403 : 500,
+          apptErr.code === '42501' ? 'FORBIDDEN' : 'DB_ERROR',
+        );
+      }
+      if (!appt) {
         throw new SupabaseActionError('الموعد غير موجود.', 404, 'NOT_FOUND');
       }
 
@@ -380,7 +442,7 @@ export async function executeSupabaseAction(
           ? b.followUp.slice(0, 10)
           : null;
 
-      const { error: medErr } = await adminClient.from('medical_records').upsert(
+      const { error: medErr } = await serverClient.from('medical_records').upsert(
         {
           appointment_id: b.appointmentId,
           organization_id: appt.organization_id,
@@ -398,27 +460,41 @@ export async function executeSupabaseAction(
       );
 
       if (medErr) {
-        throw new SupabaseActionError(medErr.message || 'تعذر حفظ السجل الطبي.', 500, 'DB_ERROR');
+        throw new SupabaseActionError(
+          medErr.message || 'تعذر حفظ السجل الطبي.',
+          medErr.code === '42501' ? 403 : 500,
+          medErr.code === '42501' ? 'FORBIDDEN' : 'DB_ERROR',
+        );
       }
 
       if (appt.status !== 'completed') {
-        await adminClient
-          .from('appointments')
-          .update({
-            status: 'completed',
-            completed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', b.appointmentId);
+        const { transitionSupabaseAppointment } = await import('./supabase-booking-service');
+        const transRes = await transitionSupabaseAppointment(b.appointmentId, 'completed');
+        if (!transRes.success) {
+          throw new SupabaseActionError(
+            transRes.error || 'تعذر إتمام حالة الموعد.',
+            transRes.code === 'FORBIDDEN'
+              ? 403
+              : transRes.code === 'UNAUTHORIZED'
+                ? 401
+                : transRes.code === 'NOT_FOUND'
+                  ? 404
+                  : 422,
+            transRes.code || 'ACTION_ERROR',
+          );
+        }
       }
 
-      await adminClient.from('audit_logs').insert({
+      const { error: auditErr } = await serverClient.from('audit_logs').insert({
         organization_id: appt.organization_id,
         actor_id: user.id,
         action: 'medical.saved',
         entity_type: 'medical_record',
         entity_id: b.appointmentId,
       });
+      if (auditErr) {
+        console.error('[Medical Audit Error]:', auditErr);
+      }
 
       return { success: true, data: { appointmentId: b.appointmentId } };
     }
@@ -452,7 +528,7 @@ export async function executeSupabaseAction(
       let targetOrgId = user.organizationId;
 
       if (!isDocSelf) {
-        const { data: targetDoc } = await adminClient
+        const { data: targetDoc } = await serverClient
           .from('doctors')
           .select('id, organization_id')
           .eq('id', b.doctorId)
@@ -491,30 +567,46 @@ export async function executeSupabaseAction(
         }
       }
 
-      let clinicId = user.clinicId;
-      if (!clinicId) {
-        const { data: member } = await adminClient
-          .from('organization_members')
-          .select('clinic_id')
-          .eq('user_id', b.doctorId)
-          .maybeSingle();
-        clinicId = member?.clinic_id;
+      let clinicId: string | undefined;
+      const { data: member } = await serverClient
+        .from('organization_members')
+        .select('clinic_id')
+        .eq('user_id', b.doctorId)
+        .maybeSingle();
+      clinicId = member?.clinic_id ?? undefined;
+      if (!clinicId && isDocSelf) {
+        clinicId = user.clinicId;
       }
-      if (!clinicId) {
-        const { data: docClinic } = await adminClient
+      const scheduleOrgId = targetOrgId ?? user.organizationId;
+      if (!clinicId && scheduleOrgId) {
+        const { data: docClinic } = await serverClient
           .from('clinics')
           .select('id')
-          .eq('organization_id', user.organizationId ?? '')
+          .eq('organization_id', scheduleOrgId)
           .limit(1)
           .maybeSingle();
         clinicId = docClinic?.id;
+      }
+      if (!clinicId) {
+        clinicId = user.clinicId;
       }
 
       if (!clinicId) {
         throw new SupabaseActionError('العيادة غير محددة لتسجيل الدوام.', 422, 'MISSING_CLINIC');
       }
 
-      await adminClient.from('availability').delete().eq('doctor_id', b.doctorId);
+      const { error: delErr } = await serverClient
+        .from('availability')
+        .delete()
+        .eq('doctor_id', b.doctorId);
+
+      if (delErr) {
+        throw new SupabaseActionError(
+          delErr.message || 'تعذر مسح جدول الدوام القديم.',
+          500,
+          'DB_ERROR',
+        );
+      }
 
       const activeShifts = b.shifts.filter((s) => s.active);
       if (activeShifts.length > 0) {
@@ -527,7 +619,7 @@ export async function executeSupabaseAction(
           slot_duration_minutes: s.duration,
           is_active: true,
         }));
-        const { error: insertErr } = await adminClient.from('availability').insert(rows);
+        const { error: insertErr } = await serverClient.from('availability').insert(rows);
         if (insertErr) {
           throw new SupabaseActionError(
             insertErr.message || 'تعذر تحديث جدول الدوام.',
@@ -537,14 +629,17 @@ export async function executeSupabaseAction(
         }
       }
 
-      if (user.organizationId) {
-        await adminClient.from('audit_logs').insert({
-          organization_id: user.organizationId,
+      if (scheduleOrgId) {
+        const { error: auditErr } = await serverClient.from('audit_logs').insert({
+          organization_id: scheduleOrgId,
           actor_id: user.id,
           action: 'schedule.updated',
           entity_type: 'doctor',
           entity_id: b.doctorId,
         });
+        if (auditErr) {
+          console.error('[Schedule Audit Error]:', auditErr);
+        }
       }
 
       return { success: true, data: { doctorId: b.doctorId, shifts: b.shifts } };
@@ -564,7 +659,7 @@ export async function executeSupabaseAction(
       let targetOrgId = user.organizationId;
 
       if (!isDocSelf) {
-        const { data: targetDoc } = await adminClient
+        const { data: targetDoc } = await serverClient
           .from('doctors')
           .select('id, organization_id')
           .eq('id', b.doctorId)
@@ -589,7 +684,7 @@ export async function executeSupabaseAction(
         throw new SupabaseActionError('حدد فترة إجازة صالحة.', 422, 'INVALID_RANGE');
       }
 
-      const { data: docExists } = await adminClient
+      const { data: docExists } = await serverClient
         .from('doctors')
         .select('id')
         .eq('id', b.doctorId)
@@ -599,7 +694,7 @@ export async function executeSupabaseAction(
         throw new SupabaseActionError('الطبيب غير موجود.', 404, 'NOT_FOUND');
       }
 
-      const { data: conflicts } = await adminClient
+      const { data: conflicts } = await serverClient
         .from('appointments')
         .select('id')
         .eq('doctor_id', b.doctorId)
@@ -610,18 +705,31 @@ export async function executeSupabaseAction(
       const affected = conflicts?.length ?? 0;
       const exId = randomUUID();
 
-      let clinicId = user.clinicId;
-      if (!clinicId && user.organizationId) {
-        const { data: c } = await adminClient
+      let clinicId: string | undefined;
+      const { data: member } = await serverClient
+        .from('organization_members')
+        .select('clinic_id')
+        .eq('user_id', b.doctorId)
+        .maybeSingle();
+      clinicId = member?.clinic_id ?? undefined;
+      if (!clinicId && isDocSelf) {
+        clinicId = user.clinicId;
+      }
+      const exceptionOrgId = targetOrgId ?? user.organizationId;
+      if (!clinicId && exceptionOrgId) {
+        const { data: c } = await serverClient
           .from('clinics')
           .select('id')
-          .eq('organization_id', user.organizationId)
+          .eq('organization_id', exceptionOrgId)
           .limit(1)
           .maybeSingle();
         clinicId = c?.id;
       }
+      if (!clinicId) {
+        clinicId = user.clinicId;
+      }
 
-      const { error: insErr } = await adminClient.from('availability_exceptions').insert({
+      const { error: insErr } = await serverClient.from('availability_exceptions').insert({
         id: exId,
         doctor_id: b.doctorId,
         clinic_id: clinicId || null,
@@ -635,14 +743,17 @@ export async function executeSupabaseAction(
         throw new SupabaseActionError(insErr.message || 'تعذر تسجيل الإجازة.', 500, 'DB_ERROR');
       }
 
-      if (user.organizationId) {
-        await adminClient.from('audit_logs').insert({
-          organization_id: user.organizationId,
+      if (exceptionOrgId) {
+        const { error: auditErr } = await serverClient.from('audit_logs').insert({
+          organization_id: exceptionOrgId,
           actor_id: user.id,
           action: 'exception.created',
           entity_type: 'availability_exception',
           entity_id: exId,
         });
+        if (auditErr) {
+          console.error('[Exception Audit Error]:', auditErr);
+        }
       }
 
       return { success: true, data: { id: exId, affected } };
@@ -665,11 +776,48 @@ export async function executeSupabaseAction(
         })
         .parse(payload);
 
-      const { data: sub } = await adminClient
+      const requestedClinicId = b.clinicId?.trim() || undefined;
+      if (requestedClinicId) {
+        const { data: clinicRecord, error: clinicErr } = await serverClient
+          .from('clinics')
+          .select('id, organization_id')
+          .eq('id', requestedClinicId)
+          .maybeSingle();
+        if (clinicErr) {
+          throw new SupabaseActionError(
+            clinicErr.message || 'تعذر التحقق من العيادة.',
+            clinicErr.code === '42501' ? 403 : 500,
+            clinicErr.code === '42501' ? 'FORBIDDEN' : 'DB_ERROR',
+          );
+        }
+        if (!clinicRecord || clinicRecord.organization_id !== user.organizationId) {
+          throw new SupabaseActionError(
+            'العيادة المحددة لا تنتمي إلى مركزك الطبي.',
+            403,
+            'FORBIDDEN',
+          );
+        }
+      }
+      const targetClinic = requestedClinicId ?? user.clinicId ?? null;
+
+      const trimmedLicense = b.license.trim();
+      if (b.role === 'doctor' && trimmedLicense.length < 2) {
+        throw new SupabaseActionError('رقم الترخيص الطبي مطلوب.', 422, 'LICENSE_REQUIRED');
+      }
+
+      const { data: sub, error: subErr } = await serverClient
         .from('subscriptions')
         .select('tier, max_doctors')
         .eq('organization_id', user.organizationId)
         .maybeSingle();
+
+      if (subErr) {
+        throw new SupabaseActionError(
+          subErr.message || 'تعذر التحقق من باقة الاشتراك.',
+          subErr.code === '42501' ? 403 : 500,
+          subErr.code === '42501' ? 'FORBIDDEN' : 'DB_ERROR',
+        );
+      }
 
       const maxDocs = sub?.max_doctors ?? (sub?.tier === 'clinic_pro' ? 10 : 1);
 
@@ -682,24 +830,18 @@ export async function executeSupabaseAction(
       }
 
       if (b.role === 'doctor') {
-        if (b.license.trim().length < 2) {
-          throw new SupabaseActionError('رقم الترخيص الطبي مطلوب.', 422, 'LICENSE_REQUIRED');
-        }
-
-        const { data: existingLicense } = await adminClient
-          .from('doctors')
-          .select('id')
-          .eq('license_number', b.license)
-          .maybeSingle();
-
-        if (existingLicense) {
-          throw new SupabaseActionError('رقم الترخيص الطبي مستخدم مسبقاً.', 409, 'LICENSE_EXISTS');
-        }
-
-        const { count: docCount } = await adminClient
+        const { count: docCount, error: countErr } = await serverClient
           .from('doctors')
           .select('id', { count: 'exact', head: true })
           .eq('organization_id', user.organizationId);
+
+        if (countErr) {
+          throw new SupabaseActionError(
+            countErr.message || 'تعذر التحقق من حد الأطباء.',
+            countErr.code === '42501' ? 403 : 500,
+            countErr.code === '42501' ? 'FORBIDDEN' : 'DB_ERROR',
+          );
+        }
 
         if ((docCount ?? 0) >= maxDocs) {
           throw new SupabaseActionError(
@@ -710,12 +852,43 @@ export async function executeSupabaseAction(
         }
       }
 
-      const { data: existingUser } = await adminClient
+      // Administrative exception: Checking cross-tenant license/email uniqueness and
+      // provisioning auth.users credentials for new staff members requires service-role.
+      const { createSupabaseAdmin } = await import('../supabase/admin');
+      const adminClient = createSupabaseAdmin();
+
+      if (b.role === 'doctor') {
+        const { data: existingLicense, error: licErr } = await adminClient
+          .from('doctors')
+          .select('id')
+          .eq('license_number', trimmedLicense)
+          .maybeSingle();
+
+        if (licErr) {
+          throw new SupabaseActionError(
+            licErr.message || 'تعذر التحقق من رقم الترخيص الطبي.',
+            500,
+            'DB_ERROR',
+          );
+        }
+        if (existingLicense) {
+          throw new SupabaseActionError('رقم الترخيص الطبي مستخدم مسبقاً.', 409, 'LICENSE_EXISTS');
+        }
+      }
+
+      const { data: existingUser, error: userLookupErr } = await adminClient
         .from('users')
         .select('id')
         .eq('email', b.email)
         .maybeSingle();
 
+      if (userLookupErr) {
+        throw new SupabaseActionError(
+          userLookupErr.message || 'تعذر التحقق من البريد الإلكتروني.',
+          500,
+          'DB_ERROR',
+        );
+      }
       if (existingUser) {
         throw new SupabaseActionError('البريد الإلكتروني مستخدم مسبقاً.', 409, 'EMAIL_EXISTS');
       }
@@ -732,37 +905,55 @@ export async function executeSupabaseAction(
       }
 
       const newUserId = authCreated.user.id;
-      if (b.clinicId) {
-        const { data: clinicRecord } = await adminClient
-          .from('clinics')
-          .select('id, organization_id')
-          .eq('id', b.clinicId)
-          .maybeSingle();
-        if (!clinicRecord || clinicRecord.organization_id !== user.organizationId) {
-          throw new SupabaseActionError(
-            'العيادة المحددة لا تنتمي إلى مركزك الطبي.',
-            403,
-            'FORBIDDEN',
-          );
+      const rollbackNewMember = async () => {
+        const { error: memberDelErr } = await adminClient
+          .from('organization_members')
+          .delete()
+          .eq('user_id', newUserId);
+        if (memberDelErr) {
+          console.error('[Team Rollback Member Error]:', memberDelErr);
         }
-      }
-      const targetClinic = b.clinicId ?? user.clinicId ?? null;
+        const { error: userDelErr } = await adminClient.from('users').delete().eq('id', newUserId);
+        if (userDelErr) {
+          console.error('[Team Rollback User Profile Error]:', userDelErr);
+        }
+        const { error: authDelErr } = await adminClient.auth.admin.deleteUser(newUserId);
+        if (authDelErr) {
+          console.error('[Team Rollback Auth User Error]:', authDelErr);
+        }
+      };
 
-      await adminClient.from('users').upsert({
+      const { error: userUpsertErr } = await adminClient.from('users').upsert({
         id: newUserId,
         email: b.email,
         full_name: b.name,
         role: b.role,
         status: 'active',
       });
+      if (userUpsertErr) {
+        await rollbackNewMember();
+        throw new SupabaseActionError(
+          userUpsertErr.message || 'تعذر حفظ بيانات العضو الجديد.',
+          500,
+          'DB_ERROR',
+        );
+      }
 
-      await adminClient.from('organization_members').insert({
+      const { error: memberInsErr } = await adminClient.from('organization_members').insert({
         organization_id: user.organizationId,
         clinic_id: targetClinic,
         user_id: newUserId,
         member_role: b.role === 'doctor' ? 'doctor' : 'receptionist',
         is_active: true,
       });
+      if (memberInsErr) {
+        await rollbackNewMember();
+        throw new SupabaseActionError(
+          memberInsErr.message || 'تعذر ربط العضو بالمركز.',
+          500,
+          'DB_ERROR',
+        );
+      }
 
       if (b.role === 'doctor') {
         let specialtyId: string | null = null;
@@ -794,7 +985,7 @@ export async function executeSupabaseAction(
             specialtyId = anySpec.id;
           } else {
             const newSpecId = randomUUID();
-            await adminClient.from('specialties').insert({
+            const { error: specInsErr } = await adminClient.from('specialties').insert({
               id: newSpecId,
               name_ar: b.specialty,
               name_en: b.specialty,
@@ -802,30 +993,49 @@ export async function executeSupabaseAction(
               icon_name: 'Stethoscope',
               is_active: true,
             });
+            if (specInsErr) {
+              await rollbackNewMember();
+              throw new SupabaseActionError(
+                specInsErr.message || 'تعذر تسجيل التخصص الطبي.',
+                500,
+                'DB_ERROR',
+              );
+            }
             specialtyId = newSpecId;
           }
         }
 
-        await adminClient.from('doctors').insert({
+        const { error: docInsErr } = await adminClient.from('doctors').insert({
           id: newUserId,
           organization_id: user.organizationId,
           specialty_id: specialtyId,
-          license_number: b.license,
+          license_number: trimmedLicense,
           title_ar: 'طبيب اختصاصي',
           consultation_fee: b.fee,
           follow_up_fee: Math.round(b.fee * 0.6),
           verification_status: 'pending',
           is_listed_publicly: false,
         });
+        if (docInsErr) {
+          await rollbackNewMember();
+          throw new SupabaseActionError(
+            docInsErr.message || 'تعذر تسجيل ملف الطبيب الجديد.',
+            500,
+            'DB_ERROR',
+          );
+        }
       }
 
-      await adminClient.from('audit_logs').insert({
+      const { error: auditErr } = await adminClient.from('audit_logs').insert({
         organization_id: user.organizationId,
         actor_id: user.id,
         action: 'team.member_added',
         entity_type: 'user',
         entity_id: newUserId,
       });
+      if (auditErr) {
+        console.error('[Team Audit Error]:', auditErr);
+      }
 
       return { success: true, data: { id: newUserId, email: b.email, role: b.role } };
     }
@@ -839,7 +1049,7 @@ export async function executeSupabaseAction(
         .object({ name: text, city: text, district: text, phone: z.string().min(7).max(25) })
         .parse(payload);
 
-      const { data: sub } = await adminClient
+      const { data: sub } = await serverClient
         .from('subscriptions')
         .select('tier, max_clinics')
         .eq('organization_id', user.organizationId)
@@ -847,7 +1057,7 @@ export async function executeSupabaseAction(
 
       const maxClinics = sub?.max_clinics ?? (sub?.tier === 'clinic_pro' ? 3 : 1);
 
-      const { count: currentClinics } = await adminClient
+      const { count: currentClinics } = await serverClient
         .from('clinics')
         .select('id', { count: 'exact', head: true })
         .eq('organization_id', user.organizationId);
@@ -861,7 +1071,7 @@ export async function executeSupabaseAction(
       }
 
       let cityId: string | null = null;
-      const { data: cityAr } = await adminClient
+      const { data: cityAr } = await serverClient
         .from('cities')
         .select('id')
         .eq('name_ar', b.city)
@@ -870,7 +1080,7 @@ export async function executeSupabaseAction(
       cityId = cityAr?.id ?? null;
 
       if (!cityId) {
-        const { data: cityEn } = await adminClient
+        const { data: cityEn } = await serverClient
           .from('cities')
           .select('id')
           .eq('name_en', b.city)
@@ -880,8 +1090,11 @@ export async function executeSupabaseAction(
       }
 
       if (!cityId) {
+        // Administrative exception: Creating a new global reference city requires service-role.
+        const { createSupabaseAdmin } = await import('../supabase/admin');
+        const adminClient = createSupabaseAdmin();
         const newCityId = randomUUID();
-        await adminClient.from('cities').insert({
+        const { error: cityInsErr } = await adminClient.from('cities').insert({
           id: newCityId,
           name_ar: b.city,
           name_en: b.city,
@@ -889,13 +1102,20 @@ export async function executeSupabaseAction(
           timezone: 'Asia/Damascus',
           is_active: true,
         });
+        if (cityInsErr) {
+          throw new SupabaseActionError(
+            cityInsErr.message || 'تعذر تسجيل المدينة الجديدة.',
+            500,
+            'DB_ERROR',
+          );
+        }
         cityId = newCityId;
       }
 
       const branchId = randomUUID();
       const slug = `${slugify(b.name)}-${branchId.slice(0, 8)}`;
 
-      const { error: insErr } = await adminClient.from('clinics').insert({
+      const { error: insErr } = await serverClient.from('clinics').insert({
         id: branchId,
         organization_id: user.organizationId,
         city_id: cityId,
@@ -916,13 +1136,16 @@ export async function executeSupabaseAction(
         );
       }
 
-      await adminClient.from('audit_logs').insert({
+      const { error: auditErr } = await serverClient.from('audit_logs').insert({
         organization_id: user.organizationId,
         actor_id: user.id,
         action: 'branch.created',
         entity_type: 'clinic',
         entity_id: branchId,
       });
+      if (auditErr) {
+        console.error('[Branch Audit Error]:', auditErr);
+      }
 
       return { success: true, data: { id: branchId } };
     }
@@ -936,7 +1159,7 @@ export async function executeSupabaseAction(
         .object({ id: text, fee: z.number().min(0), followUpFee: z.number().min(0) })
         .parse(payload);
 
-      const { data: targetDoc } = await adminClient
+      const { data: targetDoc } = await serverClient
         .from('doctors')
         .select('id, organization_id')
         .eq('id', b.id)
@@ -950,33 +1173,43 @@ export async function executeSupabaseAction(
         throw new SupabaseActionError('غير مصرح لك بتعديل رسوم هذا الطبيب.', 403, 'FORBIDDEN');
       }
 
-      const { error: updErr } = await adminClient
+      const { data: updatedDocs, error: updErr } = await serverClient
         .from('doctors')
         .update({
           consultation_fee: b.fee,
           follow_up_fee: b.followUpFee,
-          updated_at: new Date().toISOString(),
         })
         .eq('id', b.id)
-        .eq('organization_id', user.organizationId);
+        .eq('organization_id', user.organizationId)
+        .select('id');
 
       if (updErr) {
-        throw new SupabaseActionError(updErr.message || 'تعذر تحديث الرسوم.', 500, 'DB_ERROR');
+        throw new SupabaseActionError(
+          updErr.message || 'تعذر تحديث الرسوم.',
+          updErr.code === '42501' ? 403 : 500,
+          updErr.code === '42501' ? 'FORBIDDEN' : 'DB_ERROR',
+        );
+      }
+      if (!updatedDocs || updatedDocs.length === 0) {
+        throw new SupabaseActionError('غير مصرح لك بتعديل رسوم هذا الطبيب.', 403, 'FORBIDDEN');
       }
 
-      await adminClient.from('audit_logs').insert({
+      const { error: auditErr } = await serverClient.from('audit_logs').insert({
         organization_id: user.organizationId,
         actor_id: user.id,
         action: 'doctor.fee_updated',
         entity_type: 'doctor',
         entity_id: b.id,
       });
+      if (auditErr) {
+        console.error('[DoctorFee Audit Error]:', auditErr);
+      }
 
       return { success: true, data: { id: b.id, fee: b.fee, followUpFee: b.followUpFee } };
     }
 
     case 'settings': {
-      if (!['clinic_owner', 'doctor', 'super_admin'].includes(user.role) || !user.organizationId) {
+      if (user.role !== 'clinic_owner' || !user.organizationId) {
         throw new SupabaseActionError('غير مصرح لك بتعديل إعدادات المركز.', 403, 'FORBIDDEN');
       }
 
@@ -991,12 +1224,24 @@ export async function executeSupabaseAction(
         })
         .parse(payload);
 
-      await adminClient
+      const { data: updatedOrgs, error: orgUpdErr } = await serverClient
         .from('organizations')
-        .update({ name: b.name, updated_at: new Date().toISOString() })
-        .eq('id', user.organizationId);
+        .update({ name: b.name })
+        .eq('id', user.organizationId)
+        .select('id');
 
-      await adminClient
+      if (orgUpdErr) {
+        throw new SupabaseActionError(
+          orgUpdErr.message || 'تعذر تحديث اسم المركز.',
+          orgUpdErr.code === '42501' ? 403 : 500,
+          orgUpdErr.code === '42501' ? 'FORBIDDEN' : 'DB_ERROR',
+        );
+      }
+      if (!updatedOrgs || updatedOrgs.length === 0) {
+        throw new SupabaseActionError('غير مصرح لك بتعديل إعدادات المركز.', 403, 'FORBIDDEN');
+      }
+
+      const { data: updatedClinics, error: clinicUpdErr } = await serverClient
         .from('clinics')
         .update({
           phone: b.phone,
@@ -1004,17 +1249,35 @@ export async function executeSupabaseAction(
           cancel_window_hours: b.cancelHours,
           min_lead_minutes: b.leadMinutes,
           auto_confirm_bookings: b.autoConfirm,
-          updated_at: new Date().toISOString(),
         })
-        .eq('organization_id', user.organizationId);
+        .eq('organization_id', user.organizationId)
+        .select('id');
 
-      await adminClient.from('audit_logs').insert({
+      if (clinicUpdErr) {
+        throw new SupabaseActionError(
+          clinicUpdErr.message || 'تعذر تحديث إعدادات العيادة.',
+          clinicUpdErr.code === '42501' ? 403 : 500,
+          clinicUpdErr.code === '42501' ? 'FORBIDDEN' : 'DB_ERROR',
+        );
+      }
+      if (!updatedClinics || updatedClinics.length === 0) {
+        throw new SupabaseActionError(
+          'لم يتم العثور على فرع مرتبط لتحديث إعداداته.',
+          404,
+          'NOT_FOUND',
+        );
+      }
+
+      const { error: auditErr } = await serverClient.from('audit_logs').insert({
         organization_id: user.organizationId,
         actor_id: user.id,
         action: 'organization.updated',
         entity_type: 'organization',
         entity_id: user.organizationId,
       });
+      if (auditErr) {
+        console.error('[Settings Audit Error]:', auditErr);
+      }
 
       return { success: true, data: { organizationId: user.organizationId } };
     }
@@ -1036,13 +1299,20 @@ export async function executeSupabaseAction(
         })
         .parse(payload);
 
-      const { data: appt, error: apptErr } = await adminClient
+      const { data: appt, error: apptErr } = await serverClient
         .from('appointments')
-        .select('id, doctor_id, patient_id, status')
+        .select('id, organization_id, doctor_id, patient_id, status')
         .eq('id', b.appointmentId)
         .maybeSingle();
 
-      if (apptErr || !appt) {
+      if (apptErr) {
+        throw new SupabaseActionError(
+          apptErr.message || 'تعذر جلب بيانات الموعد.',
+          apptErr.code === '42501' ? 403 : 500,
+          apptErr.code === '42501' ? 'FORBIDDEN' : 'DB_ERROR',
+        );
+      }
+      if (!appt) {
         throw new SupabaseActionError('الموعد غير موجود.', 404, 'NOT_FOUND');
       }
 
@@ -1054,18 +1324,26 @@ export async function executeSupabaseAction(
         throw new SupabaseActionError('التقييم متاح بعد اكتمال الزيارة فقط.', 422, 'INVALID_STATE');
       }
 
-      const { data: existingReview } = await adminClient
+      const { data: existingReview, error: revErr } = await serverClient
         .from('reviews')
         .select('id')
         .eq('appointment_id', b.appointmentId)
         .maybeSingle();
+
+      if (revErr) {
+        throw new SupabaseActionError(
+          revErr.message || 'تعذر التحقق من وجود تقييم سابق.',
+          revErr.code === '42501' ? 403 : 500,
+          revErr.code === '42501' ? 'FORBIDDEN' : 'DB_ERROR',
+        );
+      }
 
       if (existingReview) {
         throw new SupabaseActionError('سبق أن قيّمت هذه الزيارة.', 422, 'ALREADY_REVIEWED');
       }
 
       const reviewId = randomUUID();
-      const { error: insErr } = await adminClient.from('reviews').insert({
+      const { error: insErr } = await serverClient.from('reviews').insert({
         id: reviewId,
         appointment_id: b.appointmentId,
         doctor_id: appt.doctor_id,
@@ -1076,45 +1354,43 @@ export async function executeSupabaseAction(
       });
 
       if (insErr) {
-        throw new SupabaseActionError(insErr.message || 'تعذر حفظ التقييم.', 500, 'DB_ERROR');
+        throw new SupabaseActionError(
+          insErr.message || 'تعذر حفظ التقييم.',
+          insErr.code === '42501' ? 403 : 500,
+          insErr.code === '42501' ? 'FORBIDDEN' : 'DB_ERROR',
+        );
       }
 
-      // Update doctor average
-      const { data: allReviews } = await adminClient
-        .from('reviews')
-        .select('rating')
-        .eq('doctor_id', appt.doctor_id);
-
-      if (allReviews && allReviews.length > 0) {
-        const sum = allReviews.reduce((acc, r) => acc + (r.rating || 5), 0);
-        const avg = Number((sum / allReviews.length).toFixed(2));
-        await adminClient
-          .from('doctors')
-          .update({
-            rating_avg: avg,
-            reviews_count: allReviews.length,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', appt.doctor_id);
-      }
-
-      await adminClient.from('audit_logs').insert({
+      // Rating aggregate on doctors is automatically updated via PostgreSQL trigger `aggregate_reviews`.
+      const { error: auditErr } = await serverClient.from('audit_logs').insert({
+        organization_id: appt.organization_id,
         actor_id: user.id,
         action: 'review.created',
         entity_type: 'review',
         entity_id: reviewId,
       });
+      if (auditErr) {
+        console.error('[Review Audit Error]:', auditErr);
+      }
 
       return { success: true, data: { id: reviewId } };
     }
 
     case 'notification': {
       const b = z.object({ id: text }).parse(payload);
-      await adminClient
+      const { data: updatedNotifs, error: notifErr } = await serverClient
         .from('notifications')
         .update({ is_read: true })
         .eq('id', b.id)
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .select('id');
+
+      if (notifErr) {
+        throw new SupabaseActionError(notifErr.message || 'تعذر تحديث الإشعار.', 500, 'DB_ERROR');
+      }
+      if (!updatedNotifs || updatedNotifs.length === 0) {
+        throw new SupabaseActionError('الإشعار غير موجود.', 404, 'NOT_FOUND');
+      }
 
       return { success: true, data: { id: b.id } };
     }
@@ -1128,7 +1404,7 @@ export async function executeSupabaseAction(
         .object({ tier: z.enum(['solo_starter', 'clinic_pro', 'enterprise']) })
         .parse(payload);
 
-      await adminClient.from('audit_logs').insert({
+      const { error: auditErr } = await serverClient.from('audit_logs').insert({
         organization_id: user.organizationId,
         actor_id: user.id,
         action: 'billing.requested',
@@ -1136,6 +1412,10 @@ export async function executeSupabaseAction(
         entity_id: user.organizationId,
         metadata: { requested_tier: b.tier },
       });
+
+      if (auditErr) {
+        throw new SupabaseActionError(auditErr.message || 'تعذر تسجيل الطلب.', 500, 'DB_ERROR');
+      }
 
       return { success: true, data: { organizationId: user.organizationId, tier: b.tier } };
     }
@@ -1157,6 +1437,10 @@ export async function executeSupabaseAction(
         throw new SupabaseActionError('سبب الرفض مطلوب عند رفض الطلب.', 422, 'REASON_REQUIRED');
       }
 
+      // Administrative exception: Cross-tenant clinic and doctor verification by super_admin requires service-role.
+      const { createSupabaseAdmin } = await import('../supabase/admin');
+      const adminClient = createSupabaseAdmin();
+
       // Check if ID matches an organization
       const { data: org } = await adminClient
         .from('organizations')
@@ -1176,14 +1460,21 @@ export async function executeSupabaseAction(
       }
 
       if (org) {
-        await adminClient
+        const { error: orgErr } = await adminClient
           .from('organizations')
           .update({ verification_status: b.status, updated_at: new Date().toISOString() })
           .eq('id', b.id);
+        if (orgErr) {
+          throw new SupabaseActionError(
+            orgErr.message || 'تعذر تحديث حالة اعتماد المؤسسة.',
+            500,
+            'DB_ERROR',
+          );
+        }
       }
 
       if (doc) {
-        await adminClient
+        const { error: docErr } = await adminClient
           .from('doctors')
           .update({
             verification_status: b.status,
@@ -1192,15 +1483,25 @@ export async function executeSupabaseAction(
             updated_at: new Date().toISOString(),
           })
           .eq('id', b.id);
+        if (docErr) {
+          throw new SupabaseActionError(
+            docErr.message || 'تعذر تحديث حالة اعتماد الطبيب.',
+            500,
+            'DB_ERROR',
+          );
+        }
       }
 
-      await adminClient.from('audit_logs').insert({
+      const { error: auditErr } = await adminClient.from('audit_logs').insert({
         actor_id: user.id,
         action: `verification.${b.status}`,
         entity_type: org ? 'organization' : 'doctor',
         entity_id: b.id,
         metadata: { reason: b.reason },
       });
+      if (auditErr) {
+        console.error('[Verify Audit Error]:', auditErr);
+      }
 
       return { success: true, data: { id: b.id, status: b.status } };
     }
@@ -1213,6 +1514,10 @@ export async function executeSupabaseAction(
       const b = z
         .object({ id: text, tier: z.enum(['solo_starter', 'clinic_pro', 'enterprise']) })
         .parse(payload);
+
+      // Administrative exception: Platform billing and tier provisioning by super_admin requires service-role.
+      const { createSupabaseAdmin } = await import('../supabase/admin');
+      const adminClient = createSupabaseAdmin();
 
       const { data: org } = await adminClient
         .from('organizations')
@@ -1228,7 +1533,7 @@ export async function executeSupabaseAction(
       const maxClinics = b.tier === 'enterprise' ? 100 : b.tier === 'clinic_pro' ? 3 : 1;
       const horizonDays = b.tier === 'enterprise' ? 180 : b.tier === 'clinic_pro' ? 90 : 30;
 
-      await adminClient.from('subscriptions').upsert(
+      const { error: subErr } = await adminClient.from('subscriptions').upsert(
         {
           organization_id: b.id,
           tier: b.tier,
@@ -1241,8 +1546,11 @@ export async function executeSupabaseAction(
         },
         { onConflict: 'organization_id' },
       );
+      if (subErr) {
+        throw new SupabaseActionError(subErr.message || 'تعذر تفعيل الاشتراك.', 500, 'DB_ERROR');
+      }
 
-      await adminClient.from('audit_logs').insert({
+      const { error: auditErr } = await adminClient.from('audit_logs').insert({
         organization_id: b.id,
         actor_id: user.id,
         action: 'subscription.activated',
@@ -1250,6 +1558,9 @@ export async function executeSupabaseAction(
         entity_id: b.id,
         metadata: { tier: b.tier },
       });
+      if (auditErr) {
+        console.error('[Subscription Audit Error]:', auditErr);
+      }
 
       return { success: true, data: { id: b.id, tier: b.tier } };
     }
@@ -1260,11 +1571,16 @@ export async function executeSupabaseAction(
       }
 
       const b = z.object({ name: text, type: z.enum(['city', 'specialty']) }).parse(payload);
+
+      // Administrative exception: Global system dictionary management by super_admin requires service-role.
+      const { createSupabaseAdmin } = await import('../supabase/admin');
+      const adminClient = createSupabaseAdmin();
+
       const refId = randomUUID();
       const slug = slugify(b.name) || refId.slice(0, 8);
 
       if (b.type === 'city') {
-        await adminClient.from('cities').insert({
+        const { error: cityErr } = await adminClient.from('cities').insert({
           id: refId,
           name_ar: b.name,
           name_en: b.name,
@@ -1272,8 +1588,11 @@ export async function executeSupabaseAction(
           timezone: 'Asia/Damascus',
           is_active: true,
         });
+        if (cityErr) {
+          throw new SupabaseActionError(cityErr.message || 'تعذر إضافة المدينة.', 500, 'DB_ERROR');
+        }
       } else {
-        await adminClient.from('specialties').insert({
+        const { error: specErr } = await adminClient.from('specialties').insert({
           id: refId,
           name_ar: b.name,
           name_en: b.name,
@@ -1281,14 +1600,24 @@ export async function executeSupabaseAction(
           icon_name: 'Stethoscope',
           is_active: true,
         });
+        if (specErr) {
+          throw new SupabaseActionError(
+            specErr.message || 'تعذر إضافة التخصص الطبي.',
+            500,
+            'DB_ERROR',
+          );
+        }
       }
 
-      await adminClient.from('audit_logs').insert({
+      const { error: auditErr } = await adminClient.from('audit_logs').insert({
         actor_id: user.id,
         action: 'reference.created',
         entity_type: b.type,
         entity_id: refId,
       });
+      if (auditErr) {
+        console.error('[Reference Audit Error]:', auditErr);
+      }
 
       return { success: true, data: { id: refId, name: b.name, type: b.type } };
     }

@@ -22,7 +22,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4_RTL-38B2AC?style=flat-square&logo=tailwind-css)](https://tailwindcss.com/)
 [![SQLite](https://img.shields.io/badge/SQLite-WAL_Immediate-003B57?style=flat-square&logo=sqlite)](https://sqlite.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17_RLS-336791?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
-[![Vitest](https://img.shields.io/badge/Vitest-101_Passed-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
+[![Vitest](https://img.shields.io/badge/Vitest-145_Passed-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
 [![Playwright](https://img.shields.io/badge/Playwright-E2E_Verified-2EAD33?style=flat-square&logo=playwright)](https://playwright.dev/)
 [![WCAG AA](https://img.shields.io/badge/Accessibility-WCAG_2.1_AA-005A9C?style=flat-square)](docs/ACCESSIBILITY_AUDIT_REPORT.md)
 
@@ -196,7 +196,7 @@ A unified authentication portal supporting single-click role switching for techn
 </p>
 
 - **Instant Persona Simulator:** Immediate testing across all five personas (`clinic_owner`, `doctor`, `receptionist`, `patient`, `super_admin`).
-- **Cryptographic Session Storage:** Ephemeral test tokens hashed via SHA-256 and stored with HttpOnly session cookies.
+- **Cryptographic Sessions & Passwords:** Password hashing via `scrypt`, random session tokens hashed via SHA-256 in HttpOnly cookies (`__Host-` prefixed in production), and session rotation on login.
 - **Sign-Up Pipelines:** Dedicated registration flows for patients and clinic owners with strict schema validation.
 
 ---
@@ -291,13 +291,13 @@ ClinicBook employs a clean three-tier architecture separating declarative UI com
 
 Enforces the **Principle of Least Privilege** to maintain patient confidentiality and role isolation:
 
-| Role                 |   Role Key   |         Appointments          |   Clinical EMR & Diagnosis   |        Staff & Branch Mgmt        |     Financial Operations      |
-| :------------------- | :----------: | :---------------------------: | :--------------------------: | :-------------------------------: | :---------------------------: |
-| **Clinic Owner**     |   `owner`    |  View/confirm clinic visits   |         🚫 Forbidden         | Add/edit staff, allocate branches |    Manage tier & invoices     |
-| **Attending Doctor** |   `doctor`   |   Manage assigned schedule    | ✅ Full create/edit EMR & Rx |           🚫 Forbidden            |   View personal fee totals    |
-| **Receptionist**     | `reception`  |  Book, confirm, and check in  |         🚫 Forbidden         |           🚫 Forbidden            | Collect cash & issue receipts |
-| **Patient**          |  `patient`   | Book, view, and cancel visits |   ✅ View own visits & Rx    |           🚫 Forbidden            |  View personal visit charges  |
-| **Super Admin**      | `superadmin` |  Global aggregate monitoring  |  🚫 Forbidden (Anonymized)   |   Approve clinic registrations    |    Manual tier activations    |
+| Role                 |   Role Key   |                   Appointments                    |     Clinical EMR & Diagnosis     |        Staff & Branch Mgmt        |     Financial Operations      |
+| :------------------- | :----------: | :-----------------------------------------------: | :------------------------------: | :-------------------------------: | :---------------------------: |
+| **Clinic Owner**     |   `owner`    |            View/confirm clinic visits             |           🚫 Forbidden           | Add/edit staff, allocate branches |    Manage tier & invoices     |
+| **Attending Doctor** |   `doctor`   |             Manage assigned schedule              |   ✅ Full create/edit EMR & Rx   |           🚫 Forbidden            |   View personal fee totals    |
+| **Receptionist**     | `reception`  |            Book, confirm, and check in            |           🚫 Forbidden           |           🚫 Forbidden            | Collect cash & issue receipts |
+| **Patient**          |  `patient`   |           Book, view, and cancel visits           |     ✅ View own visits & Rx      |           🚫 Forbidden            |  View personal visit charges  |
+| **Super Admin**      | `superadmin` | 🚫 Forbidden from tenant visits (Governance only) | 🚫 Forbidden (RBAC/RLS Isolated) |   Approve clinic registrations    |    Manual tier activations    |
 
 ---
 
@@ -307,6 +307,11 @@ Enforces the **Principle of Least Privilege** to maintain patient confidentialit
 
 - **Node.js**: Version 20.19.0 or higher.
 - **npm**: Version 10 or higher.
+
+> ⚠️ **Deployment Constraints**:
+>
+> - **Production (`CLINICBOOK_MODE=production`)**: Mandatory when running with `NODE_ENV=production`; relies strictly on PostgreSQL 17 + Supabase with RLS and never imports `better-sqlite3` or creates a `data/` directory, making it fully compatible with Serverless hosts such as Vercel.
+> - **Demo Mode (`CLINICBOOK_MODE=demo`)**: Uses the native `better-sqlite3` binding and writes locally to `data/clinicbook.sqlite`; therefore it is unsuitable for read-only Serverless filesystems and requires writable disk storage or PostgreSQL/Supabase.
 
 ### Quick Setup Steps
 
@@ -362,8 +367,8 @@ node scripts/a11y.mjs
 
 ### Verified Benchmark Results:
 
-- **101 Passing Unit & Integration Tests (101/101):** Validates half-open time interval calculations, daylight saving transitions (DST), appointment lifecycle state machine, and multi-tenant isolation.
-- **Zero Double Bookings (0 Race Conditions):** 50 concurrent HTTP requests targeted at the exact same slot resulted in exactly 1 successful booking (201 Created) and 49 conflict rejections (409 Conflict).
+- **145 Passing Unit & Integration Tests (145/145):** Validates half-open time interval calculations, daylight saving transitions (DST), appointment lifecycle state machine, multi-tenant isolation, and security hardening.
+- **Zero Double Bookings & IP Rate Limiting:** Atomic slot locking is verified directly on PostgreSQL 17 (1 winner, remaining rejected with `23P01`), while HTTP `/api/appointments` enforces a `10 req/min` IP rate limit (`429 Too Many Requests`) against booking floods.
 - **PostgreSQL 17 RLS Verification:** Full test suite verifying tenant boundary isolation, RPC impersonation prevention, and strict denial of medical record access to non-treating staff.
 - **Zero Automated A11y Violations:** Automated `axe-core` Playwright scans of the landing page and workspace dashboards confirm 100% compliance with WCAG 2.1 AA color contrast and focus requirements.
 

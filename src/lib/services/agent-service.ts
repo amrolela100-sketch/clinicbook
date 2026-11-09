@@ -1,12 +1,68 @@
 import { z } from 'zod';
 import { formatInTimeZone } from 'date-fns-tz';
 import type { ActionResult, Doctor, User } from '../types';
-import { all, appointments } from '../demo-db';
-import { slotsFor } from './booking-service';
 import { callAgentRouter } from './agentrouter-client';
 import bookAppointmentTool from '../../../agent/tools/book_appointment';
 import handlePatientResponseTool from '../../../agent/tools/handle_patient_response';
 import getClinicSummaryTool, { ClinicDailySummary } from '../../../agent/tools/get_clinic_summary';
+
+async function loadVerifiedDoctors(): Promise<Doctor[]> {
+  const { demoEnabled, isSupabaseConfigured } = await import('../auth/session');
+  if (demoEnabled()) {
+    const { all } = await import('../demo-db');
+    return all<Doctor>('doctor').filter((d) => d.verified);
+  }
+  if (isSupabaseConfigured()) {
+    const { createSupabaseServer } = await import('../supabase/server');
+    const client = await createSupabaseServer();
+    const { data } = await client.rpc('public_doctor_directory');
+    const rows = (data as Array<Record<string, unknown>> | null) ?? [];
+    return rows.map((d) => ({
+      id: String(d.id ?? ''),
+      name: String(d.full_name ?? 'طبيب معتمد'),
+      specialty: String(d.specialty_name ?? 'الطب العام'),
+      organizationId: String(d.organization_id ?? d.id ?? ''),
+      clinicId: String(d.clinic_id ?? ''),
+      clinic: String(d.clinic_name ?? 'العيادة الطبية'),
+      city: String(d.city_name ?? 'دمشق'),
+      district: String(d.district ?? ''),
+      fee: Number(d.consultation_fee ?? 25),
+      followUpFee: Number(d.follow_up_fee ?? 15),
+      rating: Number(d.rating_avg ?? 4.8),
+      reviews: Number(d.reviews_count ?? 0),
+      experience: Number(d.years_of_experience ?? 1),
+      bio: String(d.bio_ar ?? ''),
+      color: '#e1eeeb',
+      image: String(d.avatar_url ?? 'doctor-1.jpg'),
+      verified: true,
+      license: String(d.license_number ?? ''),
+      bookingHorizonDays: 30,
+      cancelHours: 2,
+    }));
+  }
+  return [];
+}
+
+async function getSlotsForDate(
+  doctor: Doctor,
+  dateStr: string,
+  referenceNow: Date,
+): Promise<{ start: string; end: string }[]> {
+  const { demoEnabled, isSupabaseConfigured } = await import('../auth/session');
+  if (demoEnabled()) {
+    const { slotsFor } = await import('./booking-service');
+    return slotsFor(doctor.id, dateStr, referenceNow).map((s) => ({
+      start: s.start,
+      end: s.end,
+    }));
+  }
+  if (isSupabaseConfigured()) {
+    const { getSupabaseSlots } = await import('./supabase-booking-service');
+    const res = await getSupabaseSlots(doctor.id, dateStr, doctor.clinicId || undefined);
+    return res.success ? res.data : [];
+  }
+  return [];
+}
 
 export interface AgentDoctorCard {
   doctorId: string;
@@ -31,7 +87,11 @@ export interface AgentMessageResult {
 }
 
 const messageInputSchema = z.object({
-  message: z.string().trim().min(1, 'الرسالة لا يمكن أن تكون فارغة'),
+  message: z
+    .string()
+    .trim()
+    .min(1, 'الرسالة لا يمكن أن تكون فارغة')
+    .max(2000, 'يجب ألا تتجاوز الرسالة 2000 حرف'),
   sessionId: z.string().optional(),
   date: z
     .string()
@@ -235,9 +295,8 @@ function detectEmergency(message: string): boolean {
   return EMERGENCY_KEYWORDS.some((kw) => normalized.includes(kw));
 }
 
-function detectDoctor(message: string): Doctor | undefined {
+function detectDoctor(message: string, doctors: Doctor[]): Doctor | undefined {
   const normalized = message.toLowerCase().trim();
-  const doctors = all<Doctor>('doctor').filter((d) => d.verified);
 
   // 1. فحص الاسم الكامل بدقة
   for (const doc of doctors) {
@@ -281,18 +340,18 @@ function detectSpecialty(message: string): string | undefined {
 /**
  * البحث عن أقرب فترات شاغرة للطبيب بدءاً من التاريخ المطلوب وحتى 7 أيام قادمة
  */
-function findEarliestSlotsForDoctor(
+async function findEarliestSlotsForDoctor(
   doctor: Doctor,
   startDateStr: string,
   maxDaysAhead = 7,
   referenceNow: Date = new Date(),
-): { date: string; slots: { start: string; end: string }[]; isFutureDate: boolean } {
+): Promise<{ date: string; slots: { start: string; end: string }[]; isFutureDate: boolean }> {
   // فحص تاريخ اليوم أو التاريخ المطلوب أولاً
-  const todaySlots = slotsFor(doctor.id, startDateStr, referenceNow);
+  const todaySlots = await getSlotsForDate(doctor, startDateStr, referenceNow);
   if (todaySlots.length > 0) {
     return {
       date: startDateStr,
-      slots: todaySlots.map((s) => ({ start: s.start, end: s.end })),
+      slots: todaySlots,
       isFutureDate: false,
     };
   }
@@ -302,12 +361,12 @@ function findEarliestSlotsForDoctor(
   for (let offset = 1; offset <= maxDaysAhead; offset++) {
     const nextDateObj = new Date(baseDate.getTime() + offset * 86400000);
     const nextDateStr = nextDateObj.toISOString().slice(0, 10);
-    const futureSlots = slotsFor(doctor.id, nextDateStr, referenceNow);
+    const futureSlots = await getSlotsForDate(doctor, nextDateStr, referenceNow);
 
     if (futureSlots.length > 0) {
       return {
         date: nextDateStr,
-        slots: futureSlots.map((s) => ({ start: s.start, end: s.end })),
+        slots: futureSlots,
         isFutureDate: true,
       };
     }
@@ -389,9 +448,10 @@ export async function processAgentMessage(
   const baseDate = date ?? formatInTimeZone(now, 'Asia/Damascus', 'yyyy-MM-dd');
 
   // 2. فحص ما إذا كان المستخدم يطلب طبيباً محدداً بالاسم أولاً
-  const specificDoctor = detectDoctor(message);
+  const verifiedDoctors = await loadVerifiedDoctors();
+  const specificDoctor = detectDoctor(message, verifiedDoctors);
   if (specificDoctor) {
-    const earliest = findEarliestSlotsForDoctor(specificDoctor, baseDate, 7, now);
+    const earliest = await findEarliestSlotsForDoctor(specificDoctor, baseDate, 7, now);
     const doctorCard: AgentDoctorCard = {
       doctorId: specificDoctor.id,
       doctorName: specificDoctor.name,
@@ -431,25 +491,25 @@ export async function processAgentMessage(
   // 3. فحص نية البحث عن التخصص أو الأعراض
   const targetSpecialty = detectSpecialty(message);
   if (targetSpecialty) {
-    const matchingDocs = all<Doctor>('doctor')
-      .filter((d) => d.verified)
-      .filter((d) => d.specialty.includes(targetSpecialty));
+    const matchingDocs = verifiedDoctors.filter((d) => d.specialty.includes(targetSpecialty));
 
     if (matchingDocs.length > 0) {
-      const cards: AgentDoctorCard[] = matchingDocs.map((doc) => {
-        const earliest = findEarliestSlotsForDoctor(doc, baseDate, 7, now);
-        return {
-          doctorId: doc.id,
-          doctorName: doc.name,
-          specialty: doc.specialty,
-          clinic: doc.clinic,
-          fee: doc.fee,
-          availableSlotsCount: earliest.slots.length,
-          slots: earliest.slots,
-          date: earliest.date,
-          isFutureDate: earliest.isFutureDate,
-        };
-      });
+      const cards: AgentDoctorCard[] = await Promise.all(
+        matchingDocs.map(async (doc) => {
+          const earliest = await findEarliestSlotsForDoctor(doc, baseDate, 7, now);
+          return {
+            doctorId: doc.id,
+            doctorName: doc.name,
+            specialty: doc.specialty,
+            clinic: doc.clinic,
+            fee: doc.fee,
+            availableSlotsCount: earliest.slots.length,
+            slots: earliest.slots,
+            date: earliest.date,
+            isFutureDate: earliest.isFutureDate,
+          };
+        }),
+      );
 
       const availableDocs = cards.filter((c) => c.availableSlotsCount > 0);
       const isFuture = availableDocs.some((d) => d.isFutureDate);
@@ -497,10 +557,30 @@ export async function processAgentMessage(
       };
     }
 
-    const allAppts = appointments();
-    const userAppts = allAppts
-      .filter((a) => a.patientId === currentUserParam.id || a.phone === currentUserParam.email)
-      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+    const { demoEnabled, isSupabaseConfigured } = await import('../auth/session');
+    let userAppts: Array<{ doctorId: string; start: string; status: string }> = [];
+
+    if (demoEnabled()) {
+      const { appointments } = await import('../demo-db');
+      userAppts = appointments()
+        .filter((a) => a.patientId === currentUserParam.id || a.phone === currentUserParam.email)
+        .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+    } else if (isSupabaseConfigured()) {
+      const { createSupabaseServer } = await import('../supabase/server');
+      const client = await createSupabaseServer();
+      const { data } = await client
+        .from('appointments')
+        .select('doctor_id, start_at, status')
+        .eq('patient_id', currentUserParam.id)
+        .order('start_at', { ascending: true });
+      userAppts = (
+        (data as Array<{ doctor_id: string; start_at: string; status: string }> | null) ?? []
+      ).map((a) => ({
+        doctorId: a.doctor_id,
+        start: a.start_at,
+        status: a.status,
+      }));
+    }
 
     const activeAppts = userAppts.filter((a) => ['pending', 'confirmed'].includes(a.status));
 
@@ -521,7 +601,7 @@ export async function processAgentMessage(
 
     const apptsList = activeAppts
       .map((a) => {
-        const doc = all<Doctor>('doctor').find((d) => d.id === a.doctorId);
+        const doc = verifiedDoctors.find((d) => d.id === a.doctorId);
         const dateFormatted = new Date(a.start).toLocaleDateString('ar-SA', {
           timeZone: 'Asia/Damascus',
         });
@@ -656,7 +736,7 @@ export async function processAgentMessage(
   }
 
   // 8. الاستفسارات العامة والتوجيه الطبي الذكي (مدعوم بـ AgentRouter gpt-5.6-sol)
-  const availableSpecs = Array.from(new Set(all<Doctor>('doctor').map((d) => d.specialty)));
+  const availableSpecs = Array.from(new Set(verifiedDoctors.map((d) => d.specialty)));
   const specsList = availableSpecs.join('، ');
 
   let reply =
@@ -667,7 +747,6 @@ export async function processAgentMessage(
 
   // استدعاء AgentRouter الذكي عند توفر المفتاح خارج بيئة الاختبارات الوحدوية
   if (process.env.AGENTROUTER_API_KEY && process.env.NODE_ENV !== 'test') {
-    const verifiedDoctors = all<Doctor>('doctor').filter((d) => d.verified);
     const aiResult = await callAgentRouter(message, {
       specialties: availableSpecs,
       doctors: verifiedDoctors.map((d) => ({
@@ -676,7 +755,6 @@ export async function processAgentMessage(
         clinic: d.clinic,
         fee: d.fee,
       })),
-      patientName: currentUserParam?.name,
     });
 
     if (aiResult.success && aiResult.reply) {

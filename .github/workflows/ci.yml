@@ -59,6 +59,8 @@ jobs:
         run: npx playwright test
         env:
           CI: '1'
+          CLINICBOOK_MODE: demo
+          COOKIE_SECURE: 'false'
 
       - name: Upload Diagnostic Report on Failure
         if: failure()
@@ -67,3 +69,55 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  postgres-verify:
+    name: PostgreSQL 17 RLS & Atomic RPC Verification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: clinicbook_test
+          POSTGRES_PASSWORD: local-test-only
+          POSTGRES_DB: clinicbook_verify
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U clinicbook_test -d clinicbook_verify"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (Pinned v22 LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install PostgreSQL Client
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends postgresql-client
+
+      - name: Bootstrap & Apply Ordered Migrations
+        env:
+          TEST_DATABASE_URL: postgresql://clinicbook_test:local-test-only@127.0.0.1:5432/clinicbook_verify
+        run: |
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f tests/postgres/bootstrap.sql
+          for migration in $(LC_ALL=C ls supabase/migrations/*.sql | sort); do
+            echo "Applying $migration..."
+            psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
+          done
+
+      - name: Run PostgreSQL RLS & Concurrency Suite
+        env:
+          TEST_DATABASE_URL: postgresql://clinicbook_test:local-test-only@127.0.0.1:5432/clinicbook_verify
+        run: npm run test:postgres

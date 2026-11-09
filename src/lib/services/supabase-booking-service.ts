@@ -1,9 +1,8 @@
 import 'server-only';
 import { z } from 'zod';
-import { randomUUID } from 'node:crypto';
+import { formatInTimeZone } from 'date-fns-tz';
 import { createSupabaseServer } from '../supabase/server';
-import { getAvailableSlots } from './slots-engine';
-import type { ActionResult, Shift, Status } from '../types';
+import type { ActionResult } from '../types';
 
 const bookingInputSchema = z.object({
   doctor_id: z.string().uuid().optional(),
@@ -30,76 +29,228 @@ const bookingInputSchema = z.object({
   notes: z.string().max(1000).optional(),
 });
 
-interface RawAvailabilityRow {
-  day_of_week: number;
-  start_time: string;
-  end_time: string;
-  slot_duration_minutes: number;
+export function translatePostgresBookingError(err: { code?: string; message?: string }): {
+  code: string;
+  error: string;
+} {
+  const msg = err.message || '';
+  const pgCode = err.code || '';
+
+  if (pgCode === '23P01' || msg.includes('overlap') || msg.includes('appointment_no_overlap')) {
+    return {
+      code: 'SLOT_CONFLICT',
+      error: 'عذراً، هذا الموعد تم حجزه للتو من قبل مريض آخر.',
+    };
+  }
+  if (pgCode === 'P0006' || msg.includes('MAX_ACTIVE_BOOKINGS_REACHED')) {
+    return {
+      code: 'MAX_ACTIVE_REACHED',
+      error: 'بلغت الحد الأقصى للحجوزات النشطة (3 مواعيد).',
+    };
+  }
+  if (msg.includes('HOLD_EXPIRES_IMMEDIATELY')) {
+    return {
+      code: 'VALIDATION_ERROR',
+      error: 'اختر فترة أبعد لإتاحة مهلة تأكيد الحجز.',
+    };
+  }
+  if (pgCode === 'P0004' || msg.includes('SLOT_TOO_SOON')) {
+    return {
+      code: 'VALIDATION_ERROR',
+      error: 'الموعد المحدد قريب جداً ولا يحقق المهلة الدنيا للحجز.',
+    };
+  }
+  if (pgCode === 'P0005' || msg.includes('SLOT_BEYOND_HORIZON')) {
+    return {
+      code: 'VALIDATION_ERROR',
+      error: 'الموعد يتجاوز الأفق الزمني المسموح به للحجز.',
+    };
+  }
+  if (msg.includes('SLOT_OUTSIDE_AVAILABILITY')) {
+    return {
+      code: 'VALIDATION_ERROR',
+      error: 'الموعد المحدد يقع خارج أوقات الدوام الأسبوعي المعتمد للطبيب.',
+    };
+  }
+  if (msg.includes('SLOT_IN_EXCEPTION')) {
+    return {
+      code: 'VALIDATION_ERROR',
+      error: 'الموعد يتعارض مع فترة إجازة أو استثناء معتمد للطبيب.',
+    };
+  }
+  if (msg.includes('WALK_IN_NAME_AND_PHONE_REQUIRED')) {
+    return {
+      code: 'VALIDATION_ERROR',
+      error: 'اسم المريض ورقم الهاتف مطلوبان لحجز المراجع المباشر.',
+    };
+  }
+  if (pgCode === '22023' || msg.includes('INVALID_INPUT')) {
+    return {
+      code: 'VALIDATION_ERROR',
+      error: 'بيانات الموعد غير صالحة، تحقق من الحقول.',
+    };
+  }
+  if (msg.includes('PATIENT_NOT_FOUND')) {
+    return {
+      code: 'NOT_FOUND',
+      error: 'حساب المريض غير موجود أو غير نشط.',
+    };
+  }
+  if (
+    pgCode === 'P0002' ||
+    msg.includes('DOCTOR_OR_ORGANIZATION_UNAVAILABLE') ||
+    msg.includes('CLINIC_UNAVAILABLE')
+  ) {
+    return {
+      code: 'VALIDATION_ERROR',
+      error: 'الطبيب أو العيادة غير متاحة حالياً للحجز.',
+    };
+  }
+  if (msg.trim() === 'UNAUTHORIZED') {
+    return {
+      code: 'UNAUTHORIZED',
+      error: 'يرجى تسجيل الدخول أولاً.',
+    };
+  }
+  if (
+    pgCode === '42501' ||
+    msg.includes('UNAUTHORIZED_PATIENT') ||
+    msg.includes('PATIENT_INACTIVE') ||
+    msg.includes('FORBIDDEN') ||
+    msg.includes('TENANT_FORBIDDEN') ||
+    msg.includes('DOCTOR_MISMATCH') ||
+    msg.includes('RECEPTIONIST_CLINIC_MISMATCH')
+  ) {
+    return {
+      code: 'FORBIDDEN',
+      error: 'غير مصرح لك بحجز هذا الموعد.',
+    };
+  }
+
+  console.error('[Supabase Booking RPC Error]:', { code: pgCode, message: msg });
+  return {
+    code: 'INTERNAL_ERROR',
+    error: 'تعذر إتمام الحجز الذري.',
+  };
 }
 
-interface RawBookingRow {
-  start_at: string;
-  end_at: string;
-  status: Status;
-  expires_at: string | null;
+interface AvailabilityShiftRow {
+  day_of_week?: number;
+  start_time?: string;
+  end_time?: string;
+  slot_duration_minutes?: number | null;
 }
 
-interface RawExceptionRow {
-  start_at: string;
-  end_at: string;
+async function resolveSlotDurationMinutes(
+  client: Awaited<ReturnType<typeof createSupabaseServer>>,
+  doctorId: string,
+  clinicId: string,
+  startAtIso: string,
+): Promise<number> {
+  const startDate = new Date(startAtIso);
+  const { data: clinicRow } = await client
+    .from('clinics')
+    .select('timezone')
+    .eq('id', clinicId)
+    .maybeSingle();
+  const timezone =
+    typeof (clinicRow as { timezone?: unknown } | null)?.timezone === 'string' &&
+    (clinicRow as { timezone: string }).timezone
+      ? (clinicRow as { timezone: string }).timezone
+      : 'Asia/Damascus';
+
+  const localDate = formatInTimeZone(startDate, timezone, 'yyyy-MM-dd');
+  const localTime = formatInTimeZone(startDate, timezone, 'HH:mm:ss');
+  const localDow = new Date(`${localDate}T12:00:00Z`).getUTCDay();
+
+  const { data: availRows } = await client
+    .from('availability')
+    .select('day_of_week, start_time, end_time, slot_duration_minutes')
+    .eq('doctor_id', doctorId)
+    .eq('clinic_id', clinicId)
+    .eq('is_active', true);
+
+  const shifts = (availRows as AvailabilityShiftRow[] | null) ?? [];
+  const matchingShift = shifts.find(
+    (s) =>
+      s.day_of_week === localDow &&
+      typeof s.start_time === 'string' &&
+      typeof s.end_time === 'string' &&
+      s.start_time <= localTime &&
+      s.end_time > localTime &&
+      typeof s.slot_duration_minutes === 'number' &&
+      s.slot_duration_minutes > 0,
+  );
+  if (matchingShift?.slot_duration_minutes) {
+    return matchingShift.slot_duration_minutes;
+  }
+
+  const { data: rpcSlots } = await client.rpc('get_available_slots', {
+    p_doctor_id: doctorId,
+    p_clinic_id: clinicId,
+    p_date: localDate,
+  });
+  const matchingSlot = (
+    (rpcSlots as Array<{ start_at: string; end_at: string }> | null) ?? []
+  ).find((slot) => new Date(slot.start_at).getTime() === startDate.getTime());
+  if (matchingSlot) {
+    const mins = Math.round(
+      (new Date(matchingSlot.end_at).getTime() - new Date(matchingSlot.start_at).getTime()) / 60000,
+    );
+    if (mins > 0) return mins;
+  }
+
+  const fallbackRow = shifts.find(
+    (s) => typeof s.slot_duration_minutes === 'number' && s.slot_duration_minutes > 0,
+  );
+  return fallbackRow?.slot_duration_minutes ?? 20;
 }
 
 export async function createSupabaseBooking(
   input: unknown,
 ): Promise<ActionResult<Record<string, unknown>>> {
   const p = bookingInputSchema.safeParse(input);
-  if (!p.success)
+  if (!p.success) {
     return {
       success: false,
       code: 'VALIDATION_ERROR',
       error: 'بيانات الحجز غير صالحة، تحقق من الحقول.',
     };
+  }
 
   const raw = p.data;
   const doctorId = raw.doctor_id ?? raw.doctorId;
   const startAt = raw.start_at ?? raw.start;
 
   if (!doctorId || !startAt) {
-    return { success: false, code: 'VALIDATION_ERROR', error: 'معرف الطبيب ووقت البداية مطلوبان.' };
+    return {
+      success: false,
+      code: 'VALIDATION_ERROR',
+      error: 'معرف الطبيب ووقت البداية مطلوبان.',
+    };
   }
 
   const { currentUser } = await import('../auth/session');
   const user = await currentUser();
-  if (!user) return { success: false, code: 'UNAUTHORIZED', error: 'يرجى تسجيل الدخول أولاً.' };
-
-  const { createSupabaseAdmin } = await import('../supabase/admin');
-  const adminClient = createSupabaseAdmin();
-
-  let clinicId = raw.clinic_id ?? raw.clinicId;
-  let organizationId = '';
-
-  const { data: docRecord } = await adminClient
-    .from('doctors')
-    .select('organization_id, consultation_fee, follow_up_fee')
-    .eq('id', doctorId)
-    .limit(1)
-    .maybeSingle();
-
-  if (docRecord?.organization_id) {
-    organizationId = docRecord.organization_id;
+  if (!user) {
+    return { success: false, code: 'UNAUTHORIZED', error: 'يرجى تسجيل الدخول أولاً.' };
   }
 
+  const client = await createSupabaseServer();
+
+  let clinicId = raw.clinic_id ?? raw.clinicId;
   if (!clinicId) {
-    const { data: avail } = await adminClient
+    const { data: avail } = await client
       .from('availability')
       .select('clinic_id')
       .eq('doctor_id', doctorId)
+      .eq('is_active', true)
       .limit(1)
       .maybeSingle();
     if (avail?.clinic_id) clinicId = avail.clinic_id;
 
     if (!clinicId) {
-      const { data: member } = await adminClient
+      const { data: member } = await client
         .from('organization_members')
         .select('clinic_id')
         .eq('user_id', doctorId)
@@ -107,178 +258,70 @@ export async function createSupabaseBooking(
         .maybeSingle();
       if (member?.clinic_id) clinicId = member.clinic_id;
     }
-
-    if (!clinicId && organizationId) {
-      const { data: cl } = await adminClient
-        .from('clinics')
-        .select('id')
-        .eq('organization_id', organizationId)
-        .limit(1)
-        .maybeSingle();
-      if (cl?.id) clinicId = cl.id;
-    }
   }
 
   if (!clinicId) {
     return { success: false, code: 'VALIDATION_ERROR', error: 'العيادة غير محددة للطبيب.' };
   }
 
-  if (!organizationId) {
-    const { data: cl } = await adminClient
-      .from('clinics')
-      .select('organization_id')
-      .eq('id', clinicId)
-      .limit(1)
-      .maybeSingle();
-    if (cl?.organization_id) organizationId = cl.organization_id;
-  }
-
   let endAt = raw.end_at ?? raw.end;
   if (!endAt) {
-    endAt = new Date(new Date(startAt).getTime() + 20 * 60000).toISOString();
+    const durationMinutes = await resolveSlotDurationMinutes(client, doctorId, clinicId, startAt);
+    endAt = new Date(new Date(startAt).getTime() + durationMinutes * 60000).toISOString();
   }
 
   const visitType = raw.visit_type ?? raw.visitType ?? 'first_visit';
-
-  // تحديد المريض: إما المريض المسجل نفسه أو مريض حجز مباشر (Walk-in)
-  let targetPatientId = user.role === 'patient' ? user.id : '';
+  const notes = raw.notes ?? raw.patient_notes ?? raw.patientNotes ?? null;
   const patientFullName = (raw.patientName ?? raw.patient_name ?? '').trim();
   const patientPhone = (raw.phone ?? '').trim();
 
-  if (!targetPatientId && (patientFullName || patientPhone)) {
-    if (patientPhone) {
-      const { data: byPhone } = await adminClient
-        .from('users')
-        .select('id')
-        .eq('phone', patientPhone)
-        .limit(1)
-        .maybeSingle();
-      if (byPhone) targetPatientId = byPhone.id;
-    }
-    if (!targetPatientId && patientFullName) {
-      const { data: byName } = await adminClient
-        .from('users')
-        .select('id')
-        .eq('full_name', patientFullName)
-        .limit(1)
-        .maybeSingle();
-      if (byName) targetPatientId = byName.id;
-    }
-    if (!targetPatientId) {
-      const dummyEmail = `walkin_${Date.now()}_${Math.floor(Math.random() * 1000)}@gmail.com`;
-      const { data: authCreated } = await adminClient.auth.admin.createUser({
-        email: dummyEmail,
-        password: randomUUID(),
-        email_confirm: true,
-        user_metadata: { full_name: patientFullName || 'مريض عيادة', phone: patientPhone || '' },
-      });
-
-      const newId = authCreated?.user?.id ?? randomUUID();
-      await adminClient.from('users').upsert({
-        id: newId,
-        full_name: patientFullName || 'مريض عيادة',
-        phone: patientPhone || null,
-        email: dummyEmail,
-        role: 'patient',
-        status: 'active',
-      });
-      targetPatientId = newId;
-    }
-  }
-
-  if (!targetPatientId) {
-    targetPatientId = user.id;
-  }
-
-  // 1. فحص التعارض الزمني
-  const { data: conflicts } = await adminClient
-    .from('appointments')
-    .select('id')
-    .eq('doctor_id', doctorId)
-    .in('status', ['confirmed', 'pending', 'checked_in'])
-    .lt('start_at', endAt)
-    .gt('end_at', startAt);
-
-  if (conflicts && conflicts.length > 0) {
-    return {
-      success: false,
-      code: 'SLOT_CONFLICT',
-      error: 'حُجزت هذه الفترة للتو. يرجى اختيار فترة أخرى.',
-    };
-  }
-
-  // حد المواعيد ينطبق فقط على حجز المريض الإلكتروني
+  // Branch A: Registered Patient Booking (calls create_appointment_atomic via user context)
   if (user.role === 'patient') {
-    const { data: userActive } = await adminClient
-      .from('appointments')
-      .select('id')
-      .eq('patient_id', targetPatientId)
-      .in('status', ['confirmed', 'pending', 'checked_in'])
-      .gt('end_at', new Date().toISOString());
+    const { data: appt, error: rpcError } = await client.rpc('create_appointment_atomic', {
+      p_patient_id: user.id,
+      p_doctor_id: doctorId,
+      p_clinic_id: clinicId,
+      p_start_at: startAt,
+      p_end_at: endAt,
+      p_visit_type: visitType === 'walk_in' ? 'first_visit' : visitType,
+      p_patient_notes: notes,
+    });
 
-    if (userActive && userActive.length >= 3) {
-      return {
-        success: false,
-        code: 'MAX_ACTIVE_REACHED',
-        error: 'بلغت الحد الأقصى للحجوزات النشطة (3 مواعيد).',
-      };
+    if (rpcError) {
+      const translated = translatePostgresBookingError(rpcError);
+      return { success: false, code: translated.code, error: translated.error };
     }
+
+    return { success: true, data: appt as Record<string, unknown> };
   }
 
-  const appointmentId = randomUUID();
-  const defaultExpiresAt = new Date(
-    Math.min(Date.now() + 12 * 3600000, new Date(startAt).getTime() - 3600000),
-  ).toISOString();
-
-  const isStaff = ['doctor', 'receptionist', 'clinic_owner', 'super_admin'].includes(user.role);
-  const initialStatus = isStaff ? 'confirmed' : 'pending';
-  const feeAmount =
-    visitType === 'follow_up'
-      ? Number(docRecord?.follow_up_fee ?? 15)
-      : Number(docRecord?.consultation_fee ?? 25);
-
-  const { data: newAppt, error: insertError } = await adminClient
-    .from('appointments')
-    .insert({
-      id: appointmentId,
-      organization_id: organizationId,
-      patient_id: targetPatientId,
-      doctor_id: doctorId,
-      clinic_id: clinicId,
-      start_at: startAt,
-      end_at: endAt,
-      fee_amount: feeAmount,
-      status: initialStatus,
-      visit_type: visitType,
-      expires_at: defaultExpiresAt,
-      walk_in_patient_name: isStaff && patientFullName ? patientFullName : null,
-      walk_in_patient_phone: isStaff && patientPhone ? patientPhone : null,
-      booking_source: isStaff
-        ? user.role === 'doctor'
-          ? 'doctor_direct'
-          : 'reception_desk'
-        : 'patient_portal',
-    })
-    .select()
-    .single();
-
-  if (insertError) {
-    if (insertError.code === '23P01' || insertError.message?.includes('overlap')) {
-      return {
-        success: false,
-        code: 'SLOT_CONFLICT',
-        error: 'عذراً، هذا الموعد تم حجزه للتو من قبل مريض آخر.',
-      };
-    }
-    console.error('Supabase appointment insert error:', insertError);
-    return {
-      success: false,
-      code: 'INTERNAL_ERROR',
-      error: insertError.message || 'تعذر حفظ الموعد.',
-    };
+  // Branch B: Staff / Doctor Booking (verified patient phone resolution happens inside SECURITY DEFINER RPC)
+  const isStaff = ['doctor', 'receptionist', 'clinic_owner'].includes(user.role);
+  if (!isStaff) {
+    return { success: false, code: 'FORBIDDEN', error: 'غير مصرح لك بإجراء حجز بالنيابة.' };
   }
 
-  return { success: true, data: newAppt };
+  const { data: staffAppt, error: staffRpcError } = await client.rpc(
+    'create_staff_appointment_atomic',
+    {
+      p_doctor_id: doctorId,
+      p_clinic_id: clinicId,
+      p_start_at: startAt,
+      p_end_at: endAt,
+      p_visit_type: visitType,
+      p_patient_id: null,
+      p_walk_in_name: patientFullName || null,
+      p_walk_in_phone: patientPhone || null,
+      p_notes: notes,
+    },
+  );
+
+  if (staffRpcError) {
+    const translated = translatePostgresBookingError(staffRpcError);
+    return { success: false, code: translated.code, error: translated.error };
+  }
+
+  return { success: true, data: staffAppt as Record<string, unknown> };
 }
 
 export async function transitionSupabaseAppointment(
@@ -292,7 +335,6 @@ export async function transitionSupabaseAppointment(
   } = await client.auth.getUser();
   if (!user) return { success: false, code: 'UNAUTHORIZED', error: 'يرجى تسجيل الدخول.' };
 
-  // 1. Try transition_appointment RPC
   const { data: rpcData, error: rpcError } = await client.rpc('transition_appointment', {
     p_id: appointmentId,
     p_next: nextStatus,
@@ -300,40 +342,37 @@ export async function transitionSupabaseAppointment(
   });
 
   if (!rpcError && rpcData) {
-    return { success: true, data: rpcData };
+    return { success: true, data: rpcData as Record<string, unknown> };
   }
 
-  // 2. Direct table fallback
-  const updates: Record<string, unknown> = {
-    status: nextStatus,
-    updated_at: new Date().toISOString(),
-  };
+  if (rpcError) {
+    const msg = rpcError.message || '';
+    if (msg.trim() === 'UNAUTHORIZED') {
+      return { success: false, code: 'UNAUTHORIZED', error: 'يرجى تسجيل الدخول أولاً.' };
+    }
+    if (rpcError.code === '42501' || msg.includes('FORBIDDEN')) {
+      return { success: false, code: 'FORBIDDEN', error: 'غير مصرح لك بتغيير حالة هذا الموعد.' };
+    }
+    if (rpcError.code === 'P0002') {
+      return { success: false, code: 'NOT_FOUND', error: 'الموعد غير موجود.' };
+    }
+    if (rpcError.code === '22023' || msg.includes('INVALID_TRANSITION')) {
+      return {
+        success: false,
+        code: 'INVALID_STATE',
+        error: 'لا يمكن تنفيذ هذا الانتقال لحالة الموعد في الوقت الحالي.',
+      };
+    }
 
-  if (nextStatus === 'checked_in') {
-    updates.checked_in_at = new Date().toISOString();
-  } else if (nextStatus === 'completed') {
-    updates.completed_at = new Date().toISOString();
-  } else if (['cancelled', 'rejected'].includes(nextStatus)) {
-    updates.cancelled_by = user.id;
-    updates.cancel_reason = reason ?? null;
-  }
-
-  const { data: updated, error: updateError } = await client
-    .from('appointments')
-    .update(updates)
-    .eq('id', appointmentId)
-    .select()
-    .single();
-
-  if (updateError) {
+    console.error('[Supabase Transition RPC Error]:', { code: rpcError.code, message: msg });
     return {
       success: false,
       code: 'INTERNAL_ERROR',
-      error: updateError.message || 'تعذر تحديث حالة الموعد.',
+      error: 'تعذر تحديث حالة الموعد عبر الدالة الذرية.',
     };
   }
 
-  return { success: true, data: updated };
+  return { success: false, code: 'INTERNAL_ERROR', error: 'تعذر تحديث حالة الموعد.' };
 }
 
 export async function getSupabaseSlots(
@@ -341,17 +380,15 @@ export async function getSupabaseSlots(
   date: string,
   clinicId?: string,
 ): Promise<ActionResult<{ start: string; end: string }[]>> {
-  const { createSupabaseAdmin } = await import('../supabase/admin');
-  const client = createSupabaseAdmin();
+  const client = await createSupabaseServer();
 
   let targetClinicId = clinicId;
-  let timezone = 'Asia/Damascus';
-
   if (!targetClinicId) {
     const { data: avail } = await client
       .from('availability')
       .select('clinic_id')
       .eq('doctor_id', doctorId)
+      .eq('is_active', true)
       .limit(1)
       .maybeSingle();
     if (avail?.clinic_id) targetClinicId = avail.clinic_id;
@@ -366,84 +403,35 @@ export async function getSupabaseSlots(
       if (docData?.organization_id) {
         const { data: cl } = await client
           .from('clinics')
-          .select('id, timezone')
+          .select('id')
           .eq('organization_id', docData.organization_id)
           .limit(1)
           .maybeSingle();
-        if (cl?.id) {
-          targetClinicId = cl.id;
-          if (cl.timezone) timezone = cl.timezone;
-        }
+        if (cl?.id) targetClinicId = cl.id;
       }
     }
-  }
-
-  if (targetClinicId && !timezone) {
-    const { data: cl } = await client
-      .from('clinics')
-      .select('timezone')
-      .eq('id', targetClinicId)
-      .limit(1)
-      .maybeSingle();
-    if (cl?.timezone) timezone = cl.timezone;
   }
 
   if (!targetClinicId) {
     return { success: false, code: 'NOT_FOUND', error: 'العيادة غير موجودة لهذا الطبيب.' };
   }
 
-  const day = new Date(`${date}T12:00:00Z`).getUTCDay();
-  const { data: rawAvail } = await client
-    .from('availability')
-    .select('day_of_week, start_time, end_time, slot_duration_minutes')
-    .eq('clinic_id', targetClinicId)
-    .eq('doctor_id', doctorId)
-    .eq('day_of_week', day);
-
-  const typedAvail = (rawAvail as RawAvailabilityRow[] | null) ?? [];
-  const shifts: Shift[] = typedAvail.map((a) => ({
-    day: a.day_of_week,
-    start: a.start_time.slice(0, 5),
-    end: a.end_time.slice(0, 5),
-    duration: a.slot_duration_minutes,
-    active: true,
-  }));
-
-  const { data: rawBookings } = await client
-    .from('appointments')
-    .select('start_at, end_at, status, expires_at')
-    .eq('doctor_id', doctorId)
-    .in('status', ['confirmed', 'pending', 'checked_in']);
-
-  const typedBookings = (rawBookings as RawBookingRow[] | null) ?? [];
-  const bookings = typedBookings.map((b) => ({
-    start: b.start_at,
-    end: b.end_at,
-    status: b.status,
-    expiresAt: b.expires_at ?? undefined,
-  }));
-
-  const { data: rawExceptions } = await client
-    .from('availability_exceptions')
-    .select('start_at, end_at')
-    .eq('doctor_id', doctorId);
-
-  const typedExceptions = (rawExceptions as RawExceptionRow[] | null) ?? [];
-  const exceptions = typedExceptions.map((e) => ({
-    start: e.start_at,
-    end: e.end_at,
-  }));
-
-  const slots = getAvailableSlots({
-    date,
-    timezone,
-    shifts,
-    now: new Date(),
-    leadMinutes: 60,
-    horizonDays: 30,
-    bookings,
-    exceptions,
+  const { data: rpcSlots, error: rpcError } = await client.rpc('get_available_slots', {
+    p_doctor_id: doctorId,
+    p_clinic_id: targetClinicId,
+    p_date: date,
   });
+
+  if (rpcError) {
+    console.error('get_available_slots RPC error:', rpcError);
+    return { success: false, code: 'INTERNAL_ERROR', error: 'تعذر جلب الفترات المتاحة.' };
+  }
+
+  const typedSlots = (rpcSlots as Array<{ start_at: string; end_at: string }> | null) ?? [];
+  const slots = typedSlots.map((s) => ({
+    start: s.start_at,
+    end: s.end_at,
+  }));
 
   return { success: true, data: slots };
 }

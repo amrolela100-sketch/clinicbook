@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineTool } from '../types';
-import { appointments, all } from '@/lib/demo-db';
-import type { Appointment, Doctor } from '@/lib/types';
+import { demoEnabled } from '@/lib/auth/session';
+import type { Doctor } from '@/lib/types';
 import { formatInTimeZone } from 'date-fns-tz';
 
 export interface ClinicDailySummary {
@@ -38,6 +38,24 @@ export default defineTool({
   }),
   async execute({ date, organizationId }) {
     const targetDate = date ?? formatInTimeZone(new Date(), 'Asia/Damascus', 'yyyy-MM-dd');
+    if (!demoEnabled()) {
+      return {
+        success: false,
+        summary: {
+          date: targetDate,
+          totalAppointments: 0,
+          confirmedCount: 0,
+          checkedInCount: 0,
+          completedCount: 0,
+          pendingCount: 0,
+          cancelledCount: 0,
+          totalEstimatedRevenue: 0,
+          doctorLoad: [],
+        } satisfies ClinicDailySummary,
+      };
+    }
+
+    const { appointments, all } = await import('@/lib/demo-db');
     const allAppts = appointments();
     const allDoctors = all<Doctor>('doctor');
 

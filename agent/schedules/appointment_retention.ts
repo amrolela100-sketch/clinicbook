@@ -1,4 +1,3 @@
-import { appointments, get } from '@/lib/demo-db';
 import type { Doctor } from '@/lib/types';
 
 export interface RetentionJobResult {
@@ -22,6 +21,7 @@ export async function checkUpcomingAppointmentsRetention(
   horizonHours = 24,
   now = new Date(),
 ): Promise<RetentionJobResult> {
+  const { appointments, get } = await import('@/lib/demo-db');
   const allAppts = appointments();
   const nowMs = now.getTime();
   const maxMs = nowMs + horizonHours * 3600000;

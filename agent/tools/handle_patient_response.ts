@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineTool } from '../types';
-import { appointments, saveAppointment, get, audit } from '@/lib/demo-db';
+import { demoEnabled } from '@/lib/auth/session';
 import { canTransition } from '@/lib/services/appointment-lifecycle';
 import type { User } from '@/lib/types';
 import type { Organization } from '@/lib/services/booking-service';
@@ -20,6 +20,15 @@ export default defineTool({
     reason: z.string().max(500).default('').describe('سبب الإلغاء في حال اعتذار المريض'),
   }),
   async execute({ appointmentId, action, reason }) {
+    if (!demoEnabled()) {
+      return {
+        success: false,
+        code: 'UNSUPPORTED_IN_PROD_TOOL',
+        message: 'يرجى إدارة المواعيد عبر واجهة المنصة الرسمية.',
+      };
+    }
+
+    const { appointments, saveAppointment, get, audit } = await import('@/lib/demo-db');
     const allAppts = appointments();
     const appt = allAppts.find((a) => a.id === appointmentId);
 
