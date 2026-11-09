@@ -1,11 +1,19 @@
 /**
- * عميل بوابة AgentRouter المخصصة للذكاء الاصطناعي السريري
- * يتصل بنموذج الذكاء الاصطناعي عبر واجهة /v1/responses بتشفير آمن وتجريد كامل للبيانات الشخصية
+ * عميل بوابة الذكاء الاصطناعي السريري المتعدد المزوّدات (Multi-Provider Clinical AI Gateway)
+ * يدعم كلاً من بروتوكول /v1/chat/completions القياسي (Groq, Gemini, OpenRouter, OpenAI)
+ * وبروتوكول /v1/responses مع تجريد كامل للبيانات الشخصية (PII Redaction) وكشف حجب WAF.
  */
 
 export interface AgentRouterContext {
   specialties?: string[];
   doctors?: Array<{ name: string; specialty: string; clinic: string; fee: number }>;
+}
+
+interface ResolvedProvider {
+  apiKey: string;
+  endpointUrl: string;
+  model: string;
+  protocol: 'responses' | 'chat_completions';
 }
 
 function redactPii(text: string): string {
@@ -18,12 +26,103 @@ function sanitizeHeaderValue(value: string): string {
   return value.replace(/[\r\n]+/g, '').trim();
 }
 
+function resolveProviderConfig(): ResolvedProvider | null {
+  if (process.env.GROQ_API_KEY) {
+    const base = (process.env.AI_BASE_URL || 'https://api.groq.com/openai/v1').replace(/\/+$/, '');
+    return {
+      apiKey: process.env.GROQ_API_KEY,
+      endpointUrl: base.endsWith('/chat/completions') ? base : `${base}/chat/completions`,
+      model: process.env.AI_MODEL || process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+      protocol: 'chat_completions',
+    };
+  }
+
+  if (process.env.GEMINI_API_KEY) {
+    const base = (
+      process.env.AI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/openai'
+    ).replace(/\/+$/, '');
+    return {
+      apiKey: process.env.GEMINI_API_KEY,
+      endpointUrl: base.endsWith('/chat/completions') ? base : `${base}/chat/completions`,
+      model: process.env.AI_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+      protocol: 'chat_completions',
+    };
+  }
+
+  if (process.env.OPENROUTER_API_KEY) {
+    const base = (process.env.AI_BASE_URL || 'https://openrouter.ai/api/v1').replace(/\/+$/, '');
+    return {
+      apiKey: process.env.OPENROUTER_API_KEY,
+      endpointUrl: base.endsWith('/chat/completions') ? base : `${base}/chat/completions`,
+      model:
+        process.env.AI_MODEL ||
+        process.env.OPENROUTER_MODEL ||
+        'meta-llama/llama-3.3-70b-instruct:free',
+      protocol: 'chat_completions',
+    };
+  }
+
+  if (process.env.OPENAI_API_KEY) {
+    const base = (process.env.AI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+    return {
+      apiKey: process.env.OPENAI_API_KEY,
+      endpointUrl: base.endsWith('/chat/completions') ? base : `${base}/chat/completions`,
+      model: process.env.AI_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      protocol: 'chat_completions',
+    };
+  }
+
+  if (process.env.AI_API_KEY) {
+    const base = (process.env.AI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
+    return {
+      apiKey: process.env.AI_API_KEY,
+      endpointUrl: base.endsWith('/chat/completions') ? base : `${base}/chat/completions`,
+      model: process.env.AI_MODEL || 'gpt-4o-mini',
+      protocol: 'chat_completions',
+    };
+  }
+
+  const agentRouterKey = process.env.AGENTROUTER_API_KEY;
+  if (!agentRouterKey) {
+    return null;
+  }
+
+  const baseUrl = (process.env.AGENTROUTER_BASE_URL || 'https://agentrouter.org/v1').replace(
+    /\/+$/,
+    '',
+  );
+  const isChatCompletionsGateway =
+    baseUrl.endsWith('/chat/completions') ||
+    /groq\.com|openrouter\.ai|googleapis\.com|api\.openai\.com|deepseek\.com/i.test(baseUrl);
+
+  if (isChatCompletionsGateway) {
+    const defaultModel = /groq\.com/i.test(baseUrl)
+      ? 'llama-3.3-70b-versatile'
+      : /googleapis\.com/i.test(baseUrl)
+        ? 'gemini-2.5-flash'
+        : 'gpt-4o-mini';
+    return {
+      apiKey: agentRouterKey,
+      endpointUrl: baseUrl.endsWith('/chat/completions') ? baseUrl : `${baseUrl}/chat/completions`,
+      model: process.env.AGENTROUTER_MODEL || defaultModel,
+      protocol: 'chat_completions',
+    };
+  }
+
+  return {
+    apiKey: agentRouterKey,
+    endpointUrl: `${baseUrl}/responses`,
+    model: process.env.AGENTROUTER_MODEL || 'gpt-5.6-sol',
+    protocol: 'responses',
+  };
+}
+
 export async function callAgentRouter(
   message: string,
   context?: AgentRouterContext,
 ): Promise<{ success: boolean; reply?: string; error?: string }> {
-  const apiKey = process.env.AGENTROUTER_API_KEY;
-  if (!apiKey) {
+  const provider = resolveProviderConfig();
+  if (!provider) {
     return { success: false, error: 'AGENTROUTER_API_KEY is not configured' };
   }
 
@@ -33,13 +132,6 @@ export async function callAgentRouter(
     return { success: false, error: 'Empty message provided' };
   }
   const sanitizedMessage = redactPii(trimmed);
-
-  const baseUrl = (process.env.AGENTROUTER_BASE_URL || 'https://agentrouter.org/v1').replace(
-    /\/+$/,
-    '',
-  );
-  const model = process.env.AGENTROUTER_MODEL || 'gpt-5.6-sol';
-  const url = `${baseUrl}/responses`;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 12000);
@@ -72,29 +164,36 @@ export async function callAgentRouter(
 
     const inputContent = `Patient message: ${sanitizedMessage}\nPlease reply as ClinicBook AI Assistant directly to the patient in Arabic.`;
 
-    // Safe payload serialization via JSON.stringify (avoids broken escaping or injection)
-    const payload = JSON.stringify({
-      model,
-      instructions,
-      input: inputContent,
-    });
+    const payload =
+      provider.protocol === 'chat_completions'
+        ? JSON.stringify({
+            model: provider.model,
+            messages: [
+              { role: 'system', content: instructions },
+              { role: 'user', content: inputContent },
+            ],
+            temperature: 0.3,
+            max_tokens: 500,
+          })
+        : JSON.stringify({
+            model: provider.model,
+            instructions,
+            input: inputContent,
+          });
 
-    // RISK NOTE: Spoofing third-party CLI User-Agent / x-app headers violates upstream ToS and risks
-    // account suspension or WAF blocks. Keep the legitimate project User-Agent by default; override
-    // via env vars only if explicitly approved by your gateway provider.
     const userAgent = sanitizeHeaderValue(
       process.env.AGENTROUTER_USER_AGENT || 'ClinicBook-AI-Triage/1.0 (ClinicBook SaaS)',
     );
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${sanitizeHeaderValue(apiKey)}`,
+      Authorization: `Bearer ${sanitizeHeaderValue(provider.apiKey)}`,
       'User-Agent': userAgent,
     };
     if (process.env.AGENTROUTER_CUSTOM_APP_HEADER) {
       headers['x-app'] = sanitizeHeaderValue(process.env.AGENTROUTER_CUSTOM_APP_HEADER);
     }
 
-    const res = await fetch(url, {
+    const res = await fetch(provider.endpointUrl, {
       method: 'POST',
       headers,
       body: payload,
@@ -103,18 +202,42 @@ export async function callAgentRouter(
 
     if (!res.ok) {
       const status = res.status;
-      return { success: false, error: `AgentRouter returned HTTP ${status}` };
+      return { success: false, error: `AI gateway returned HTTP ${status}` };
     }
 
-    const data = (await res.json()) as {
+    const contentType = (res.headers.get('content-type') ?? '').toLowerCase();
+    const rawBody = await res.text();
+    const trimmedBody = rawBody.trimStart();
+
+    if (
+      contentType.includes('text/html') ||
+      trimmedBody.startsWith('<!doctype html') ||
+      trimmedBody.startsWith('<html') ||
+      trimmedBody.includes('aliyun_waf')
+    ) {
+      return {
+        success: false,
+        error: 'Upstream AI gateway blocked request via WAF HTML challenge',
+      };
+    }
+
+    const data = JSON.parse(rawBody) as {
       output?: Array<{
         type: string;
         content?: Array<{ type: string; text?: string }>;
       }>;
+      choices?: Array<{
+        message?: { content?: string | null };
+      }>;
     };
 
-    const messageObj = data.output?.find((o) => o.type === 'message');
-    const textOutput = messageObj?.content?.find((c) => c.type === 'output_text')?.text?.trim();
+    const textOutput =
+      provider.protocol === 'chat_completions'
+        ? data.choices?.[0]?.message?.content?.trim()
+        : (data.output
+            ?.find((o) => o.type === 'message')
+            ?.content?.find((c) => c.type === 'output_text')
+            ?.text?.trim() ?? data.choices?.[0]?.message?.content?.trim());
 
     if (!textOutput) {
       return { success: false, error: 'Empty text output received from model' };
@@ -122,7 +245,6 @@ export async function callAgentRouter(
 
     return { success: true, reply: textOutput };
   } catch (err: unknown) {
-    // Log safe error summary without message content (prevents PII leakage in server logs)
     const errorMsg = err instanceof Error ? err.message : 'Unknown network error';
     return { success: false, error: errorMsg };
   } finally {

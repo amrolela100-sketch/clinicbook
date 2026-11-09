@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { formatInTimeZone } from 'date-fns-tz';
 import type { ActionResult, Doctor, User } from '../types';
 import { callAgentRouter } from './agentrouter-client';
-import bookAppointmentTool from '../../../agent/tools/book_appointment';
 import handlePatientResponseTool from '../../../agent/tools/handle_patient_response';
 import getClinicSummaryTool, { ClinicDailySummary } from '../../../agent/tools/get_clinic_summary';
 
@@ -102,86 +101,154 @@ const messageInputSchema = z.object({
 
 export type ProcessMessageInput = z.infer<typeof messageInputSchema>;
 
-// مؤشرات الطوارئ الحرجة الفورية
-const EMERGENCY_KEYWORDS = [
-  'ألم في الصدر',
-  'ألم بالصدر',
+/**
+ * تطبيع النص العربي (الفصحى واللهجات المحكية) لضمان دقة الفرز الطبي
+ */
+export function normalizeArabic(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
+    .replace(/ؤ/g, 'و')
+    .replace(/ئ/g, 'ي')
+    .replace(/[؟?!.,،؛:"'()[\]{}]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// مؤشرات الطوارئ الحرجة الفورية (الفصحى + اللهجة الشامية والعربية المحكية)
+const EMERGENCY_PHRASES = [
+  'الم في الصدر',
+  'الم بالصدر',
   'وجع بالصدر',
   'وجع في الصدر',
-  'ألم صدري',
-  'جلطة',
-  'ذبحة',
+  'وجع بصدري',
+  'الم بصدري',
+  'ضغط بصدري',
+  'ضغط عصدري',
+  'الم صدري',
+  'قلبي عم يوجعني',
+  'قلبي بيوجعني',
+  'جلطه',
+  'ذبحه',
+  'سكته قلبيه',
+  'سكته دماغيه',
+  'توقف نبض',
   'ضيق تنفس',
   'ضيق بالتنفس',
-  'صعوبة في التنفس',
-  'صعوبة بالتنفس',
+  'صعوبه في التنفس',
+  'صعوبه بالتنفس',
+  'ما عم اقدر اتنفس',
+  'ما فيني اتنفس',
+  'مش قادر اتنفس',
+  'مو قادر اتنفس',
+  'نفسي مقطوع',
+  'انقطع نفسي',
   'اختناق',
   'مخنوق',
+  'عم اختنق',
   'فقدان وعي',
   'فقد الوعي',
-  'إغماء',
-  'غيبوبة',
+  'فاقد الوعي',
+  'غائب عن الوعي',
+  'اغماء',
+  'غيبوبه',
   'نزيف حاد',
   'نزيف مستمر',
+  'نزيف ما عم يوقف',
+  'عم انزف',
   'استفراغ دم',
+  'تقيؤ دم',
   'شلل',
   'شلل نصفي',
-  'صعوبة نطق',
+  'صعوبه نطق',
   'تسمم',
-  'حروق بالغة',
-  'تشنجات حادة',
-];
+  'بلعت حبوب',
+  'شربت دواء بالغلط',
+  'حروق بالغه',
+  'تشنجات حاده',
+  'اختلاج',
+  'عم موت',
+  'عم بموت',
+  'رح موت',
+  'راح موت',
+  'حاسس حالي عم موت',
+  'انا بموت',
+  'ساموت',
+  'بدي اسعاف',
+  'اطلب اسعاف',
+  'اسعفوني',
+  'انقذوني',
+  'النجده',
+  'حاله طارئه',
+  'حاله خطيره جدا',
+  'انتحار',
+  'ايذاء نفسي',
+].map(normalizeArabic);
 
-// ربط الكلمات المفتاحية والأعراض الطبية بالتخصصات
-const SPECIALTY_KEYWORDS: Array<{ keywords: string[]; specialty: string }> = [
+const EMERGENCY_EXACT_WORDS = new Set(['بموت', 'اموت', 'اسعاف'].map(normalizeArabic));
+
+// ربط الكلمات المفتاحية والأعراض الطبية (الفصحى والعامية) بالتخصصات
+const SPECIALTY_KEYWORDS: Array<{
+  specialty: string;
+  phrases: string[];
+  exactWords?: string[];
+}> = [
   {
     specialty: 'القلب والأوعية',
-    keywords: [
+    phrases: [
       'قلب',
-      'أوعية',
-      'اوعية',
+      'اوعيه',
       'قلبي',
-      'قلبية',
+      'قلبيه',
       'شرايين',
       'شريان',
       'ضغط الدم',
       'ضغط مرتفع',
       'ضغط عالي',
+      'ضغطي عالي',
+      'ضغطي مرتفع',
       'هبوط ضغط',
       'خفقان',
       'تسارع نبض',
+      'دقات قلبي',
       'نبضات',
       'تخطيط قلب',
-      'إيكو',
-    ],
+      'ايكو',
+      'كوليسترول',
+    ].map(normalizeArabic),
   },
   {
     specialty: 'طب الأسنان',
-    keywords: [
-      'أسنان',
+    phrases: [
       'اسنان',
-      'أسناني',
       'اسناني',
       'وجع سن',
-      'ألم سن',
+      'الم سن',
       'سني',
       'ضرس',
       'ضرسي',
-      'أضراس',
-      'لثة',
+      'طاحونه',
+      'طاحونتي',
+      'اضراس',
+      'لثه',
+      'نزيف لثه',
+      'تقويم اسنان',
       'تقويم',
       'تسوس',
-      'حشوة',
+      'حشوه',
       'خلع',
       'تبييض',
-      'عصب',
-      'فك',
-    ],
+      'سحب عصب',
+      'عصب سن',
+    ].map(normalizeArabic),
+    exactWords: ['سن', 'فك', 'عصب'].map(normalizeArabic),
   },
   {
     specialty: 'طب الأطفال',
-    keywords: [
-      'أطفال',
+    phrases: [
       'اطفال',
       'طفل',
       'طفلي',
@@ -189,6 +256,7 @@ const SPECIALTY_KEYWORDS: Array<{ keywords: string[]; specialty: string }> = [
       'ابني',
       'ابنتي',
       'بنتي',
+      'ولدي',
       'رضيع',
       'رضع',
       'بيبي',
@@ -198,127 +266,139 @@ const SPECIALTY_KEYWORDS: Array<{ keywords: string[]; specialty: string }> = [
       'تطعيم',
       'تطعيمات',
       'نمو الطفل',
-      'حرارة طفل',
-      'مغص أطفال',
-    ],
+      'حراره طفل',
+      'مغص اطفال',
+    ].map(normalizeArabic),
   },
   {
     specialty: 'الأمراض الجلدية',
-    keywords: [
-      'جلد',
-      'جلدية',
-      'بشرة',
+    phrases: [
+      'جلديه',
+      'امراض جلديه',
+      'بشره',
       'حبوب',
       'حب الشباب',
-      'أكزيما',
       'اكزيما',
-      'حساسية جلدية',
-      'حكة',
+      'حساسيه جلديه',
+      'حساسيه',
+      'حكه',
       'طفح',
       'بقع',
       'تصبغات',
-      'صدفية',
+      'صدفيه',
       'فطريات',
       'تساقط الشعر',
       'صلع',
-      'ليزر جلدية',
-    ],
+      'ثعلبه',
+      'ليزر جلديه',
+    ].map(normalizeArabic),
+    exactWords: ['جلد'].map(normalizeArabic),
   },
   {
     specialty: 'طب العيون',
-    keywords: [
+    phrases: [
       'عيون',
-      'عين',
       'عيني',
+      'عيوني',
       'بصر',
-      'نظر',
-      'نظارة',
+      'فحص نظر',
+      'ضعف نظر',
+      'نظاره',
       'نظارات',
       'ليزك',
-      'قرنية',
-      'ضعف نظر',
-      'فحص نظر',
+      'قرنيه',
       'احمرار عين',
       'حرقان عين',
       'غباش',
+      'عم تغبش',
       'عدسات',
-      'شبكية',
-    ],
+      'شبكيه',
+      'ماء ابيض',
+    ].map(normalizeArabic),
+    exactWords: ['عين', 'نظر'].map(normalizeArabic),
   },
   {
     specialty: 'الطب العام',
-    keywords: [
+    phrases: [
       'طبيب عام',
       'دكتور عام',
+      'طب عام',
       'فحص شامل',
       'فحص عام',
-      'حرارة',
-      'سخونة',
+      'حراره',
+      'سخونه',
       'سعال',
-      'كحة',
+      'كحه',
       'بلغم',
-      'إنفلونزا',
       'انفلونزا',
       'رشح',
       'زكام',
+      'كريب',
       'صداع',
       'وجع راس',
-      'ألم في البطن',
-      'ألم بطن',
+      'راسي عم يوجعني',
+      'الم في البطن',
+      'الم بطن',
       'وجع بطن',
+      'بطني عم يوجعني',
       'مغص',
-      'معدة',
+      'معده',
       'معدتي',
-      'إسهال',
       'اسهال',
-      'إقياء',
+      'اقياء',
       'استفراغ',
       'غثيان',
       'لعيان',
-      'دوخة',
+      'دوخه',
       'دوار',
-      'تعب',
-      'إرهاق',
+      'تعب عام',
+      'ارهاق',
       'خمول',
       'التهاب حلق',
       'حلقي',
-      'باطنية',
+      'زلاعيم',
+      'باطنيه',
       'باطني',
       'قولون',
       'هضم',
-    ],
+      'وجع ظهر',
+      'وجع مفاصل',
+    ].map(normalizeArabic),
+    exactWords: ['تعب'].map(normalizeArabic),
   },
 ];
 
 function detectEmergency(message: string): boolean {
-  const normalized = message.toLowerCase();
-  return EMERGENCY_KEYWORDS.some((kw) => normalized.includes(kw));
+  const norm = normalizeArabic(message);
+  if (EMERGENCY_PHRASES.some((phrase) => norm.includes(phrase))) {
+    return true;
+  }
+  const tokens = norm.split(' ');
+  return tokens.some((tok) => EMERGENCY_EXACT_WORDS.has(tok));
 }
 
 function detectDoctor(message: string, doctors: Doctor[]): Doctor | undefined {
-  const normalized = message.toLowerCase().trim();
+  const norm = normalizeArabic(message);
 
   // 1. فحص الاسم الكامل بدقة
   for (const doc of doctors) {
-    if (normalized.includes(doc.name.toLowerCase())) {
+    if (norm.includes(normalizeArabic(doc.name))) {
       return doc;
     }
   }
 
   // 2. فحص الاسم الجزئي إذا اقترن بلقب طبي
+  const tokens = norm.split(' ');
   const hasTitle =
-    normalized.includes('د.') ||
-    normalized.includes('دكتور') ||
-    normalized.includes('دكتورة') ||
-    normalized.includes('الدكتور') ||
-    normalized.includes('الدكتورة') ||
-    normalized.includes('طبيب') ||
-    normalized.includes('طبيبة');
+    message.includes('د.') ||
+    tokens.some((t) =>
+      ['د', 'دكتور', 'دكتوره', 'الدكتور', 'الدكتوره', 'طبيب', 'طبيبه'].includes(t),
+    );
 
   if (hasTitle) {
     for (const doc of doctors) {
-      const parts = doc.name.toLowerCase().split(/\s+/);
-      if (parts.some((p) => p.length >= 3 && normalized.includes(p))) {
+      const parts = normalizeArabic(doc.name).split(/\s+/);
+      if (parts.some((p) => p.length >= 3 && tokens.includes(p))) {
         return doc;
       }
     }
@@ -328,13 +408,195 @@ function detectDoctor(message: string, doctors: Doctor[]): Doctor | undefined {
 }
 
 function detectSpecialty(message: string): string | undefined {
-  const normalized = message.toLowerCase();
+  const norm = normalizeArabic(message);
+  const tokens = new Set(norm.split(' '));
   for (const group of SPECIALTY_KEYWORDS) {
-    if (group.keywords.some((kw) => normalized.includes(kw))) {
+    if (group.phrases.some((kw) => norm.includes(kw))) {
+      return group.specialty;
+    }
+    if (group.exactWords?.some((w) => tokens.has(w))) {
       return group.specialty;
     }
   }
   return undefined;
+}
+
+function hasConfiguredAiGateway(): boolean {
+  return Boolean(
+    process.env.GROQ_API_KEY ||
+    process.env.GEMINI_API_KEY ||
+    process.env.OPENROUTER_API_KEY ||
+    process.env.OPENAI_API_KEY ||
+    process.env.AI_API_KEY ||
+    process.env.AGENTROUTER_API_KEY,
+  );
+}
+
+/**
+ * محرك ردود محلي ذكي وسياقي يعمل بكفاءة عالية عند غياب مفتاح الذكاء الاصطناعي أو حجب البوابة الخارجية
+ */
+function buildSmartLocalReply(
+  message: string,
+  verifiedDoctors: Doctor[],
+  availableSpecs: string[],
+): { reply: string; suggestedActions: string[] } {
+  const norm = normalizeArabic(message);
+  const specsList =
+    availableSpecs.length > 0
+      ? availableSpecs.join('، ')
+      : 'الطب العام، القلب والأوعية، طب الأطفال، طب الأسنان، الأمراض الجلدية، طب العيون';
+
+  // 1. أسئلة التعريف بالمساعد ودوره (من أنت / شو بتعمل / مساعدة)
+  const isIdentityQuestion = [
+    'من انت',
+    'مين انت',
+    'ما هو دورك',
+    'شو بتعمل',
+    'شو شغلتك',
+    'عرفني عنك',
+    'عرف عن نفسك',
+    'ما هي خدماتك',
+    'بشو بتساعدني',
+    'كيف تساعدني',
+  ].some((kw) => norm.includes(kw));
+
+  if (isIdentityQuestion) {
+    return {
+      reply:
+        `أنا **المساعد الطبي الذكي لمنصة ClinicBook** 🌿.\n\n` +
+        `أقوم بثلاث مهام رئيسية لخدمتك على مدار الساعة:\n` +
+        `1. **الفرز الأولي للأعراض:** تصف لي ما تشعر به فأرشدك فوراً للتخصص الطبي الأنسب أو أنبّهك في الحالات الطارئة.\n` +
+        `2. **البحث الفوري عن المواعيد:** أعرض لك أقرب الأوقات الشاغرة لدى ${verifiedDoctors.length} أطباء معتمدين في تخصصات (${specsList}).\n` +
+        `3. **إدارة حجوزاتك:** مساعدتك في حجز موعد مؤكد أو متابعة مواعيدك القادمة.\n\n` +
+        `أخبرني بما تشعر به الآن أو اختر أحد الاقتراحات بالأسفل للبدء:`,
+      suggestedActions: [
+        'ما التخصصات المتوفرة؟',
+        'كم أسعار الكشفيات؟',
+        'أريد حجز موعد مع طبيب عام',
+      ],
+    };
+  }
+
+  // 2. أسئلة الأسعار والكشفيات والتكلفة
+  const isPricingQuestion = [
+    'كم الكشفيه',
+    'سعر الكشفيه',
+    'اسعار الكشفيات',
+    'الاسعار',
+    'كم السعر',
+    'كم سعر',
+    'قديش الكشفيه',
+    'قديش المعاينه',
+    'اجور المعاينه',
+    'تكلفه الكشف',
+    'رسوم الحجز',
+  ].some((kw) => norm.includes(kw));
+
+  if (isPricingQuestion) {
+    if (verifiedDoctors.length > 0) {
+      const fees = verifiedDoctors.map((d) => d.fee).filter((f) => f > 0);
+      const minFee = Math.min(...fees);
+      const maxFee = Math.max(...fees);
+      const sampleDocs = verifiedDoctors
+        .slice(0, 4)
+        .map(
+          (d) =>
+            `• د. ${d.name} (${d.specialty}): الكشفية **${d.fee} ل.س** | المراجعة **${d.followUpFee} ل.س**`,
+        )
+        .join('\n');
+
+      return {
+        reply:
+          `💳 **أسعار الكشفيات المعتمدة على منصة ClinicBook:**\n\n` +
+          `تتراوح كشفية الاستشارة الأولى حالياً بين **${minFee}** و **${maxFee} ل.س** بحسب التخصص، والحجز عبر المنصة مجاني تماماً بدون أي رسوم إضافية:\n\n` +
+          `${sampleDocs}\n\n` +
+          `هل ترغب في استعراض المواعيد المتاحة لأحد هؤلاء الأطباء؟`,
+        suggestedActions: verifiedDoctors.slice(0, 3).map((d) => `حجز مع د. ${d.name}`),
+      };
+    }
+  }
+
+  // 3. أسئلة العناوين والمدن والفروع
+  const isLocationQuestion = [
+    'اين العيادات',
+    'وين العيادات',
+    'وين موقعكم',
+    'المدن المتاحه',
+    'باي مدينه',
+    'العنوان',
+    'الفروع',
+    'دمشق',
+    'حلب',
+    'حمص',
+    'اللاذقيه',
+  ].some((kw) => norm.includes(kw));
+
+  if (isLocationQuestion) {
+    const cities = Array.from(new Set(verifiedDoctors.map((d) => d.city).filter(Boolean)));
+    const clinicsSummary = verifiedDoctors
+      .slice(0, 4)
+      .map(
+        (d) =>
+          `• **${d.clinic}** — ${d.city}${d.district ? ` (${d.district})` : ''} — د. ${d.name}`,
+      )
+      .join('\n');
+
+    return {
+      reply:
+        `📍 **المراكز والعيادات المعتمدة على ClinicBook:**\n\n` +
+        `تتوزع عياداتنا المعتمدة حالياً في: **${cities.join('، ') || 'دمشق'}**:\n\n` +
+        `${clinicsSummary || 'يمكنك تصفح جميع العيادات من صفحة البحث.'}\n\n` +
+        `اذكر لي التخصص المطلوب لأعرض لك أقرب موعد متاح فوراً.`,
+      suggestedActions: [
+        'استعراض الأطباء المتاحين',
+        'أريد حجز موعد مع طبيب قلب',
+        'مواعيد أطباء الأطفال',
+      ],
+    };
+  }
+
+  // 4. أسئلة التخصصات أو طريقة الحجز
+  const isHowToBookOrSpecs = [
+    'التخصصات',
+    'الاختصاصات',
+    'كيف احجز',
+    'طريقه الحجز',
+    'بدي احجز',
+    'اريد حجز موعد',
+    'اريد موعد',
+    'حجز موعد',
+    'اقرب موعد',
+  ].some((kw) => norm.includes(kw));
+
+  if (isHowToBookOrSpecs) {
+    return {
+      reply:
+        `يسعدني مساعدتك في حجز موعدك عبر **ClinicBook** 🌿.\n\n` +
+        `التخصصات الطبية المتوفرة حالياً لدينا:\n• **${specsList}**.\n\n` +
+        `**للحجز الفوري بخطوة واحدة:** اكتب اسم التخصص أو الطبيب أو العَرَض الذي تشعر به (مثلاً: *"عندي وجع أسنان"* أو *"أريد طبيب قلب"*) وسأعرض لك الأوقات المتاحة لتأكيدها مباشرة.`,
+      suggestedActions: [
+        'أريد حجز موعد مع طبيب عام',
+        'أريد حجز موعد مع طبيب قلب',
+        'عندي ألم في الأسنان',
+      ],
+    };
+  }
+
+  // 5. رد سريري متعاطف وتفاعلي لأي رسالة حرة غير مصنفة (بدلاً من تكرار الترحيب الجامد)
+  return {
+    reply:
+      `أهلاً بك في المساعد الطبي لمنصة **ClinicBook** 🌿.\n` +
+      `قرأت رسالتك، وحتى أوجّهك للطبيب الأنسب بدقة وأمان، هل يمكنك توضيح نقطتين سريعتين؟\n\n` +
+      `1. **ما العَرَض الجسدي الأبرز ومكانه؟** (مثل: صداع، ألم أسنان، خفقان، حرارة، حساسية جلدية، تشوش نظر).\n` +
+      `2. **منذ متى بدأ العَرَض، وهل المريض بالغ أم طفل؟**\n\n` +
+      `*ملاحظة: إذا كنت تشعر بأي خطورة طارئة أو ضيق تنفس حاد، يُرجى الاتصال فوراً بالإسعاف (110 أو 997).*`,
+    suggestedActions: [
+      'استشارة طبيب عام (ألم بطن، حرارة)',
+      'أريد حجز موعد مع طبيب قلب',
+      'عندي ألم في الأسنان',
+      'كم أسعار الكشفيات؟',
+    ],
+  };
 }
 
 /**
@@ -346,7 +608,6 @@ async function findEarliestSlotsForDoctor(
   maxDaysAhead = 7,
   referenceNow: Date = new Date(),
 ): Promise<{ date: string; slots: { start: string; end: string }[]; isFutureDate: boolean }> {
-  // فحص تاريخ اليوم أو التاريخ المطلوب أولاً
   const todaySlots = await getSlotsForDate(doctor, startDateStr, referenceNow);
   if (todaySlots.length > 0) {
     return {
@@ -356,7 +617,6 @@ async function findEarliestSlotsForDoctor(
     };
   }
 
-  // إذا لم تتوفر مواعيد في التاريخ المطلوب، نبحث تلقائياً في الأيام التالية
   const baseDate = new Date(`${startDateStr}T12:00:00Z`);
   for (let offset = 1; offset <= maxDaysAhead; offset++) {
     const nextDateObj = new Date(baseDate.getTime() + offset * 86400000);
@@ -422,13 +682,14 @@ export async function processAgentMessage(
   }
 
   const { message, date } = parsed.data;
+  const normMessage = normalizeArabic(message);
   const now = input.now
     ? typeof input.now === 'string'
       ? new Date(input.now)
       : input.now
     : new Date();
 
-  // 1. بروتوكول فرز الطوارئ الصارم (Emergency Protocol)
+  // 1. بروتوكول فرز الطوارئ الصارم (الفصحى واللهجات المحكية وعبارات الاستغاثة)
   if (detectEmergency(message)) {
     return {
       success: true,
@@ -436,18 +697,68 @@ export async function processAgentMessage(
         intent: 'emergency',
         emergency: true,
         reply:
-          '⚠️ **تنبيه عاجل:** الأعراض التي ذكرتها قد تشير إلى حالة طبية طارئة تتطلب تدخلاً فورياً.\n' +
-          'يرجى التوجه فوراً لأقرب قسم طوارئ في مستشفى، أو الاتصال فوراً برقم الإسعاف الموحد (997 أو 112).\n' +
-          'سلامتك هي الأولوية القصوى دائماً.',
+          '⚠️ **تنبيه طبي طارئ وعاجل:** ما وصفته يستدعي تدخلاً إسعافياً فورياً ولا يحتمل الانتظار لحجز موعد عيادة!\n' +
+          '• اتصل فوراً برقم الإسعاف والطوارئ (**110** في سوريا، أو **997** / **112**).\n' +
+          '• لا تقُد السيارة بنفسك، واطلب من شخص قريب مرافقتك فوراً إلى أقرب قسم طوارئ مستشفى.\n' +
+          'سلامتك وحياتك هي الأولوية القصوى دائماً.',
         suggestedActions: ['الاتصال بالإسعاف 997', 'أقرب قسم طوارئ'],
       },
     };
   }
 
-  // اعتماد التوقيت المحلي للعيادة (Damascus GMT+3) بدلاً من توقيت السيرفر العالمي
   const baseDate = date ?? formatInTimeZone(now, 'Asia/Damascus', 'yyyy-MM-dd');
 
-  // 2. فحص ما إذا كان المستخدم يطلب طبيباً محدداً بالاسم أولاً
+  // 2. تنفيذ تأكيد أو إلغاء موعد محدد بمعرّفه عبر أداة handle_patient_response (مع فحص الملكية)
+  const apptActionMatch =
+    /(?:تاكيد|تأكيد|اكد|أكّد|الغاء|إلغاء|الغي|ألغي)\s+(?:موعد|الموعد|حجز|الحجز)\s+([A-Za-z0-9_-]{4,64})/i.exec(
+      message,
+    );
+  if (apptActionMatch && currentUserParam) {
+    const appointmentId = apptActionMatch[1];
+    const isCancel = /(?:الغاء|إلغاء|الغي|ألغي)/.test(apptActionMatch[0]);
+
+    // التحقق من ملكية الموعد في الوضع التجريبي قبل التنفيذ (وفي وضع Supabase يتكفل RLS/RPC بذلك)
+    const { demoEnabled } = await import('../auth/session');
+    if (demoEnabled()) {
+      const { appointments } = await import('../demo-db');
+      const targetAppt = appointments().find((a) => a.id === appointmentId);
+      if (targetAppt) {
+        const ownsAsPatient =
+          currentUserParam.role === 'patient' && targetAppt.patientId === currentUserParam.id;
+        const ownsAsStaff =
+          ['clinic_owner', 'doctor', 'receptionist'].includes(currentUserParam.role) &&
+          targetAppt.organizationId === currentUserParam.organizationId;
+        if (!ownsAsPatient && !ownsAsStaff && currentUserParam.role !== 'super_admin') {
+          return {
+            success: true,
+            data: {
+              intent: 'general',
+              reply: '🔒 غير مصرح لك بتعديل هذا الموعد لأنه لا يتبع لحسابك.',
+              suggestedActions: ['الانتقال إلى مواعيدي'],
+            },
+          };
+        }
+      }
+    }
+
+    const toolRes = (await handlePatientResponseTool.execute({
+      appointmentId,
+      action: isCancel ? 'cancel_appointment' : 'confirm_attendance',
+      reason: isCancel ? 'طلب إلغاء عبر المساعد الذكي' : '',
+    })) as { success: boolean; status?: string; message: string };
+
+    return {
+      success: true,
+      data: {
+        intent: toolRes.success ? (isCancel ? 'cancelled' : 'booked') : 'general',
+        reply: toolRes.message,
+        bookingDetails: { appointmentId, status: toolRes.status },
+        suggestedActions: ['الانتقال إلى مواعيدي', 'حجز موعد جديد'],
+      },
+    };
+  }
+
+  // 3. فحص ما إذا كان المستخدم يطلب طبيباً محدداً بالاسم أولاً
   const verifiedDoctors = await loadVerifiedDoctors();
   const specificDoctor = detectDoctor(message, verifiedDoctors);
   if (specificDoctor) {
@@ -488,7 +799,7 @@ export async function processAgentMessage(
     };
   }
 
-  // 3. فحص نية البحث عن التخصص أو الأعراض
+  // 4. فحص نية البحث عن التخصص أو الأعراض
   const targetSpecialty = detectSpecialty(message);
   if (targetSpecialty) {
     const matchingDocs = verifiedDoctors.filter((d) => d.specialty.includes(targetSpecialty));
@@ -533,7 +844,7 @@ export async function processAgentMessage(
     }
   }
 
-  // 4. استفسارات المريض عن مواعيده السابقة أو القادمة
+  // 5. استفسارات المريض عن مواعيده السابقة أو القادمة
   const isAppointmentInquiry = [
     'مواعيدي',
     'موعدي القادم',
@@ -542,7 +853,9 @@ export async function processAgentMessage(
     'عندي موعد',
     'فحص مواعيدي',
     'هل لدي موعد',
-  ].some((kw) => message.includes(kw));
+  ]
+    .map(normalizeArabic)
+    .some((kw) => normMessage.includes(kw));
 
   if (isAppointmentInquiry) {
     if (!currentUserParam || currentUserParam.role !== 'patient') {
@@ -558,7 +871,7 @@ export async function processAgentMessage(
     }
 
     const { demoEnabled, isSupabaseConfigured } = await import('../auth/session');
-    let userAppts: Array<{ doctorId: string; start: string; status: string }> = [];
+    let userAppts: Array<{ id?: string; doctorId: string; start: string; status: string }> = [];
 
     if (demoEnabled()) {
       const { appointments } = await import('../demo-db');
@@ -570,12 +883,18 @@ export async function processAgentMessage(
       const client = await createSupabaseServer();
       const { data } = await client
         .from('appointments')
-        .select('doctor_id, start_at, status')
+        .select('id, doctor_id, start_at, status')
         .eq('patient_id', currentUserParam.id)
         .order('start_at', { ascending: true });
       userAppts = (
-        (data as Array<{ doctor_id: string; start_at: string; status: string }> | null) ?? []
+        (data as Array<{
+          id: string;
+          doctor_id: string;
+          start_at: string;
+          status: string;
+        }> | null) ?? []
       ).map((a) => ({
+        id: a.id,
         doctorId: a.doctor_id,
         start: a.start_at,
         status: a.status,
@@ -625,15 +944,14 @@ export async function processAgentMessage(
     };
   }
 
-  // 5. استفسارات إلغاء أو تعديل المواعيد
+  // 6. استفسارات سياسة إلغاء أو تعديل المواعيد
   const isCancellationInquiry = [
-    'إلغاء موعد',
     'الغاء موعد',
-    'ألغي موعدي',
     'الغي موعدي',
     'اعتذار عن موعد',
     'تغيير موعد',
-  ].some((kw) => message.includes(kw));
+    'تعديل موعد',
+  ].some((kw) => normMessage.includes(kw));
 
   if (isCancellationInquiry) {
     return {
@@ -647,17 +965,16 @@ export async function processAgentMessage(
     };
   }
 
-  // 6. التحيات والعبارات الترحيبية
+  // 7. التحيات والعبارات الترحيبية القصيرة
   const isGreeting = [
     'مرحبا',
-    'مرحباً',
+    'اهلا',
     'السلام عليكم',
     'صباح الخير',
     'مساء الخير',
-    'أهلاً',
+    'يعطيك العافيه',
     'شكرا',
-    'شكراً',
-  ].some((kw) => message.includes(kw));
+  ].some((kw) => normMessage.includes(kw));
 
   if (isGreeting && message.trim().length <= 25) {
     return {
@@ -675,15 +992,16 @@ export async function processAgentMessage(
     };
   }
 
-  // 7. استعلام الملخص التشغيلي للعيادة (Staff & Doctor Copilot)
+  // 8. استعلام الملخص التشغيلي للعيادة (Staff & Doctor Copilot مع عزل المستأجرين)
   const isClinicSummary = [
     'ملخص اليوم',
-    'إحصائيات العيادة',
+    'احصائيات العياده',
     'تقرير اليوم',
-    'تقرير العيادة',
+    'تقرير العياده',
     'ضغط العمل',
-    'إيرادات اليوم',
-  ].some((kw) => message.includes(kw));
+    'ايرادات اليوم',
+  ].some((kw) => normMessage.includes(kw));
+
   if (isClinicSummary) {
     const isStaff = currentUserParam
       ? ['clinic_owner', 'doctor', 'receptionist', 'super_admin'].includes(currentUserParam.role)
@@ -701,7 +1019,10 @@ export async function processAgentMessage(
       };
     }
 
-    const summaryResult = (await getClinicSummaryTool.execute({ date: baseDate })) as {
+    const summaryResult = (await getClinicSummaryTool.execute({
+      date: baseDate,
+      organizationId: currentUserParam?.organizationId,
+    })) as {
       success: boolean;
       summary: ClinicDailySummary;
     };
@@ -735,18 +1056,10 @@ export async function processAgentMessage(
     }
   }
 
-  // 8. الاستفسارات العامة والتوجيه الطبي الذكي (مدعوم بـ AgentRouter gpt-5.6-sol)
+  // 9. التوجيه الطبي الذكي عبر بوابة الذكاء الاصطناعي أو المحرك المحلي التفاعلي
   const availableSpecs = Array.from(new Set(verifiedDoctors.map((d) => d.specialty)));
-  const specsList = availableSpecs.join('، ');
 
-  let reply =
-    `أهلاً بك في المساعد الطبي الذكي لمنصة ClinicBook 🌿.\n\n` +
-    `يمكنني مساعدتك في حجز المواعيد الفورية، توجيهك للطبيب المناسب، أو متابعة مواعيدك.\n\n` +
-    `التخصصات الطبية المتوفرة حالياً في المنصة:\n• ${specsList}.\n\n` +
-    `صف لي ما تشعر به أو اطلب موعدك مع طبيب محدد وسأقوم بجدولته لك.`;
-
-  // استدعاء AgentRouter الذكي عند توفر المفتاح خارج بيئة الاختبارات الوحدوية
-  if (process.env.AGENTROUTER_API_KEY && process.env.NODE_ENV !== 'test') {
+  if (hasConfiguredAiGateway() && process.env.NODE_ENV !== 'test') {
     const aiResult = await callAgentRouter(message, {
       specialties: availableSpecs,
       doctors: verifiedDoctors.map((d) => ({
@@ -758,22 +1071,29 @@ export async function processAgentMessage(
     });
 
     if (aiResult.success && aiResult.reply) {
-      reply = aiResult.reply;
-    } else {
-      console.warn('[AgentRouter Warning]:', aiResult.error);
+      return {
+        success: true,
+        data: {
+          intent: 'general',
+          reply: aiResult.reply,
+          suggestedActions: [
+            'أريد حجز موعد مع طبيب قلب',
+            'مواعيد أطباء الأطفال',
+            'عندي ألم في الأسنان',
+          ],
+        },
+      };
     }
+    console.warn('[AI Gateway Fallback]:', aiResult.error);
   }
 
+  const localSmart = buildSmartLocalReply(message, verifiedDoctors, availableSpecs);
   return {
     success: true,
     data: {
       intent: 'general',
-      reply,
-      suggestedActions: [
-        'أريد حجز موعد مع طبيب قلب',
-        'مواعيد أطباء الأطفال',
-        'عندي ألم في الأسنان',
-      ],
+      reply: localSmart.reply,
+      suggestedActions: localSmart.suggestedActions,
     },
   };
 }
