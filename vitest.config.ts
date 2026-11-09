@@ -7,6 +7,7 @@ export default defineConfig({
     environment: 'node',
     env: {
       CLINICBOOK_MODE: 'demo',
+      CLINICBOOK_DB_PATH: ':memory:',
     },
   },
 });
