@@ -1,7 +1,138 @@
-import { currentUser } from '@/lib/auth/session';
+import type { Metadata } from 'next';
+import { currentUser, demoEnabled } from '@/lib/auth/session';
+import { isSupabaseConfigured } from '@/lib/supabase/config';
+import { formatDoctorName } from '@/lib/format';
+import type { Doctor } from '@/lib/types';
+import type { PublicDoctorDirectoryRow } from '@/lib/supabase/database.types';
 import { redirect, notFound } from 'next/navigation';
 import { ClinicApp } from '@/components/clinic-app';
+
 export const dynamic = 'force-dynamic';
+
+interface PublicDoctorSummary {
+  id: string;
+  name: string;
+  specialty: string;
+  clinic: string;
+  city: string;
+  district: string;
+  bio: string;
+  fee: number;
+  rating: number;
+  reviews: number;
+}
+
+async function resolvePublicDoctor(doctorId: string): Promise<PublicDoctorSummary | null> {
+  try {
+    if (demoEnabled()) {
+      const { get } = await import('@/lib/demo-db');
+      const doc = get<Doctor>('doctor', doctorId);
+      if (!doc || !doc.verified) return null;
+      return {
+        id: doc.id,
+        name: doc.name,
+        specialty: doc.specialty,
+        clinic: doc.clinic,
+        city: doc.city,
+        district: doc.district,
+        bio: doc.bio,
+        fee: doc.fee,
+        rating: doc.rating,
+        reviews: doc.reviews,
+      };
+    }
+
+    if (isSupabaseConfigured()) {
+      const { createSupabaseServer } = await import('@/lib/supabase/server');
+      const client = await createSupabaseServer();
+      const { data } = await client.rpc('public_doctor_directory');
+      const rows = Array.isArray(data) ? (data as PublicDoctorDirectoryRow[]) : [];
+      const found = rows.find((r) => r.id === doctorId);
+      if (!found) return null;
+      return {
+        id: found.id,
+        name: found.full_name,
+        specialty: found.specialty_name ?? 'الطب العام',
+        clinic: found.clinic_name ?? 'العيادة الطبية',
+        city: found.city_name ?? 'دمشق',
+        district: found.district ?? '',
+        bio: found.bio_ar ?? '',
+        fee: Number(found.consultation_fee ?? 25),
+        rating: Number(found.rating_avg ?? 4.8),
+        reviews: Number(found.reviews_count ?? 0),
+      };
+    }
+  } catch {
+    // Graceful fallback if directory is temporarily unreachable
+  }
+  return null;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ path?: string[] }>;
+}): Promise<Metadata> {
+  const { path } = await params;
+  const route = '/' + (path ?? []).join('/');
+
+  if (route === '/search') {
+    return {
+      title: 'ابحث عن طبيب واحجز موعدك فوراً | ClinicBook',
+      description:
+        'استكشف نخبة الأطباء والمراكز الطبية المعتمدة حسب التخصص والمدينة والحي واحجز موعدك المؤكد مباشرة.',
+      openGraph: {
+        title: 'اكتشف الأطباء واحجز موعدك | ClinicBook',
+        description: 'محرك بحث طبي متقدم لحجز المواعيد السريرية المؤكدة دون انتظار.',
+        locale: 'ar_SY',
+        type: 'website',
+      },
+    };
+  }
+
+  if (route === '/register-clinic') {
+    return {
+      title: 'سجّل عيادتك أو مركزك الطبي | ClinicBook SaaS',
+      description:
+        'انضم إلى منظومة كلينك بوك السحابية لإدارة المواعيد، طابور الاستقبال، والسجل الطبي الإلكتروني.',
+    };
+  }
+
+  if (route === '/login') {
+    return {
+      title: 'تسجيل الدخول | ClinicBook',
+      description: 'بوابة الدخول الموحدة للمرضى والأطباء وإدارات المراكز الطبية.',
+    };
+  }
+
+  const docMatch = /^\/doctors\/([^/]+)$/.exec(route);
+  if (docMatch) {
+    const doc = await resolvePublicDoctor(decodeURIComponent(docMatch[1]));
+    if (doc) {
+      const displayName = formatDoctorName(doc.name);
+      const title = `${displayName} — ${doc.specialty} في ${doc.city} | ClinicBook`;
+      const description =
+        doc.bio ||
+        `احجز موعدك الإلكتروني مع ${displayName} (${doc.specialty}) في ${doc.clinic} — ${doc.city}.`;
+      return {
+        title,
+        description,
+        openGraph: {
+          title,
+          description,
+          locale: 'ar_SY',
+          type: 'profile',
+        },
+      };
+    }
+  }
+
+  return {
+    title: 'ClinicBook | رعاية أقرب. حياة أفضل.',
+    description: 'مساحة واحدة لرعاية أفضل. اكتشف طبيبك واحجز موعدك، وأدر عيادتك بكل هدوء.',
+  };
+}
+
 export default async function Page({ params }: { params: Promise<{ path?: string[] }> }) {
   const { path } = await params;
   const route = '/' + (path ?? []).join('/');
@@ -43,8 +174,6 @@ export default async function Page({ params }: { params: Promise<{ path?: string
     const user = await currentUser();
     if (route === '/register-clinic') {
       // Clinic registration requires authentication when Supabase is active
-      const { isSupabaseConfigured } = await import('@/lib/supabase/config');
-      const { demoEnabled } = await import('@/lib/auth/session');
       if (!demoEnabled() && isSupabaseConfigured() && !user) {
         redirect('/login?next=/register-clinic');
       }
@@ -77,5 +206,44 @@ export default async function Page({ params }: { params: Promise<{ path?: string
         redirect('/workspace/patients');
     }
   }
-  return <ClinicApp route={route} />;
+
+  const docMatch = /^\/doctors\/([^/]+)$/.exec(route);
+  const doctorStructuredData = docMatch
+    ? await resolvePublicDoctor(decodeURIComponent(docMatch[1]))
+    : null;
+
+  const jsonLd = doctorStructuredData
+    ? JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'Physician',
+        name: formatDoctorName(doctorStructuredData.name),
+        medicalSpecialty: doctorStructuredData.specialty,
+        description: doctorStructuredData.bio,
+        address: {
+          '@type': 'PostalAddress',
+          addressLocality: doctorStructuredData.city,
+          streetAddress: doctorStructuredData.district,
+        },
+        worksFor: {
+          '@type': 'MedicalClinic',
+          name: doctorStructuredData.clinic,
+        },
+        ...(doctorStructuredData.reviews > 0
+          ? {
+              aggregateRating: {
+                '@type': 'AggregateRating',
+                ratingValue: doctorStructuredData.rating,
+                reviewCount: doctorStructuredData.reviews,
+              },
+            }
+          : {}),
+      }).replace(/</g, '\\u003c')
+    : null;
+
+  return (
+    <>
+      {jsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />}
+      <ClinicApp route={route} />
+    </>
+  );
 }

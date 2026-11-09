@@ -1,6 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useState, useEffect, type FormEvent } from 'react';
+import { fromZonedTime } from 'date-fns-tz';
 import {
   Search,
   Plus,
@@ -56,8 +57,10 @@ export function SchedulePage() {
     [exStart, setExStart] = useState(''),
     [exEnd, setExEnd] = useState('');
   const editable = ['doctor', 'clinic_owner'].includes(data?.user?.role ?? '');
+  const clinicTimezone = data?.organization?.timezone || 'Asia/Damascus';
+  const doctorSchedule = data?.schedules[doctorId];
   useEffect(() => {
-    const existing = data?.schedules[doctorId] ?? [];
+    const existing = doctorSchedule ?? [];
     setShifts(
       Array.from({ length: 7 }, (_, day) =>
         existing.filter((s) => s.day === day).length
@@ -66,19 +69,23 @@ export function SchedulePage() {
       ).flat(),
     );
     setDuration(existing[0]?.duration ?? 30);
-  }, [doctorId]);
+  }, [doctorId, doctorSchedule]);
   const names = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
   const update = (idx: number, patch: Partial<Shift>) =>
     setShifts((s) => s.map((v, i) => (i === idx ? { ...v, ...patch } : v)));
+  const exStartUtc = exStart ? fromZonedTime(exStart, clinicTimezone) : null;
+  const exEndUtc = exEnd ? fromZonedTime(exEnd, clinicTimezone) : null;
   const affected =
     data?.appointments.filter(
       (a) =>
         a.doctorId === doctorId &&
         ['confirmed', 'checked_in', 'pending'].includes(a.status) &&
-        exStart &&
-        exEnd &&
-        new Date(a.start) < new Date(exEnd + '+03:00') &&
-        new Date(a.end) > new Date(exStart + '+03:00'),
+        exStartUtc &&
+        exEndUtc &&
+        !isNaN(exStartUtc.getTime()) &&
+        !isNaN(exEndUtc.getTime()) &&
+        new Date(a.start) < exEndUtc &&
+        new Date(a.end) > exStartUtc,
     ).length ?? 0;
   async function save(e: FormEvent) {
     e.preventDefault();
@@ -277,8 +284,8 @@ export function SchedulePage() {
               'exception',
               {
                 doctorId,
-                start: new Date(exStart + '+03:00').toISOString(),
-                end: new Date(exEnd + '+03:00').toISOString(),
+                start: fromZonedTime(exStart, clinicTimezone).toISOString(),
+                end: fromZonedTime(exEnd, clinicTimezone).toISOString(),
                 reason: f.get('reason'),
               },
               'تم حفظ الإجازة. راجع المواعيد المتأثرة.',
