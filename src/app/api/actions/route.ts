@@ -3,7 +3,6 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { currentUser, createSession, demoEnabled } from '@/lib/auth/session';
-import { all, get, put, appointments, saveAppointment, audit, db } from '@/lib/demo-db';
 import { canAccess } from '@/lib/auth/guards';
 import { canTransition } from '@/lib/services/appointment-lifecycle';
 import { overlaps } from '@/lib/services/slots-engine';
@@ -31,11 +30,9 @@ class ActionError extends Error {
 function deny(m = 'غير مصرح لك بتنفيذ هذا الإجراء.'): never {
   throw new ActionError(m, 403);
 }
-import { transitionSupabaseAppointment } from '@/lib/services/supabase-booking-service';
 import { cleanDoctorName } from '@/lib/format';
 
-function pickDoctorImage(): string {
-  const existingDocs = all<Doctor>('doctor');
+function pickDoctorImage(existingDocs: Doctor[]): string {
   const usedImages = new Set(existingDocs.map((d) => d.image));
   const pool = [
     'doctor-samir.jpg',
@@ -54,7 +51,7 @@ function pickDoctorImage(): string {
 
 export async function POST(request: Request) {
   try {
-    const raw = await request.json();
+    const raw = await request.json().catch(() => null);
     const envelope = z.object({ action: z.string(), payload: z.unknown() }).parse(raw);
     const p = envelope.payload;
     const action = envelope.action;
@@ -96,6 +93,10 @@ export async function POST(request: Request) {
         throw err;
       }
     }
+
+    const { all, get, put, appointments, saveAppointment, audit, db, ensureSeed } =
+      await import('@/lib/demo-db');
+    ensureSeed();
     let user = await currentUser();
     if (action === 'onboard') {
       const b = z
@@ -178,7 +179,7 @@ export async function POST(request: Request) {
             experience: 10,
             bio: 'طبيب معتمد، رعاية أولية واستشارات طبية شاملة.',
             color: '#e1eeeb',
-            image: pickDoctorImage(),
+            image: pickDoctorImage(all<Doctor>('doctor')),
             verified: false,
             license: b.license,
           } satisfies Doctor);
@@ -283,7 +284,7 @@ export async function POST(request: Request) {
           experience: 10,
           bio: 'طبيب معتمد، رعاية أولية واستشارات طبية شاملة.',
           color: '#e1eeeb',
-          image: pickDoctorImage(),
+          image: pickDoctorImage(all<Doctor>('doctor')),
           verified: false,
           license: b.license,
         } satisfies Doctor);
@@ -315,7 +316,7 @@ export async function POST(request: Request) {
           phone: b.phone,
         });
       })();
-      await createSession(ownerId, 'clinic_owner');
+      await createSession(ownerId);
       revalidateAppPaths();
       return NextResponse.json({ success: true, data: { id, clinicId: cid } });
     }
@@ -361,7 +362,7 @@ export async function POST(request: Request) {
           experience: 12,
           bio: 'استشاري معتمد، رعاية طبية متكاملة ومتابعة دورية.',
           color: '#e1eeeb',
-          image: pickDoctorImage(),
+          image: pickDoctorImage(all<Doctor>('doctor')),
           verified: true,
           license: 'SY-MED-2026',
         };
@@ -629,7 +630,7 @@ export async function POST(request: Request) {
               experience: 8,
               bio: 'طبيب اختصاصي معتمد، رعاية متخصصة وتشخيص دقيق.',
               color: '#e1eeeb',
-              image: pickDoctorImage(),
+              image: pickDoctorImage(all<Doctor>('doctor')),
               verified: false,
               license: b.license,
             } satisfies Doctor);

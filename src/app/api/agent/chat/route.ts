@@ -3,11 +3,16 @@ import { z } from 'zod';
 import { processAgentMessage } from '@/lib/services/agent-service';
 import bookAppointmentTool from '../../../../../agent/tools/book_appointment';
 import { currentUser } from '@/lib/auth/session';
+import { checkRateLimit, getClientIp, RATE_LIMIT_CONFIGS } from '@/lib/rate-limit';
 
 const chatRequestSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('chat'),
-    message: z.string().trim().min(1, 'الرسالة مطلوبة'),
+    message: z
+      .string()
+      .trim()
+      .min(1, 'الرسالة مطلوبة')
+      .max(2000, 'يجب ألا تتجاوز الرسالة 2000 حرف'),
     sessionId: z.string().optional(),
     date: z
       .string()
@@ -27,10 +32,27 @@ const chatRequestSchema = z.discriminatedUnion('action', [
 
 export async function POST(req: Request) {
   try {
-    const json = await req.json();
+    const ip = getClientIp(req);
+    const json = await req.json().catch(() => null);
     const parsed = chatRequestSchema.safeParse(json);
 
     if (!parsed.success) {
+      const rate = checkRateLimit(`${ip}:/api/agent/chat:invalid`, RATE_LIMIT_CONFIGS.chat);
+      if (!rate.allowed) {
+        return NextResponse.json(
+          {
+            success: false,
+            code: 'RATE_LIMITED',
+            error: 'تجاوزت الحد المسموح من الطلبات. يرجى الانتظار قليلاً.',
+          },
+          {
+            status: 429,
+            headers: {
+              'Retry-After': String(Math.ceil(rate.resetMs / 1000)),
+            },
+          },
+        );
+      }
       return NextResponse.json(
         {
           success: false,
@@ -42,9 +64,26 @@ export async function POST(req: Request) {
     }
 
     const payload = parsed.data;
-    const user = await currentUser();
 
     if (payload.action === 'chat') {
+      const rate = checkRateLimit(`${ip}:/api/agent/chat:chat`, RATE_LIMIT_CONFIGS.chat);
+      if (!rate.allowed) {
+        return NextResponse.json(
+          {
+            success: false,
+            code: 'RATE_LIMITED',
+            error: 'تجاوزت الحد المسموح من الرسائل. يرجى الانتظار قليلاً.',
+          },
+          {
+            status: 429,
+            headers: {
+              'Retry-After': String(Math.ceil(rate.resetMs / 1000)),
+            },
+          },
+        );
+      }
+
+      const user = await currentUser();
       const result = await processAgentMessage(
         {
           message: payload.message,
@@ -58,6 +97,37 @@ export async function POST(req: Request) {
     }
 
     if (payload.action === 'book_slot') {
+      // 1. Rate limiting on slot booking
+      const rate = checkRateLimit(`${ip}:/api/agent/chat:book_slot`, RATE_LIMIT_CONFIGS.bookSlot);
+      if (!rate.allowed) {
+        return NextResponse.json(
+          {
+            success: false,
+            code: 'RATE_LIMITED',
+            error: 'تجاوزت عدد محاولات الحجز المسموحة. يرجى الانتظار قليلاً.',
+          },
+          {
+            status: 429,
+            headers: {
+              'Retry-After': String(Math.ceil(rate.resetMs / 1000)),
+            },
+          },
+        );
+      }
+
+      // 2. Authentication check: book_slot requires an authenticated patient session
+      const user = await currentUser();
+      if (!user || user.role !== 'patient') {
+        return NextResponse.json(
+          {
+            success: false,
+            code: 'UNAUTHORIZED',
+            error: 'حجز الموعد يتطلب تسجيل الدخول كحساب مريض مسجل.',
+          },
+          { status: 401 },
+        );
+      }
+
       const result = await bookAppointmentTool.execute({
         doctorId: payload.doctorId,
         start: payload.start,
@@ -65,22 +135,38 @@ export async function POST(req: Request) {
         phone: payload.phone,
         visitType: payload.visitType,
         notes: payload.notes,
-        patientId: user?.role === 'patient' ? user.id : undefined,
-        patientEmail: user?.role === 'patient' ? user.email : undefined,
+        patientId: user.id,
+        patientEmail: user.email,
       });
 
-      const isSuccess =
-        typeof result === 'object' &&
-        result !== null &&
-        'success' in result &&
-        Boolean((result as Record<string, unknown>).success);
+      const resObj =
+        typeof result === 'object' && result !== null ? (result as Record<string, unknown>) : null;
+      const isSuccess = Boolean(resObj?.success);
+      const resCode = typeof resObj?.code === 'string' ? resObj.code : undefined;
+      const resError = typeof resObj?.error === 'string' ? resObj.error : undefined;
+
+      const status = isSuccess
+        ? 200
+        : resCode === 'SLOT_CONFLICT'
+          ? 409
+          : resCode === 'FORBIDDEN'
+            ? 403
+            : resCode === 'UNAUTHORIZED'
+              ? 401
+              : resCode === 'NOT_FOUND'
+                ? 404
+                : 422;
 
       return NextResponse.json(
-        {
-          success: isSuccess,
-          data: result,
-        },
-        { status: isSuccess ? 200 : 422 },
+        isSuccess
+          ? { success: true, data: result }
+          : {
+              success: false,
+              ...(resCode ? { code: resCode } : {}),
+              ...(resError ? { error: resError } : {}),
+              data: result,
+            },
+        { status },
       );
     }
 

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
-import { checkUpcomingAppointmentsRetention } from '../../../../../agent/schedules/appointment_retention';
-import { audit } from '@/lib/demo-db';
+import { demoEnabled } from '@/lib/auth/session';
 import type { User } from '@/lib/types';
 
 /**
@@ -41,6 +40,44 @@ export async function POST(req: Request) {
         { status: 401 },
       );
     }
+
+    if (!demoEnabled()) {
+      const { createSupabaseAdmin } = await import('@/lib/supabase/admin');
+      const adminClient = createSupabaseAdmin();
+      const { data: expiredCount, error: rpcErr } = await adminClient.rpc(
+        'expire_pending_appointments',
+      );
+      if (rpcErr) {
+        throw new Error(rpcErr.message || 'Failed to expire pending appointments');
+      }
+      const now = new Date();
+      const max = new Date(now.getTime() + 24 * 3600000);
+      const { data: upcoming, error: upcomingErr } = await adminClient
+        .from('appointments')
+        .select('id, start_at')
+        .in('status', ['confirmed', 'pending'])
+        .gt('start_at', now.toISOString())
+        .lte('start_at', max.toISOString());
+
+      if (upcomingErr) {
+        throw new Error(upcomingErr.message || 'Failed to query upcoming appointments');
+      }
+
+      return NextResponse.json({
+        success: true,
+        timestamp: now.toISOString(),
+        data: {
+          checkedCount: upcoming?.length ?? 0,
+          upcomingCount: upcoming?.length ?? 0,
+          expiredCount: Number(expiredCount ?? 0),
+          candidatesForConfirmation: [],
+        },
+      });
+    }
+
+    const { checkUpcomingAppointmentsRetention } =
+      await import('../../../../../agent/schedules/appointment_retention');
+    const { audit } = await import('@/lib/demo-db');
 
     const retentionResult = await checkUpcomingAppointmentsRetention(24);
 

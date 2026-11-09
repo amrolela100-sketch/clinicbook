@@ -1,6 +1,5 @@
 import { demoEnabled } from '@/lib/auth/session';
 import { NextResponse } from 'next/server';
-import { slotsFor } from '@/lib/services/booking-service';
 import { getSupabaseSlots } from '@/lib/services/supabase-booking-service';
 import { z } from 'zod';
 
@@ -32,6 +31,7 @@ export async function GET(request: Request) {
     });
   }
 
+  const { slotsFor } = await import('@/lib/services/booking-service');
   return NextResponse.json(
     { success: true, data: slotsFor(p.data.doctorId, p.data.date) },
     { headers: { 'Cache-Control': 'no-store' } },

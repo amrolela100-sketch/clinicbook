@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { randomUUID, createHash } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import {
   createSession,
   deleteSession,
@@ -9,8 +9,8 @@ import {
   demoEnabled,
   redirectForUser,
 } from '@/lib/auth/session';
-import { roles, put, get, db, all } from '@/lib/demo-db';
 import type { User, Role } from '@/lib/types';
+import { checkRateLimit, getClientIp, RATE_LIMIT_CONFIGS } from '@/lib/rate-limit';
 
 const sessionSchema = z.object({
   mode: z.enum(['signin', 'signup']).optional(),
@@ -38,17 +38,49 @@ function translateAuthError(msg: string): string {
   return msg;
 }
 
+function rateLimitedResponse(resetMs: number) {
+  return NextResponse.json(
+    {
+      success: false,
+      code: 'RATE_LIMITED',
+      error: 'تجاوزت الحد المسموح من محاولات تسجيل الدخول. يرجى المحاولة لاحقاً.',
+    },
+    {
+      status: 429,
+      headers: {
+        'Retry-After': String(Math.ceil(resetMs / 1000)),
+      },
+    },
+  );
+}
+
 export async function POST(request: Request) {
+  const ip = getClientIp(request);
   const body = await request.json().catch(() => null);
   const parsed = sessionSchema.safeParse(body);
 
-  if (!parsed.success)
+  if (!parsed.success) {
+    const rate = checkRateLimit(`${ip}:/api/session:login`, RATE_LIMIT_CONFIGS.login);
+    if (!rate.allowed) return rateLimitedResponse(rate.resetMs);
     return NextResponse.json(
       { success: false, error: 'بيانات غير صالحة، تحقق من الحقول المطلوبة.' },
       { status: 400 },
     );
+  }
 
   const { mode, role, email, password, fullName, phone, intent } = parsed.data;
+  const isExplicitDemo =
+    process.env.CLINICBOOK_MODE === 'demo' && process.env.FORCE_SUPABASE !== 'true';
+  const isPureDemoRoleSwitch =
+    isExplicitDemo && Boolean(role) && !email && !password && !fullName && mode !== 'signup';
+
+  const rate = isPureDemoRoleSwitch
+    ? checkRateLimit(`${ip}:/api/session:demo-switch`, RATE_LIMIT_CONFIGS.demoSwitch)
+    : checkRateLimit(`${ip}:/api/session:login`, RATE_LIMIT_CONFIGS.login);
+
+  if (!rate.allowed) {
+    return rateLimitedResponse(rate.resetMs);
+  }
 
   // ─── 1. Sign Up ────────────────────────────────────────────
   if (mode === 'signup' || (fullName && email && password)) {
@@ -92,13 +124,13 @@ export async function POST(request: Request) {
           });
         }
 
-        // Session obtained — ensure public.users record and create mirror
+        // Session obtained — ensure public.users record
         const userId = data.user!.id;
         const userRole: Role = effectiveIntent === 'clinic_owner' ? 'clinic_owner' : 'patient';
         try {
           const { createSupabaseAdmin } = await import('@/lib/supabase/admin');
           const admin = createSupabaseAdmin();
-          await admin.from('users').upsert({
+          const { error: syncErr } = await admin.from('users').upsert({
             id: userId,
             email,
             full_name: fullName,
@@ -106,15 +138,12 @@ export async function POST(request: Request) {
             role: userRole,
             status: 'active',
           });
-        } catch {
-          // Admin sync fallback
+          if (syncErr) {
+            console.error('Supabase signup public.users sync error:', syncErr);
+          }
+        } catch (err) {
+          console.error('Supabase signup public.users sync error:', err);
         }
-        put('user', userId, {
-          id: userId,
-          name: fullName,
-          email,
-          role: userRole,
-        });
 
         const user: User = { id: userId, name: fullName, email, role: userRole };
         return NextResponse.json({
@@ -131,7 +160,15 @@ export async function POST(request: Request) {
       }
     }
 
-    // Fallback: SQLite demo
+    // Fallback: SQLite demo (only when demoEnabled)
+    if (!demoEnabled()) {
+      return NextResponse.json(
+        { success: false, error: 'خدمة المصادقة السحابية غير مهيأة.' },
+        { status: 500 },
+      );
+    }
+
+    const { all, put } = await import('@/lib/demo-db');
     const existing = all<User>('user').find((u) => u.email?.toLowerCase() === email.toLowerCase());
     if (existing) {
       return NextResponse.json(
@@ -139,9 +176,12 @@ export async function POST(request: Request) {
         { status: 409 },
       );
     }
+
+    const { hashPassword } = await import('@/lib/auth/password');
     const id = randomUUID();
     const userRole: Role = effectiveIntent === 'clinic_owner' ? 'clinic_owner' : 'patient';
-    const passwordHash = createHash('sha256').update(password).digest('hex');
+    const passwordHash = await hashPassword(password);
+
     put('user', id, {
       id,
       name: fullName,
@@ -150,7 +190,8 @@ export async function POST(request: Request) {
       phone: phone ?? undefined,
       passwordHash,
     });
-    await createSession(id, userRole);
+
+    await createSession(id);
     const user: User = { id, name: fullName, email, role: userRole };
     return NextResponse.json({ success: true, data: user, redirectTo: redirectForUser(user) });
   }
@@ -192,38 +233,44 @@ export async function POST(request: Request) {
       }
     }
 
-    // Fallback: SQLite demo
+    // Fallback: SQLite demo (only when demoEnabled)
+    if (!demoEnabled()) {
+      return NextResponse.json(
+        { success: false, error: 'خدمة المصادقة السحابية غير مهيأة.' },
+        { status: 500 },
+      );
+    }
+
+    const { all, put } = await import('@/lib/demo-db');
+    const { verifyPassword, hashPassword } = await import('@/lib/auth/password');
+
     const existing = all<User & { passwordHash?: string }>('user').find(
       (u) => u.email?.toLowerCase() === email.toLowerCase(),
     );
-    if (!existing) {
+
+    if (!existing || !existing.passwordHash) {
       return NextResponse.json(
         { success: false, error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' },
         { status: 401 },
       );
     }
-    const hash = createHash('sha256').update(password).digest('hex');
-    if (existing.passwordHash) {
-      if (hash !== existing.passwordHash) {
-        return NextResponse.json(
-          { success: false, error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' },
-          { status: 401 },
-        );
-      }
-    } else {
-      const { DEFAULT_DEMO_PASSWORD_HASH } = await import('@/lib/demo-db');
-      if (
-        hash !== DEFAULT_DEMO_PASSWORD_HASH &&
-        password !== 'demo1234' &&
-        password !== 'password123'
-      ) {
-        return NextResponse.json(
-          { success: false, error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' },
-          { status: 401 },
-        );
-      }
+
+    const verification = await verifyPassword(password, existing.passwordHash);
+
+    if (!verification.valid) {
+      return NextResponse.json(
+        { success: false, error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' },
+        { status: 401 },
+      );
     }
-    await createSession(existing.id, existing.role);
+
+    // Lazy migration: upgrade legacy SHA-256 hash to scrypt on successful login
+    if (verification.needsUpgrade) {
+      existing.passwordHash = await hashPassword(password);
+      put('user', existing.id, existing);
+    }
+
+    await createSession(existing.id);
     const user: User = {
       id: existing.id,
       name: existing.name,
@@ -232,6 +279,7 @@ export async function POST(request: Request) {
       organizationId: existing.organizationId,
       clinicId: existing.clinicId,
     };
+
     return NextResponse.json({
       success: true,
       data: user,
@@ -239,9 +287,9 @@ export async function POST(request: Request) {
     });
   }
 
-  // ─── 3. Quick Role Preview (demo) ──────────────────────────
+  // ─── 3. Quick Role Preview (demo only) ──────────────────────
   if (role) {
-    if (!demoEnabled()) {
+    if (!isExplicitDemo || !demoEnabled()) {
       return NextResponse.json(
         {
           success: false,
@@ -258,16 +306,18 @@ export async function POST(request: Request) {
         const client = await createSupabaseServer();
         // Sign out any active Supabase session so SQLite demo user takes priority
         await client.auth.signOut();
-      } catch {
-        // Ignore
+      } catch (err) {
+        console.warn('Supabase signOut before demo switch failed:', err);
       }
     }
 
     // Use SQLite demo users
+    const { roles } = await import('@/lib/demo-db');
     const user = roles.find((u) => u.role === role);
     if (!user)
       return NextResponse.json({ success: false, error: 'الدور غير متاح.' }, { status: 400 });
-    await createSession(user.id, user.role);
+
+    await createSession(user.id);
     return NextResponse.json({ success: true, data: user });
   }
 

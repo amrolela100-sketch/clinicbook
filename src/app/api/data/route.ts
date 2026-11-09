@@ -1,9 +1,8 @@
-import {NextResponse} from 'next/server';
-import {currentUser,demoEnabled} from '@/lib/auth/session';
-import {all,get,appointments,expirePending,db} from '@/lib/demo-db';
-import {canAccess} from '@/lib/auth/guards';
-import type {Doctor,MedicalRecord,User} from '@/lib/types';
-import type {Organization} from '@/lib/services/booking-service';
+import { NextResponse } from 'next/server';
+import { currentUser, demoEnabled } from '@/lib/auth/session';
+import { canAccess } from '@/lib/auth/guards';
+import type { Doctor, MedicalRecord, User } from '@/lib/types';
+import type { Organization } from '@/lib/services/booking-service';
 import { fetchSupabaseAppData } from '@/lib/services/supabase-data-service';
 
 export const dynamic = 'force-dynamic';
@@ -22,6 +21,8 @@ export async function GET() {
     }
   }
 
+  const { all, get, appointments, expirePending, db, ensureSeed } = await import('@/lib/demo-db');
+  ensureSeed();
   const user = await currentUser();
   expirePending();
   const orgs = all<Organization>('organization');
@@ -63,6 +64,18 @@ export async function GET() {
         .map(({ id, name, role, email, clinicId }) => ({ id, name, role, email, clinicId }))
     : [];
 
+  const rawReviews = all<{ doctorId?: string }>('review');
+  const reviews = user?.organizationId
+    ? rawReviews.filter((r) => {
+        if (!r.doctorId) return false;
+        const doc = doctors.find((d) => d.id === r.doctorId);
+        return doc?.organizationId === user.organizationId;
+      })
+    : rawReviews.filter((r) => {
+        if (!r.doctorId) return false;
+        return doctors.some((d) => d.id === r.doctorId);
+      });
+
   const data = {
     user,
     doctors,
@@ -99,7 +112,7 @@ export async function GET() {
           (e) => e.organizationId === user.organizationId,
         )
       : [],
-    reviews: all('review'),
+    reviews,
     billingRequests: user?.organizationId
       ? all<{ organizationId: string }>('billingRequest').filter(
           (r) => r.organizationId === user.organizationId,
