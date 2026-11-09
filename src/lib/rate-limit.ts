@@ -95,18 +95,52 @@ export function checkRateLimit(key: string, config: RateLimitConfig): RateLimitR
   };
 }
 
+const VALID_IP_PATTERN = /^[0-9a-fA-F:.]{2,64}$/;
+
+function normalizeValidIp(candidate: string | undefined | null): string | null {
+  if (!candidate) return null;
+  const trimmed = candidate.trim();
+  if (!trimmed || !VALID_IP_PATTERN.test(trimmed)) return null;
+  return trimmed;
+}
+
 /**
- * Extract client IP from standard proxy headers.
- * Assumes deployment behind a trusted reverse proxy (Vercel / Nginx / Cloudflare)
- * that overwrites/prepends client IP on ingress and strips forged client headers.
+ * Extract client IP from ingress headers with spoof-resistance (REM-05):
+ * 1. Prioritizes platform-verified single-IP headers (`cf-connecting-ip`, `x-vercel-forwarded-for`).
+ * 2. Supports right-to-left hop counting on `x-forwarded-for` via `TRUSTED_PROXY_HOPS`
+ *    so spoofed client-prepended entries cannot bypass rate limiting behind reverse proxies.
+ * 3. Validates strict IP character/length bounds to prevent memory key pollution.
  */
 export function getClientIp(request: Request): string {
-  const forwarded = request.headers.get('x-forwarded-for');
-  const firstForwarded = forwarded?.split(',')[0]?.trim();
-  if (firstForwarded) {
-    return firstForwarded;
+  const cfIp = normalizeValidIp(request.headers.get('cf-connecting-ip'));
+  if (cfIp) return cfIp;
+
+  const vercelForwarded = request.headers.get('x-vercel-forwarded-for');
+  if (vercelForwarded) {
+    const vercelIp = normalizeValidIp(vercelForwarded.split(',')[0]);
+    if (vercelIp) return vercelIp;
   }
-  const realIp = request.headers.get('x-real-ip')?.trim();
+
+  const forwarded = request.headers.get('x-forwarded-for');
+  if (forwarded && forwarded.trim().length > 0) {
+    const rawParts = forwarded.split(',');
+    if (rawParts[0].trim().length === 0) {
+      // Reject malformed leading-comma headers (e.g. ", 10.0.0.2")
+      return normalizeValidIp(request.headers.get('x-real-ip')) || '127.0.0.1';
+    }
+    const hops = rawParts.map((p) => normalizeValidIp(p)).filter((p): p is string => p !== null);
+    if (hops.length > 0) {
+      const configuredHops = Number(process.env.TRUSTED_PROXY_HOPS ?? '0');
+      if (Number.isInteger(configuredHops) && configuredHops > 0) {
+        const idx = Math.max(0, hops.length - configuredHops);
+        return hops[idx];
+      }
+      return hops[0];
+    }
+    return '127.0.0.1';
+  }
+
+  const realIp = normalizeValidIp(request.headers.get('x-real-ip'));
   return realIp || '127.0.0.1';
 }
 
