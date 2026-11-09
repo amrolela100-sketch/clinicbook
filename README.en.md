@@ -379,7 +379,7 @@ node scripts/a11y.mjs
 ```text
 clinicbook/
 ├── docs/                       # Academic reports, architectural specs, and screenshots
-│   ├── ACADEMIC_REPORT.md      # Full university graduation engineering thesis
+│   ├── ACADEMIC_REPORT.md      # Full university semester project engineering report
 │   ├── COMPREHENSIVE_PROPOSAL.md # Technical implementation proposal and architecture
 │   ├── ACCESSIBILITY_AUDIT_REPORT.md # WCAG 2.1 AA accessibility audit report
 │   ├── AI_AGENT_EVE_BLUEPRINT.md     # Eve clinical triage AI system blueprint
@@ -407,11 +407,11 @@ clinicbook/
 
 ## Academic Documentation and Research Context
 
-This project represents an applied software engineering graduation thesis submitted for academic evaluation:
+This project represents an applied software engineering semester project submitted for academic evaluation:
 
 - **Academic Institution:** Antioch Syrian Private University (**ASPU**) — Faculty of Computer Engineering.
-- **Authors:** Mosaab Amiri • Mohammad Alabrash.
-- **Academic Supervisor:** Eng. Abdo Khoury.
+- **Authors:** Amr Ibrahim Lila • Samer Ghosn.
+- **Academic Supervisor:** Dr. Lina Arar.
 
 ### Primary Documentation Artifacts:
 
