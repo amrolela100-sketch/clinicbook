@@ -487,11 +487,25 @@ async function main() {
       asUser(recA, "UPDATE appointments SET status='completed' WHERE id=$1", [winner.id]),
       (e: unknown) => (e as { code: string }).code === '42501',
     );
+    // Use a valid past completed encounter so BEFORE INSERT validate_medical_record() passes and RLS WITH CHECK rejects non-treating roles with 42501
+    const past2 = randomUUID();
+    await pool.query(
+      "INSERT INTO appointments(id,organization_id,clinic_id,doctor_id,patient_id,start_at,end_at,status) VALUES($1,$2,$3,$4,$5,now()-interval '1 day',now()-interval '1 day'+interval '30 min','completed')",
+      [past2, orgA, clinicA, docA, patientA],
+    );
     await assert.rejects(
       asUser(
         recA,
         "INSERT INTO medical_records(appointment_id,organization_id,doctor_id,patient_id,diagnosis) VALUES($1,$2,$3,$4,'hack')",
-        [winner.id, orgA, docA, patientA],
+        [past2, orgA, docA, patientA],
+      ),
+      (e: unknown) => (e as { code: string }).code === '42501',
+    );
+    await assert.rejects(
+      asUser(
+        ownerA,
+        "INSERT INTO medical_records(appointment_id,organization_id,doctor_id,patient_id,diagnosis) VALUES($1,$2,$3,$4,'hack')",
+        [past2, orgA, docA, patientA],
       ),
       (e: unknown) => (e as { code: string }).code === '42501',
     );
@@ -503,10 +517,20 @@ async function main() {
       ),
       (e: unknown) => (e as { code: string }).code === '42501',
     );
+    // Under PostgreSQL RLS, non-owner UPDATE on granted column (name) filters out rows via USING (0 rows updated), while non-granted columns throw 42501.
+    const hijackRows = await asUser<{ id: string }>(
+      docA,
+      "UPDATE organizations SET name='hijacked' WHERE id=$1 RETURNING id",
+      [orgA],
+    );
+    assert.equal(hijackRows.length, 0);
     await assert.rejects(
-      asUser(docA, "UPDATE organizations SET name='hijacked' WHERE id=$1", [orgA]),
+      asUser(docA, "UPDATE organizations SET verification_status='rejected' WHERE id=$1", [orgA]),
       (e: unknown) => (e as { code: string }).code === '42501',
     );
+    const orgRow = (await pool.query('SELECT name FROM organizations WHERE id=$1', [orgA]))
+      .rows[0] as { name: string };
+    assert.equal(orgRow.name, 'org-' + orgA);
     console.log(
       'PASS P1-1: direct appointment status mutation, non-doctor EMR insert, null-org audit spoof, and non-owner org rename denied',
     );
