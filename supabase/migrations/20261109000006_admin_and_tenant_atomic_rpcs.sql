@@ -39,6 +39,7 @@ STABLE
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
+#variable_conflict use_column
 BEGIN
   IF auth.uid() IS NULL OR NOT is_org_member(p_org) THEN
     RAISE EXCEPTION 'FORBIDDEN' USING ERRCODE = '42501';
@@ -98,6 +99,7 @@ STABLE
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
+#variable_conflict use_column
 BEGIN
   IF auth.uid() IS NULL OR NOT is_org_member(p_org) THEN
     RAISE EXCEPTION 'FORBIDDEN' USING ERRCODE = '42501';
@@ -278,6 +280,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
+#variable_conflict use_column
 DECLARE
   v_city_id uuid;
   v_spec_id uuid;
@@ -509,6 +512,16 @@ BEGIN
     RAISE EXCEPTION 'INVALID_MEMBER_ROLE' USING ERRCODE = '22023';
   END IF;
 
+  IF EXISTS (
+    SELECT 1
+    FROM organization_members om
+    WHERE om.organization_id = p_org_id
+      AND om.user_id = p_new_user_id
+      AND om.is_active = true
+  ) THEN
+    RAISE EXCEPTION 'ALREADY_MEMBER' USING ERRCODE = '23505';
+  END IF;
+
   -- Lock subscription row to serialize concurrent doctor additions against tier limits
   SELECT * INTO v_sub
   FROM subscriptions s
@@ -556,7 +569,10 @@ BEGIN
   ON CONFLICT (id) DO UPDATE
   SET email = trim(p_email),
       full_name = trim(p_full_name),
-      role = p_role,
+      role = CASE
+        WHEN users.role IN ('super_admin', 'clinic_owner') THEN users.role
+        ELSE p_role
+      END,
       status = 'active',
       updated_at = now();
 
@@ -567,7 +583,11 @@ BEGIN
     p_new_user_id,
     CASE WHEN p_role = 'doctor' THEN 'doctor'::org_role ELSE 'receptionist'::org_role END,
     true
-  );
+  )
+  ON CONFLICT (organization_id, user_id) DO UPDATE
+  SET clinic_id = EXCLUDED.clinic_id,
+      member_role = EXCLUDED.member_role,
+      is_active = true;
 
   IF p_role = 'doctor' THEN
     SELECT sp.id INTO v_spec_id
