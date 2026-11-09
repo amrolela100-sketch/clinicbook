@@ -50,6 +50,8 @@ async function asAnon<T = Record<string, unknown>>(sql: string, args: unknown[] 
 }
 async function main() {
   let inserted = false;
+  const extraOrgs: string[] = [];
+  const extraUsers: string[] = [];
   try {
     for (let i = 0; i < ids.length; i++)
       await pool.query('INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES($1,$2,$3)', [
@@ -534,25 +536,154 @@ async function main() {
     console.log(
       'PASS P1-1: direct appointment status mutation, non-doctor EMR insert, null-org audit spoof, and non-owner org rename denied',
     );
+
+    // ─── REM-01 / REM-02 / REM-03: Audit Remediation RPCs ──────────────
+    const superAdminId = randomUUID();
+    const freshOwnerId = randomUUID();
+    const freshDoctorId = randomUUID();
+    const provisionedMemberId = randomUUID();
+    extraUsers.push(superAdminId, freshOwnerId, freshDoctorId, provisionedMemberId);
+
+    for (const uid of [superAdminId, freshOwnerId, freshDoctorId, provisionedMemberId]) {
+      await pool.query('INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES($1,$2,$3)', [
+        uid,
+        `rem-${uid}@example.test`,
+        JSON.stringify({ full_name: 'Audit User' }),
+      ]);
+    }
+    await pool.query("UPDATE public.users SET role='super_admin' WHERE id=$1", [superAdminId]);
+
+    // 1. tenant_doctors_directory includes pending doctors for orgA members, denies orgB
+    const orgADoctors = await asUser<{ id: string; verification_status: string }>(
+      ownerA,
+      'SELECT * FROM tenant_doctors_directory($1)',
+      [orgA],
+    );
+    assert.ok(orgADoctors.some((d) => d.id === docA && d.verification_status === 'approved'));
+    assert.ok(orgADoctors.some((d) => d.id === docPending && d.verification_status === 'pending'));
+    await assert.rejects(
+      asUser(ownerB, 'SELECT * FROM tenant_doctors_directory($1)', [orgA]),
+      (e: unknown) => (e as { code: string }).code === '42501',
+    );
+
+    // 2. super_admin_dashboard_data allowed strictly for super_admin, contains governance only
+    await assert.rejects(
+      asUser(ownerA, 'SELECT super_admin_dashboard_data()'),
+      (e: unknown) => (e as { code: string }).code === '42501',
+    );
+    const adminDashRows = await asUser<{ super_admin_dashboard_data: Record<string, unknown> }>(
+      superAdminId,
+      'SELECT super_admin_dashboard_data()',
+    );
+    const adminSnap = adminDashRows[0].super_admin_dashboard_data as {
+      organizations: Array<{ id: string }>;
+      verifications: Array<{ id: string }>;
+      appointments?: unknown;
+      medical_records?: unknown;
+    };
+    assert.ok(adminSnap.organizations.some((o) => o.id === orgA));
+    assert.ok(adminSnap.verifications.some((v) => v.id === docPending));
+    assert.equal(adminSnap.appointments, undefined);
+    assert.equal(adminSnap.medical_records, undefined);
+
+    // 3. onboard_organization_atomic creates org, clinic, owner role & separate doctor atomically
+    const onboardedRows = await asUser<{ organization_id: string; clinic_id: string }>(
+      freshOwnerId,
+      'SELECT * FROM onboard_organization_atomic($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
+      [
+        freshOwnerId,
+        `rem-${freshOwnerId}@example.test`,
+        'مالك المركز الجديد',
+        'مركز الشام التخصصي',
+        'city-' + city,
+        'المزة',
+        '011-4455667',
+        `LIC-${freshOwnerId.slice(0, 8)}`,
+        'clinic_pro',
+        freshDoctorId,
+        `rem-${freshDoctorId}@example.test`,
+        'سامر الحلبي',
+      ],
+    );
+    assert.equal(onboardedRows.length, 1);
+    const newOrgId = onboardedRows[0].organization_id;
+    const newClinicId = onboardedRows[0].clinic_id;
+    extraOrgs.push(newOrgId);
+
+    // Duplicate onboarding rejected with 23505
+    await assert.rejects(
+      asUser(
+        freshOwnerId,
+        'SELECT * FROM onboard_organization_atomic($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
+        [
+          freshOwnerId,
+          `rem-${freshOwnerId}@example.test`,
+          'مالك المركز الجديد',
+          'مركز مكرر',
+          'دمشق',
+          'المزة',
+          '011-4455667',
+          `LIC-DUP-${freshOwnerId.slice(0, 6)}`,
+          'solo_starter',
+          null,
+          null,
+          null,
+        ],
+      ),
+      (e: unknown) => (e as { code: string }).code === '23505',
+    );
+
+    // 4. provision_team_member_atomic provisions staff & enforces solo_starter receptionist block
+    const provRows = await asUser<{ provision_team_member_atomic: string }>(
+      freshOwnerId,
+      'SELECT provision_team_member_atomic($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+      [
+        freshOwnerId,
+        newOrgId,
+        newClinicId,
+        provisionedMemberId,
+        `rem-${provisionedMemberId}@example.test`,
+        'د. طارق منصور',
+        'doctor',
+        'الطب العام',
+        35,
+        `LIC-TEAM-${provisionedMemberId.slice(0, 8)}`,
+      ],
+    );
+    assert.equal(provRows[0].provision_team_member_atomic, provisionedMemberId);
+
+    // 5. tenant_billing_requests tracks pending -> approved lifecycle
+    await asUser(
+      ownerA,
+      "INSERT INTO audit_logs(organization_id,actor_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'billing.requested','organization',$1,'{\"requested_tier\":\"enterprise\"}'::jsonb)",
+      [orgA, ownerA],
+    );
+    const billingReqs = await asUser<{ tier: string; status: string }>(
+      ownerA,
+      'SELECT * FROM tenant_billing_requests($1)',
+      [orgA],
+    );
+    assert.ok(billingReqs.some((r) => r.tier === 'enterprise' && r.status === 'pending'));
+    console.log(
+      'PASS REM-01..03: tenant_doctors_directory, super_admin_dashboard_data, tenant_billing_requests, onboard_organization_atomic & provision_team_member_atomic verified',
+    );
   } finally {
     if (inserted) {
+      const allOrgs = [orgA, orgB, ...extraOrgs];
+      const allUsers = [...ids, ...extraUsers];
       await pool.query('DELETE FROM reviews WHERE doctor_id=ANY($1::uuid[])', [
         [docA, docB, docPending],
       ]);
       await pool.query('DELETE FROM medical_records WHERE organization_id=ANY($1::uuid[])', [
-        [orgA, orgB],
+        allOrgs,
       ]);
       await pool.query('DELETE FROM availability_exceptions WHERE doctor_id=ANY($1::uuid[])', [
         [docA, docB, docPending],
       ]);
-      await pool.query('DELETE FROM audit_logs WHERE organization_id=ANY($1::uuid[])', [
-        [orgA, orgB],
-      ]);
-      await pool.query('DELETE FROM appointments WHERE organization_id=ANY($1::uuid[])', [
-        [orgA, orgB],
-      ]);
-      await pool.query('DELETE FROM organizations WHERE id=ANY($1::uuid[])', [[orgA, orgB]]);
-      await pool.query('DELETE FROM auth.users WHERE id=ANY($1::uuid[])', [ids]);
+      await pool.query('DELETE FROM audit_logs WHERE organization_id=ANY($1::uuid[])', [allOrgs]);
+      await pool.query('DELETE FROM appointments WHERE organization_id=ANY($1::uuid[])', [allOrgs]);
+      await pool.query('DELETE FROM organizations WHERE id=ANY($1::uuid[])', [allOrgs]);
+      await pool.query('DELETE FROM auth.users WHERE id=ANY($1::uuid[])', [allUsers]);
       await pool.query('DELETE FROM cities WHERE id=$1', [city]);
       await pool.query('DELETE FROM specialties WHERE id=$1', [spec]);
     }
