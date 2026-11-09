@@ -664,8 +664,27 @@ async function main() {
       [orgA],
     );
     assert.ok(billingReqs.some((r) => r.tier === 'enterprise' && r.status === 'pending'));
+
+    // 6. Verify 100% of public SECURITY DEFINER functions enforce pg_temp in search_path
+    const unsafeDefiners = await pool.query<{ proname: string }>(
+      `SELECT p.proname
+       FROM pg_proc p
+       JOIN pg_namespace n ON n.oid = p.pronamespace
+       WHERE n.nspname = 'public'
+         AND p.prosecdef = true
+         AND NOT EXISTS (
+           SELECT 1
+           FROM unnest(COALESCE(p.proconfig, ARRAY[]::text[])) cfg
+           WHERE cfg ILIKE 'search_path=%pg_temp%'
+         )`,
+    );
+    assert.deepEqual(
+      unsafeDefiners.rows.map((r) => r.proname),
+      [],
+      'All public SECURITY DEFINER functions must include pg_temp in search_path',
+    );
     console.log(
-      'PASS REM-01..03: tenant_doctors_directory, super_admin_dashboard_data, tenant_billing_requests, onboard_organization_atomic & provision_team_member_atomic verified',
+      'PASS REM-01..03 & REM-V2-05: atomic/governance RPCs and 100% SECURITY DEFINER pg_temp hardening verified',
     );
   } finally {
     if (inserted) {

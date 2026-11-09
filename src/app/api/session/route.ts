@@ -97,7 +97,22 @@ export async function POST(request: Request) {
       try {
         const { createSupabaseServer } = await import('@/lib/supabase/server');
         const client = await createSupabaseServer();
-        const origin = request.headers.get('origin') ?? process.env.NEXT_PUBLIC_APP_URL ?? '';
+        let origin = '';
+        const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+        if (configuredAppUrl) {
+          try {
+            origin = new URL(configuredAppUrl).origin;
+          } catch {
+            origin = '';
+          }
+        }
+        if (!origin) {
+          try {
+            origin = new URL(request.url).origin;
+          } catch {
+            origin = '';
+          }
+        }
 
         const callbackTarget =
           effectiveIntent === 'clinic_owner'

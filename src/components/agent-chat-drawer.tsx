@@ -360,12 +360,12 @@ export function AgentChatDrawer() {
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-bold text-white">مساعد ClinicBook</h2>
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[11px] font-medium text-emerald-300">
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/30 bg-emerald-950/70 px-2 py-0.5 text-[11px] font-medium text-emerald-200">
                   <Sparkles className="h-3 w-3" />
                   متاح 24/7
                 </span>
               </div>
-              <p className="text-xs text-teal-200/80">فرز الأعراض وحجز المواعيد الفورية</p>
+              <p className="text-xs text-teal-100">فرز الأعراض وحجز المواعيد الفورية</p>
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -399,16 +399,16 @@ export function AgentChatDrawer() {
               <div
                 className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
                   msg.sender === 'user'
-                    ? 'rounded-br-sm bg-teal-700 text-white font-medium'
+                    ? 'rounded-br-sm bg-teal-800 text-white font-medium'
                     : msg.emergency
-                      ? 'rounded-bl-sm border-2 border-rose-400 bg-rose-50 text-rose-950 dark:border-rose-700 dark:bg-rose-950/50 dark:text-rose-100'
+                      ? 'rounded-bl-sm border-2 border-rose-400 bg-rose-50 text-rose-950 dark:border-rose-700 dark:bg-rose-950/60 dark:text-rose-100'
                       : msg.bookingSuccess
-                        ? 'rounded-bl-sm border border-emerald-300 bg-emerald-50 text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100'
-                        : 'rounded-bl-sm border border-slate-200/80 bg-white text-slate-800 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-100'
+                        ? 'rounded-bl-sm border border-emerald-300 bg-emerald-50 text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-100'
+                        : 'rounded-bl-sm border border-slate-200/80 bg-white text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100'
                 }`}
               >
                 {msg.emergency && (
-                  <div className="mb-2.5 flex items-center gap-1.5 font-bold text-rose-700 dark:text-rose-400">
+                  <div className="mb-2.5 flex items-center gap-1.5 font-bold text-rose-800 dark:text-rose-300">
                     <ShieldAlert className="h-5 w-5 shrink-0" />
                     <span>بروتوكول فرز الطوارئ الطبية 🚨</span>
                   </div>
@@ -419,25 +419,25 @@ export function AgentChatDrawer() {
                 {msg.emergency && (
                   <div className="mt-3.5 flex flex-wrap gap-2 border-t border-rose-200/80 pt-3 dark:border-rose-900/60">
                     <a
+                      href="tel:110"
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-rose-700 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-rose-800 transition"
+                    >
+                      <PhoneCall className="h-3.5 w-3.5" />
+                      <span>إسعاف فوري (110)</span>
+                    </a>
+                    <a
                       href="tel:997"
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-rose-700 transition"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-rose-300 bg-white px-3.5 py-2 text-xs font-bold text-rose-800 hover:bg-rose-50 dark:bg-slate-900 dark:border-rose-700 dark:text-rose-200 transition"
                     >
                       <PhoneCall className="h-3.5 w-3.5" />
                       <span>اتصال بالإسعاف (997)</span>
-                    </a>
-                    <a
-                      href="tel:112"
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-rose-300 bg-white px-3.5 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50 dark:bg-slate-900 dark:border-rose-700 dark:text-rose-300 transition"
-                    >
-                      <PhoneCall className="h-3.5 w-3.5" />
-                      <span>طوارئ موحدة (112)</span>
                     </a>
                   </div>
                 )}
 
                 <div
                   className={`mt-1.5 text-[10px] ${
-                    msg.sender === 'user' ? 'text-teal-200' : 'text-slate-400'
+                    msg.sender === 'user' ? 'text-teal-100' : 'text-slate-600 dark:text-slate-300'
                   }`}
                 >
                   {msg.time}
@@ -515,7 +515,7 @@ export function AgentChatDrawer() {
                           <User className="h-3 w-3" />
                           <span>عرض ملف الطبيب والتقييمات</span>
                         </Link>
-                        <span className="text-[11px] text-slate-400">
+                        <span className="text-[11px] text-slate-600 dark:text-slate-300">
                           {doc.slots.length} مواعيد متاحة
                         </span>
                       </div>
@@ -532,7 +532,7 @@ export function AgentChatDrawer() {
                       key={idx}
                       type="button"
                       onClick={() => handleActionClick(action)}
-                      className="rounded-full border border-teal-200 bg-white px-3 py-1 text-xs font-medium text-teal-800 shadow-sm transition hover:bg-teal-50 hover:border-teal-300 dark:border-teal-800 dark:bg-slate-800 dark:text-teal-300"
+                      className="rounded-full border border-teal-300 bg-white px-3 py-1 text-xs font-medium text-teal-900 shadow-sm transition hover:bg-teal-50 hover:border-teal-400 dark:border-teal-600 dark:bg-slate-800 dark:text-teal-200 dark:hover:bg-slate-700"
                     >
                       {action}
                     </button>
@@ -543,8 +543,8 @@ export function AgentChatDrawer() {
           ))}
 
           {isLoading && (
-            <div className="flex items-center gap-2 text-xs text-slate-500 py-2">
-              <Bot className="h-4 w-4 animate-bounce text-teal-600" />
+            <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 py-2">
+              <Bot className="h-4 w-4 animate-bounce text-teal-700 dark:text-teal-300" />
               <span>جاري فرز الأعراض والبحث في جدول الأطباء...</span>
             </div>
           )}
@@ -566,13 +566,13 @@ export function AgentChatDrawer() {
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               placeholder="اكتب استفسارك أو الأعراض التي تشعر بها..."
-              className="flex-1 rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:border-teal-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              className="flex-1 rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 focus:border-teal-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400 dark:focus:bg-slate-800"
             />
             <button
               type="submit"
               disabled={isLoading || !inputMessage.trim()}
               aria-label="إرسال الرسالة"
-              className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-700 text-white transition hover:bg-teal-800 disabled:opacity-40"
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-800 text-white transition hover:bg-teal-900 disabled:opacity-40 dark:bg-teal-700 dark:hover:bg-teal-600"
             >
               <Send className="h-4 w-4 -scale-x-100" />
             </button>
@@ -643,7 +643,7 @@ export function AgentChatDrawer() {
                   value={patientName}
                   onChange={(e) => setPatientName(e.target.value)}
                   placeholder="مثال: يوسف الأحمد"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-teal-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
                 />
               </div>
 
@@ -657,7 +657,7 @@ export function AgentChatDrawer() {
                   value={patientPhone}
                   onChange={(e) => setPatientPhone(e.target.value)}
                   placeholder="0912345678"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800"
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-teal-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-400"
                 />
               </div>
 
