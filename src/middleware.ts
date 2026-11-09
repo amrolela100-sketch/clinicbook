@@ -17,17 +17,40 @@ export async function middleware(request: NextRequest) {
       );
     }
 
+    const trustedProxy =
+      Number(process.env.TRUSTED_PROXY_HOPS ?? '0') > 0 ||
+      Boolean(request.headers.get('x-vercel-id') || request.headers.get('cf-ray'));
+    const host =
+      (trustedProxy ? request.headers.get('x-forwarded-host') : null) ??
+      request.headers.get('host');
+
     const origin = request.headers.get('origin');
-    const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host');
+    const referer = request.headers.get('referer');
     if (origin) {
       try {
         if (new URL(origin).host !== host)
           return NextResponse.json(
-            { success: false, error: 'طلب غير مسموح من مصدر خارجي.' },
+            { success: false, code: 'CSRF_FORBIDDEN', error: 'طلب غير مسموح من مصدر خارجي.' },
             { status: 403 },
           );
       } catch {
-        return NextResponse.json({ success: false, error: 'مصدر غير صالح.' }, { status: 403 });
+        return NextResponse.json(
+          { success: false, code: 'CSRF_FORBIDDEN', error: 'مصدر غير صالح.' },
+          { status: 403 },
+        );
+      }
+    } else if (!isCronRoute && referer) {
+      try {
+        if (new URL(referer).host !== host)
+          return NextResponse.json(
+            { success: false, code: 'CSRF_FORBIDDEN', error: 'مرجع الطلب غير مسموح.' },
+            { status: 403 },
+          );
+      } catch {
+        return NextResponse.json(
+          { success: false, code: 'CSRF_FORBIDDEN', error: 'مرجع الطلب غير صالح.' },
+          { status: 403 },
+        );
       }
     }
 
@@ -170,6 +193,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
+  runtime: 'nodejs',
   matcher: [
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ttf|woff|woff2|ico)$).*)',
   ],
