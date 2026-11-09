@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import { defineTool } from '../types';
-import { createBooking } from '@/lib/services/booking-service';
+import { demoEnabled } from '@/lib/auth/session';
 import type { User } from '@/lib/types';
 
 /**
  * أداة حجز موعد ذري للوكيل الذكي
- * تستدعي دالة createBooking الرسمية لمنع التعارض والحفاظ على تناسق قاعدة البيانات
+ * تستدعي دالة الحجز الرسمية حسب وضع التشغيل لمنع التعارض والحفاظ على تناسق قاعدة البيانات
  */
 export default defineTool({
   name: 'book_appointment',
@@ -30,15 +30,23 @@ export default defineTool({
     patientId,
     patientEmail,
   }) {
-    // تمثيل هوية المريض عبر جلسة النظام المحمية
+    if (!patientId) {
+      return {
+        success: false,
+        code: 'UNAUTHORIZED',
+        error: 'حجز الموعد يتطلب حساب مريض مسجّل ومسجل دخوله.',
+      };
+    }
+
+    // استخدام هوية المريض الحقيقية الموثقة من الجلسة
     const patientUser: User = {
-      id: patientId || `agent-patient-${phone.replace(/\D/g, '').slice(-8) || 'guest'}`,
+      id: patientId,
       name: patientName,
-      email: patientEmail || `${phone.replace(/\D/g, '') || 'patient'}@clinicbook.local`,
+      email: patientEmail || `patient-${patientId}@clinicbook.local`,
       role: 'patient',
     };
 
-    const bookingResult = createBooking(patientUser, {
+    const bookingPayload = {
       doctorId,
       start,
       visitType,
@@ -47,7 +55,13 @@ export default defineTool({
       notes: notes
         ? `[تم الحجز عبر مساعد ClinicBook الذكي] ${notes}`
         : '[تم الحجز عبر مساعد ClinicBook الذكي]',
-    });
+    };
+
+    const bookingResult = demoEnabled()
+      ? (await import('@/lib/services/booking-service')).createBooking(patientUser, bookingPayload)
+      : await (
+          await import('@/lib/services/supabase-booking-service')
+        ).createSupabaseBooking(bookingPayload);
 
     if (!bookingResult.success) {
       return {
@@ -57,16 +71,16 @@ export default defineTool({
       };
     }
 
-    const appt = bookingResult.data;
+    const appt = bookingResult.data as Record<string, unknown>;
     return {
       success: true,
       appointmentId: appt.id,
-      patientName: appt.patientName,
-      doctorId: appt.doctorId,
-      start: appt.start,
-      end: appt.end,
+      patientName: appt.patientName ?? appt.walk_in_patient_name ?? patientName,
+      doctorId: appt.doctorId ?? appt.doctor_id ?? doctorId,
+      start: appt.start ?? appt.start_at ?? start,
+      end: appt.end ?? appt.end_at,
       status: appt.status,
-      fee: appt.fee,
+      fee: appt.fee ?? appt.fee_amount,
       message: 'تم حجز الموعد بنجاح وبشكل ذري بدون تعارض.',
     };
   },
