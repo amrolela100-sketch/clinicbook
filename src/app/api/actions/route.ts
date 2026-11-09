@@ -343,7 +343,7 @@ export async function POST(request: Request) {
       };
       put('organization', u.organizationId, org);
     }
-    if (u.role === 'doctor' || u.role === 'clinic_owner') {
+    if (u.role === 'doctor') {
       let doc = get<Doctor>('doctor', u.id);
       if (!doc) {
         doc = {

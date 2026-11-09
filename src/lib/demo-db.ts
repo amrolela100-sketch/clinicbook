@@ -13,10 +13,15 @@ export function getDb(): Database.Database {
   if (globalDb.clinicDb) return globalDb.clinicDb;
   if (_dbInstance) return _dbInstance;
 
-  const dir = path.join(process.cwd(), 'data');
-  mkdirSync(dir, { recursive: true });
-  const instance = new Database(path.join(dir, 'clinicbook.sqlite'));
-  instance.pragma('journal_mode = WAL');
+  const customPath = process.env.CLINICBOOK_DB_PATH?.trim();
+  const dbPath = customPath || path.join(process.cwd(), 'data', 'clinicbook.sqlite');
+  if (dbPath !== ':memory:') {
+    mkdirSync(path.dirname(dbPath), { recursive: true });
+  }
+  const instance = new Database(dbPath);
+  if (dbPath !== ':memory:') {
+    instance.pragma('journal_mode = WAL');
+  }
   instance.pragma('busy_timeout = 5000');
   instance.pragma('foreign_keys = ON');
   instance.exec(`
