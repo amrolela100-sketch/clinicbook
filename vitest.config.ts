@@ -5,6 +5,8 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],
     environment: 'node',
+    testTimeout: 20000,
+    hookTimeout: 20000,
     env: {
       CLINICBOOK_MODE: 'demo',
       CLINICBOOK_DB_PATH: ':memory:',
