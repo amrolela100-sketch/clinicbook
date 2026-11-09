@@ -1,18 +1,25 @@
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
-import { randomUUID, createHash } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import type { Appointment, Doctor, User, Shift } from './types';
-const dir = path.join(process.cwd(), 'data');
-mkdirSync(dir, { recursive: true });
-const globalDb = globalThis as unknown as { clinicDb?: Database.Database };
-export const db = globalDb.clinicDb ?? new Database(path.join(dir, 'clinicbook.sqlite'));
-globalDb.clinicDb = db;
-db.pragma('journal_mode = WAL');
-db.pragma('busy_timeout = 5000');
-db.pragma('foreign_keys = ON');
-db.exec(`
+import { hashPasswordSync } from './auth/password';
+
+let _dbInstance: Database.Database | null = null;
+
+export function getDb(): Database.Database {
+  const globalDb = globalThis as unknown as { clinicDb?: Database.Database };
+  if (globalDb.clinicDb) return globalDb.clinicDb;
+  if (_dbInstance) return _dbInstance;
+
+  const dir = path.join(process.cwd(), 'data');
+  mkdirSync(dir, { recursive: true });
+  const instance = new Database(path.join(dir, 'clinicbook.sqlite'));
+  instance.pragma('journal_mode = WAL');
+  instance.pragma('busy_timeout = 5000');
+  instance.pragma('foreign_keys = ON');
+  instance.exec(`
 CREATE TABLE IF NOT EXISTS entities(kind TEXT NOT NULL,id TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(kind,id));
 CREATE TABLE IF NOT EXISTS appointments(id TEXT PRIMARY KEY,doctor_id TEXT NOT NULL,patient_id TEXT,organization_id TEXT NOT NULL,start_at TEXT NOT NULL,end_at TEXT NOT NULL,status TEXT NOT NULL,data TEXT NOT NULL,CHECK(end_at>start_at));
 CREATE INDEX IF NOT EXISTS appt_doctor ON appointments(doctor_id,start_at,end_at);
@@ -23,16 +30,38 @@ CREATE TRIGGER IF NOT EXISTS prevent_overlap_update BEFORE UPDATE ON appointment
  SELECT RAISE(ABORT,'SLOT_CONFLICT') WHERE EXISTS(SELECT 1 FROM appointments WHERE id<>NEW.id AND doctor_id=NEW.doctor_id AND status IN ('pending','confirmed','checked_in') AND start_at<NEW.end_at AND end_at>NEW.start_at); END;
 CREATE TABLE IF NOT EXISTS audit(id TEXT PRIMARY KEY,organization_id TEXT,actor_id TEXT,action TEXT NOT NULL,entity_id TEXT,created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY,user_id TEXT NOT NULL,expires_at TEXT NOT NULL,role TEXT);
-`);
-try {
-  db.exec('ALTER TABLE sessions ADD COLUMN role TEXT');
-} catch {}
+  `);
+  const sessionCols = instance.prepare("PRAGMA table_info('sessions')").all() as Array<{
+    name: string;
+  }>;
+  if (!sessionCols.some((c) => c.name === 'role')) {
+    instance.exec('ALTER TABLE sessions ADD COLUMN role TEXT');
+  }
+
+  globalDb.clinicDb = instance;
+  _dbInstance = instance;
+  return instance;
+}
+
+export const db: Database.Database = new Proxy({} as Database.Database, {
+  get(_target, prop) {
+    const database = getDb();
+    const val = (database as unknown as Record<string | symbol, unknown>)[prop];
+    if (typeof val === 'function') {
+      return (val as (...args: unknown[]) => unknown).bind(database);
+    }
+    return val;
+  },
+});
+
 export function all<T>(kind: string): T[] {
+  if (kind !== 'meta') ensureSeed();
   return (db.prepare('SELECT data FROM entities WHERE kind=?').all(kind) as { data: string }[]).map(
     (r) => JSON.parse(r.data),
   );
 }
 export function get<T>(kind: string, id: string): T | undefined {
+  if (kind !== 'meta') ensureSeed();
   const row = db.prepare('SELECT data FROM entities WHERE kind=? AND id=?').get(kind, id) as
     { data: string } | undefined;
   return row ? JSON.parse(row.data) : undefined;
@@ -43,6 +72,7 @@ export function put(kind: string, id: string, value: unknown) {
   ).run(kind, id, JSON.stringify(value));
 }
 export function appointments(): Appointment[] {
+  ensureSeed();
   return (
     db.prepare('SELECT data FROM appointments ORDER BY start_at').all() as { data: string }[]
   ).map((r) => JSON.parse(r.data));
@@ -82,10 +112,8 @@ export function expirePending() {
 export function localDate(offset = 0) {
   return formatInTimeZone(new Date(Date.now() + offset * 86400000), 'Asia/Damascus', 'yyyy-MM-dd');
 }
-export const DEFAULT_DEMO_PASSWORD = 'demo1234';
-export const DEFAULT_DEMO_PASSWORD_HASH = createHash('sha256')
-  .update(DEFAULT_DEMO_PASSWORD)
-  .digest('hex');
+export const DEFAULT_DEMO_PASSWORD = process.env.DEMO_PASSWORD || 'demo1234';
+export const DEFAULT_DEMO_PASSWORD_HASH = hashPasswordSync(DEFAULT_DEMO_PASSWORD);
 
 export const roles: (User & { passwordHash?: string })[] = [
   {
@@ -257,6 +285,7 @@ function seed() {
           email: `${id}@clinicbook.demo`,
           organizationId: org,
           clinicId: d.clinicId,
+          passwordHash: DEFAULT_DEMO_PASSWORD_HASH,
         });
       put(
         'schedule',
@@ -299,6 +328,7 @@ function seed() {
           name,
           email: `patient${i + 1}@clinicbook.demo`,
           role: 'patient',
+          passwordHash: DEFAULT_DEMO_PASSWORD_HASH,
         });
     });
     for (let day = -6; day <= 0; day++)
@@ -381,41 +411,82 @@ function seed() {
     put('meta', 'seeded', true);
   })();
 }
-seed();
-if (!get('branch', 'clinic-1')) {
-  put('branch', 'clinic-1', {
-    id: 'clinic-1',
-    organizationId: 'org-1',
-    name: 'الفرع الرئيسي',
-    city: 'دمشق',
-    district: 'أبو رمانة',
-    phone: '+963 11 333 4455',
-  });
-  put('branch', 'clinic-2', {
-    id: 'clinic-2',
-    organizationId: 'org-2',
-    name: 'عيادة الندى',
-    city: 'حلب',
-    district: 'الجميلية',
-    phone: '+963 21 222 0011',
-  });
-}
-
-if (!get('meta', 'history-v2')) {
-  for (const a of appointments()) {
-    if (a.id.startsWith('seed--') && a.patientId === 'patient-1') {
-      saveAppointment({ ...a, status: 'completed' });
-      put('medical', a.id, {
-        appointmentId: a.id,
-        diagnosis: 'زيارة متابعة دورية',
-        complaint: 'فحص دوري واستشارة سريرية',
-        notes:
-          'استقرار الحالة السريرية واستجابة ممتازة للخطة العلاجية المتبعة. إعادة التقييم بعد 6 أشهر أو عند اللزوم.',
-        medications: [],
-        followUp: '',
-        visible: true,
+let _seeding = false;
+export function ensureSeed(): void {
+  if (_seeding) return;
+  _seeding = true;
+  try {
+    const isSeeded = db
+      .prepare("SELECT data FROM entities WHERE kind='meta' AND id='seeded'")
+      .get();
+    if (!isSeeded) {
+      seed();
+    }
+    const branch1 = db
+      .prepare("SELECT data FROM entities WHERE kind='branch' AND id='clinic-1'")
+      .get();
+    if (!branch1) {
+      put('branch', 'clinic-1', {
+        id: 'clinic-1',
+        organizationId: 'org-1',
+        name: 'الفرع الرئيسي',
+        city: 'دمشق',
+        district: 'أبو رمانة',
+        phone: '+963 11 333 4455',
+      });
+      put('branch', 'clinic-2', {
+        id: 'clinic-2',
+        organizationId: 'org-2',
+        name: 'عيادة الندى',
+        city: 'حلب',
+        district: 'الجميلية',
+        phone: '+963 21 222 0011',
       });
     }
+
+    const hist = db
+      .prepare("SELECT data FROM entities WHERE kind='meta' AND id='history-v2'")
+      .get();
+    if (!hist) {
+      const rawAppts = (
+        db.prepare('SELECT data FROM appointments ORDER BY start_at').all() as { data: string }[]
+      ).map((r) => JSON.parse(r.data) as Appointment);
+      for (const a of rawAppts) {
+        if (a.id.startsWith('seed--') && a.patientId === 'patient-1') {
+          saveAppointment({ ...a, status: 'completed' });
+          put('medical', a.id, {
+            appointmentId: a.id,
+            diagnosis: 'زيارة متابعة دورية',
+            complaint: 'فحص دوري واستشارة سريرية',
+            notes:
+              'استقرار الحالة السريرية واستجابة ممتازة للخطة العلاجية المتبعة. إعادة التقييم بعد 6 أشهر أو عند اللزوم.',
+            medications: [],
+            followUp: '',
+            visible: true,
+          });
+        }
+      }
+      put('meta', 'history-v2', true);
+    }
+
+    const pwBackfill = db
+      .prepare("SELECT data FROM entities WHERE kind='meta' AND id='demo-passwords-v1'")
+      .get();
+    if (!pwBackfill) {
+      const seededIdPattern = /^((owner|reception|admin)-1|doctor-[1-6]|patient-([1-9]|1[0-6]))$/;
+      const storedUsers = db
+        .prepare("SELECT id, data FROM entities WHERE kind='user'")
+        .all() as Array<{ id: string; data: string }>;
+      for (const row of storedUsers) {
+        if (!seededIdPattern.test(row.id)) continue;
+        const parsed = JSON.parse(row.data) as User & { passwordHash?: string };
+        if (!parsed.passwordHash && parsed.email?.endsWith('@clinicbook.demo')) {
+          put('user', row.id, { ...parsed, passwordHash: DEFAULT_DEMO_PASSWORD_HASH });
+        }
+      }
+      put('meta', 'demo-passwords-v1', true);
+    }
+  } finally {
+    _seeding = false;
   }
-  put('meta', 'history-v2', true);
 }

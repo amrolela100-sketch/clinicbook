@@ -1,20 +1,36 @@
 import { cookies } from 'next/headers';
 import { randomBytes, createHash } from 'node:crypto';
-import { db, get, put } from '../demo-db';
 import type { User, Role } from '../types';
 
 export { isSupabaseConfigured } from '../supabase/config';
 import { isSupabaseConfigured } from '../supabase/config';
 
-export const demoEnabled = () => {
+/**
+ * Returns true strictly when CLINICBOOK_MODE is explicitly set to 'demo'
+ * and Supabase is not forced.
+ * Refuses startup if running in production without explicit configuration.
+ */
+export const demoEnabled = (): boolean => {
   if (process.env.FORCE_SUPABASE === 'true' || process.env.CLINICBOOK_MODE === 'production') {
     return false;
   }
-  if (process.env.CLINICBOOK_MODE === 'demo') {
-    return true;
+  if (
+    process.env.NODE_ENV === 'production' &&
+    process.env.CLINICBOOK_MODE !== 'production' &&
+    process.env.CLINICBOOK_MODE !== 'demo'
+  ) {
+    throw new Error(
+      'FATAL: CLINICBOOK_MODE must be set to "production" in production environments. Refusing to boot with unconfigured mode.',
+    );
   }
-  return !isSupabaseConfigured();
+  return process.env.CLINICBOOK_MODE === 'demo';
 };
+
+/** Get the secure cookie name based on environment (__Host- prefix in production) */
+export function getSessionCookieName(): string {
+  const isProd = process.env.NODE_ENV === 'production' && process.env.COOKIE_SECURE !== 'false';
+  return isProd ? '__Host-clinicbook-session' : 'clinicbook-session';
+}
 
 export async function currentUser(): Promise<User | null> {
   // 1. Check Supabase Auth session (cookie-based, refreshed by middleware)
@@ -33,31 +49,27 @@ export async function currentUser(): Promise<User | null> {
           .eq('id', authUser.id)
           .maybeSingle();
 
-        const mirror = get<User>('user', authUser.id);
-
         const mappedRole: Role =
           profile?.role === 'admin'
             ? 'super_admin'
             : (profile?.role as Role) ||
-              mirror?.role ||
               ((authUser.user_metadata?.intent_role === 'clinic_owner'
                 ? 'clinic_owner'
                 : 'patient') as Role);
 
-        let orgId: string | undefined = mirror?.organizationId;
-        let clinicId: string | undefined = mirror?.clinicId;
+        let orgId: string | undefined;
+        let clinicId: string | undefined;
 
         if (mappedRole === 'clinic_owner') {
-          if (!orgId) {
-            const { data: org } = await client
-              .from('organizations')
-              .select('id')
-              .eq('owner_id', authUser.id)
-              .limit(1)
-              .maybeSingle();
-            if (org?.id) orgId = org.id;
-          }
-          if (!clinicId && orgId) {
+          const { data: org } = await client
+            .from('organizations')
+            .select('id')
+            .eq('owner_id', authUser.id)
+            .limit(1)
+            .maybeSingle();
+          if (org?.id) orgId = org.id;
+
+          if (orgId) {
             const { data: cl } = await client
               .from('clinics')
               .select('id')
@@ -67,35 +79,30 @@ export async function currentUser(): Promise<User | null> {
             if (cl?.id) clinicId = cl.id;
           }
         } else if (mappedRole === 'doctor') {
-          if (!orgId) {
-            const { data: doc } = await client
-              .from('doctors')
-              .select('organization_id')
-              .eq('id', authUser.id)
-              .limit(1)
-              .maybeSingle();
-            if (doc?.organization_id) orgId = doc.organization_id;
-          }
-          if (!clinicId) {
-            const { data: member } = await client
-              .from('organization_members')
-              .select('clinic_id')
-              .eq('user_id', authUser.id)
-              .limit(1)
-              .maybeSingle();
-            if (member?.clinic_id) clinicId = member.clinic_id;
-          }
+          const { data: doc } = await client
+            .from('doctors')
+            .select('organization_id')
+            .eq('id', authUser.id)
+            .limit(1)
+            .maybeSingle();
+          if (doc?.organization_id) orgId = doc.organization_id;
+
+          const { data: member } = await client
+            .from('organization_members')
+            .select('clinic_id')
+            .eq('user_id', authUser.id)
+            .limit(1)
+            .maybeSingle();
+          if (member?.clinic_id) clinicId = member.clinic_id;
         } else if (mappedRole === 'receptionist') {
-          if (!orgId || !clinicId) {
-            const { data: member } = await client
-              .from('organization_members')
-              .select('organization_id, clinic_id')
-              .eq('user_id', authUser.id)
-              .limit(1)
-              .maybeSingle();
-            if (member?.organization_id) orgId = member.organization_id;
-            if (member?.clinic_id) clinicId = member.clinic_id;
-          }
+          const { data: member } = await client
+            .from('organization_members')
+            .select('organization_id, clinic_id')
+            .eq('user_id', authUser.id)
+            .limit(1)
+            .maybeSingle();
+          if (member?.organization_id) orgId = member.organization_id;
+          if (member?.clinic_id) clinicId = member.clinic_id;
         }
 
         const resolvedUser: User = {
@@ -103,60 +110,89 @@ export async function currentUser(): Promise<User | null> {
           name:
             profile?.full_name ||
             authUser.user_metadata?.full_name ||
-            mirror?.name ||
             authUser.email?.split('@')[0] ||
             'مستخدم',
-          email: profile?.email || authUser.email || mirror?.email || '',
+          email: profile?.email || authUser.email || '',
           role: mappedRole,
           organizationId: orgId,
           clinicId,
         };
 
-        put('user', authUser.id, resolvedUser);
         return resolvedUser;
       }
-    } catch {
-      // Continue to cookie check
+    } catch (err) {
+      console.error('Supabase session lookup error:', err);
     }
   }
 
   // 2. Check session cookie (for quick role preview & demo workspace)
-  try {
-    const jar = await cookies();
-    const token = jar.get('clinicbook-session')?.value;
-    if (!token) return null;
+  // Strictly disabled outside explicit demo mode: production never imports or touches SQLite
+  if (process.env.CLINICBOOK_MODE === 'demo') {
+    try {
+      const jar = await cookies();
+      const cookieName = getSessionCookieName();
+      const token = jar.get(cookieName)?.value;
+      if (!token) return null;
 
-    const hash = createHash('sha256').update(token).digest('hex');
-    const row = db
-      .prepare('SELECT user_id, role FROM sessions WHERE token=? AND expires_at>?')
-      .get(hash, new Date().toISOString()) as { user_id: string; role?: string } | undefined;
+      const { db, get } = await import('../demo-db');
+      const hash = createHash('sha256').update(token).digest('hex');
+      const nowIso = new Date().toISOString();
+      const maxAllowedIso = new Date(Date.now() + 86400000 + 5000).toISOString();
+      const row = db
+        .prepare('SELECT user_id FROM sessions WHERE token=? AND expires_at>? AND expires_at<=?')
+        .get(hash, nowIso, maxAllowedIso) as { user_id: string } | undefined;
 
-    if (!row) return null;
+      if (!row) return null;
 
-    const u = get<User>('user', row.user_id);
-    if (u) {
-      return row.role ? { ...u, role: row.role as Role } : u;
+      // Crucial security fix: Always read role strictly from stored user record, NEVER from row.role
+      const u = get<User>('user', row.user_id);
+      return u ?? null;
+    } catch {
+      // Outside request context
+      return null;
     }
-  } catch {
-    // Outside request context
-    return null;
   }
+
   return null;
 }
 
-export async function createSession(userId: string, role?: Role) {
+/**
+ * Creates a new session for a user.
+ * Role parameter is removed — role is strictly read from user record in database.
+ * Deletes prior sessions for this user to prevent session fixation.
+ */
+export async function createSession(userId: string): Promise<string> {
+  if (process.env.CLINICBOOK_MODE !== 'demo') {
+    throw new Error('FORBIDDEN: SQLite sessions are only available when CLINICBOOK_MODE=demo.');
+  }
+
+  const { db, get } = await import('../demo-db');
+  const user = get<User>('user', userId);
+  if (!user) {
+    throw new Error('Cannot create session for non-existent user');
+  }
+
+  // 1. Session fixation defense: delete existing sessions for this user
+  db.prepare('DELETE FROM sessions WHERE user_id=?').run(userId);
+
+  // 2. Clean up expired sessions
+  db.prepare('DELETE FROM sessions WHERE expires_at<=?').run(new Date().toISOString());
+
+  // 3. Create fresh secure session token
   const token = randomBytes(32).toString('hex');
-  db.prepare('INSERT INTO sessions VALUES(?,?,?,?)').run(
-    createHash('sha256').update(token).digest('hex'),
-    userId,
-    new Date(Date.now() + 86400000).toISOString(),
-    role ?? null,
-  );
+  const tokenHash = createHash('sha256').update(token).digest('hex');
+  const expiresAt = new Date(Date.now() + 86400000).toISOString(); // 24h absolute lifetime
+
+  db.prepare('INSERT INTO sessions VALUES(?,?,?,?)').run(tokenHash, userId, expiresAt, user.role);
+
+  const cookieName = getSessionCookieName();
+  const isSecure = process.env.NODE_ENV === 'production' && process.env.COOKIE_SECURE !== 'false';
+
   try {
-    (await cookies()).set('clinicbook-session', token, {
+    (await cookies()).set(cookieName, token, {
       httpOnly: true,
       sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production' || process.env.COOKIE_SECURE === 'true',
+      secure: isSecure,
       path: '/',
       maxAge: 86400,
     });
@@ -166,14 +202,18 @@ export async function createSession(userId: string, role?: Role) {
   return token;
 }
 
-export async function deleteSession() {
+export async function deleteSession(): Promise<void> {
   try {
     const jar = await cookies();
-    const token = jar.get('clinicbook-session')?.value;
-    if (token)
+    const cookieName = getSessionCookieName();
+    const token = jar.get(cookieName)?.value ?? jar.get('clinicbook-session')?.value;
+    if (token && process.env.CLINICBOOK_MODE === 'demo') {
+      const { db } = await import('../demo-db');
       db.prepare('DELETE FROM sessions WHERE token=?').run(
         createHash('sha256').update(token).digest('hex'),
       );
+    }
+    jar.delete(cookieName);
     jar.delete('clinicbook-session');
   } catch {
     // Outside request context
