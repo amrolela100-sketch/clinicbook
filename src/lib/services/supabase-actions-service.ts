@@ -91,8 +91,83 @@ export async function executeSupabaseAction(
       // subscription, and owner role upgrade requires service-role.
       const { createSupabaseAdmin } = await import('../supabase/admin');
       const adminClient = createSupabaseAdmin();
+      const cleanedDoctorName = cleanDoctorName(b.doctorName);
+      const isSeparateDoctorEmail =
+        b.email.trim().toLowerCase() !== user.email.trim().toLowerCase();
 
-      // 1. Resolve city
+      let dedicatedDoctorId: string | null = null;
+      if (isSeparateDoctorEmail && adminClient.auth?.admin?.createUser) {
+        const { data: createdDocAuth, error: docAuthErr } = await adminClient.auth.admin.createUser(
+          {
+            email: b.email.trim(),
+            password: randomUUID(),
+            email_confirm: true,
+            user_metadata: { full_name: cleanedDoctorName },
+          },
+        );
+        if (!docAuthErr && createdDocAuth?.user?.id) {
+          dedicatedDoctorId = createdDocAuth.user.id;
+        }
+      }
+
+      const cleanupDedicatedDoctorAuth = async () => {
+        if (dedicatedDoctorId && adminClient.auth?.admin?.deleteUser) {
+          await adminClient.auth.admin.deleteUser(dedicatedDoctorId).catch((err: unknown) => {
+            console.error('[Onboard Dedicated Doctor Auth Rollback Error]:', err);
+          });
+        }
+      };
+
+      // Prefer single-transaction PostgreSQL RPC (REM-02)
+      if (typeof (adminClient as { rpc?: unknown }).rpc === 'function') {
+        const { data: rpcOut, error: rpcErr } = await adminClient.rpc(
+          'onboard_organization_atomic',
+          {
+            p_owner_id: user.id,
+            p_owner_email: user.email,
+            p_owner_name: user.name || b.name,
+            p_org_name: b.name,
+            p_city_name: b.city,
+            p_district: b.district,
+            p_phone: b.phone,
+            p_license: b.license,
+            p_tier: b.tier,
+            p_doctor_user_id: dedicatedDoctorId,
+            p_doctor_email: isSeparateDoctorEmail ? b.email.trim() : user.email,
+            p_doctor_name: cleanedDoctorName,
+          },
+        );
+
+        if (rpcErr && rpcErr.code !== 'PGRST202') {
+          await cleanupDedicatedDoctorAuth();
+          if (rpcErr.code === '23505') {
+            throw new SupabaseActionError(
+              'المركز أو رقم الترخيص الطبي مسجل مسبقاً.',
+              409,
+              'ALREADY_EXISTS',
+            );
+          }
+          if (rpcErr.code === '42501') {
+            throw new SupabaseActionError('غير مصرح بإنشاء المركز.', 403, 'FORBIDDEN');
+          }
+          throw new SupabaseActionError(
+            rpcErr.message || 'تعذر إنشاء المركز الطبي ذرياً.',
+            500,
+            'DB_ERROR',
+          );
+        }
+
+        const row = (Array.isArray(rpcOut) ? rpcOut[0] : rpcOut) as
+          { organization_id?: string; clinic_id?: string } | null | undefined;
+        if (row?.organization_id && row?.clinic_id) {
+          return {
+            success: true,
+            data: { id: row.organization_id, clinicId: row.clinic_id },
+          };
+        }
+      }
+
+      // 1. Resolve city (fallback when atomic RPC is not yet loaded)
       let cityId: string | null = null;
       const { data: cityAr } = await adminClient
         .from('cities')
@@ -123,6 +198,7 @@ export async function executeSupabaseAction(
           is_active: true,
         });
         if (cityErr) {
+          await cleanupDedicatedDoctorAuth();
           throw new SupabaseActionError(cityErr.message || 'تعذر تسجيل المدينة.', 500, 'DB_ERROR');
         }
         cityId = newCityId;
@@ -157,6 +233,7 @@ export async function executeSupabaseAction(
             is_active: true,
           });
           if (specErr) {
+            await cleanupDedicatedDoctorAuth();
             throw new SupabaseActionError(
               specErr.message || 'تعذر تسجيل التخصص الطبي.',
               500,
@@ -169,6 +246,8 @@ export async function executeSupabaseAction(
 
       const orgId = randomUUID();
       const clinicId = randomUUID();
+      const targetDoctorId = dedicatedDoctorId ?? user.id;
+      const previousRole = user.role || 'patient';
       const orgSlug = `${slugify(b.name)}-${orgId.slice(0, 8)}`;
       const clinicSlug = `${slugify(b.name)}-main-${clinicId.slice(0, 8)}`;
 
@@ -182,12 +261,28 @@ export async function executeSupabaseAction(
         updated_at: new Date().toISOString(),
       });
       if (userErr) {
+        await cleanupDedicatedDoctorAuth();
         throw new SupabaseActionError(
           userErr.message || 'تعذر تحديث حساب المالك.',
           500,
           'DB_ERROR',
         );
       }
+
+      const revertOwnerRole = async () => {
+        try {
+          await adminClient.from('users').upsert({
+            id: user.id,
+            email: user.email,
+            role: previousRole,
+            full_name: user.name || b.name,
+            status: 'active',
+            updated_at: new Date().toISOString(),
+          });
+        } catch {
+          // Best-effort compensation
+        }
+      };
 
       const { error: orgErr } = await adminClient.from('organizations').insert({
         id: orgId,
@@ -200,6 +295,8 @@ export async function executeSupabaseAction(
       });
 
       if (orgErr) {
+        await revertOwnerRole();
+        await cleanupDedicatedDoctorAuth();
         throw new SupabaseActionError(
           orgErr.message || 'تعذر إنشاء المركز الطبي.',
           500,
@@ -212,6 +309,11 @@ export async function executeSupabaseAction(
         if (delErr) {
           console.error('[Onboard Rollback Error]:', delErr);
         }
+        if (dedicatedDoctorId) {
+          await adminClient.from('users').delete().eq('id', dedicatedDoctorId);
+        }
+        await revertOwnerRole();
+        await cleanupDedicatedDoctorAuth();
       };
 
       const { error: subErr } = await adminClient.from('subscriptions').insert({
@@ -254,8 +356,27 @@ export async function executeSupabaseAction(
         );
       }
 
+      if (dedicatedDoctorId) {
+        const { error: docUserErr } = await adminClient.from('users').upsert({
+          id: dedicatedDoctorId,
+          email: b.email.trim(),
+          role: 'doctor',
+          full_name: cleanedDoctorName,
+          status: 'active',
+          updated_at: new Date().toISOString(),
+        });
+        if (docUserErr) {
+          await cleanupOrg();
+          throw new SupabaseActionError(
+            docUserErr.message || 'تعذر إنشاء حساب الطبيب الأول.',
+            500,
+            'DB_ERROR',
+          );
+        }
+      }
+
       const { error: docErr } = await adminClient.from('doctors').upsert({
-        id: user.id,
+        id: targetDoctorId,
         organization_id: orgId,
         specialty_id: specialtyId,
         license_number: b.license,
@@ -285,6 +406,24 @@ export async function executeSupabaseAction(
           500,
           'DB_ERROR',
         );
+      }
+
+      if (dedicatedDoctorId) {
+        const { error: docMemberErr } = await adminClient.from('organization_members').insert({
+          organization_id: orgId,
+          clinic_id: clinicId,
+          user_id: dedicatedDoctorId,
+          member_role: 'doctor',
+          is_active: true,
+        });
+        if (docMemberErr) {
+          await cleanupOrg();
+          throw new SupabaseActionError(
+            docMemberErr.message || 'تعذر ربط الطبيب بالمركز.',
+            500,
+            'DB_ERROR',
+          );
+        }
       }
 
       const { error: auditErr } = await adminClient.from('audit_logs').insert({
@@ -893,35 +1032,130 @@ export async function executeSupabaseAction(
         throw new SupabaseActionError('البريد الإلكتروني مستخدم مسبقاً.', 409, 'EMAIL_EXISTS');
       }
 
-      const { data: authCreated, error: createAuthErr } = await adminClient.auth.admin.createUser({
-        email: b.email,
-        password: randomUUID(),
-        email_confirm: true,
-        user_metadata: { full_name: b.name },
-      });
+      let newUserId: string | undefined;
+      const adminAuth = adminClient.auth.admin as {
+        inviteUserByEmail?: (
+          email: string,
+          options?: { data?: Record<string, unknown>; redirectTo?: string },
+        ) => Promise<{ data: { user: { id: string } | null }; error: { message?: string } | null }>;
+        createUser: (attrs: {
+          email: string;
+          password: string;
+          email_confirm: boolean;
+          user_metadata: Record<string, unknown>;
+        }) => Promise<{
+          data: { user: { id: string } | null };
+          error: { message?: string } | null;
+        }>;
+        deleteUser: (id: string) => Promise<{ error: unknown }>;
+      };
 
-      if (createAuthErr || !authCreated?.user) {
-        throw new SupabaseActionError('تعذر إنشاء حساب العضو الجديد.', 500, 'AUTH_ERROR');
+      if (typeof adminAuth.inviteUserByEmail === 'function') {
+        const redirectBase = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, '');
+        const { data: invited, error: inviteErr } = await adminAuth.inviteUserByEmail(b.email, {
+          data: { full_name: b.name },
+          ...(redirectBase ? { redirectTo: `${redirectBase}/auth/callback` } : {}),
+        });
+        if (!inviteErr && invited?.user?.id) {
+          newUserId = invited.user.id;
+        }
       }
 
-      const newUserId = authCreated.user.id;
+      if (!newUserId) {
+        const { data: authCreated, error: createAuthErr } = await adminAuth.createUser({
+          email: b.email,
+          password: randomUUID(),
+          email_confirm: true,
+          user_metadata: { full_name: b.name },
+        });
+
+        if (createAuthErr || !authCreated?.user) {
+          throw new SupabaseActionError('تعذر إنشاء حساب العضو الجديد.', 500, 'AUTH_ERROR');
+        }
+        newUserId = authCreated.user.id;
+      }
+
       const rollbackNewMember = async () => {
+        const { error: docDelErr } = await adminClient
+          .from('doctors')
+          .delete()
+          .eq('id', newUserId!);
+        if (docDelErr) {
+          console.error('[Team Rollback Doctor Error]:', docDelErr);
+        }
         const { error: memberDelErr } = await adminClient
           .from('organization_members')
           .delete()
-          .eq('user_id', newUserId);
+          .eq('user_id', newUserId!);
         if (memberDelErr) {
           console.error('[Team Rollback Member Error]:', memberDelErr);
         }
-        const { error: userDelErr } = await adminClient.from('users').delete().eq('id', newUserId);
+        const { error: userDelErr } = await adminClient.from('users').delete().eq('id', newUserId!);
         if (userDelErr) {
           console.error('[Team Rollback User Profile Error]:', userDelErr);
         }
-        const { error: authDelErr } = await adminClient.auth.admin.deleteUser(newUserId);
+        const { error: authDelErr } = await adminAuth.deleteUser(newUserId!);
         if (authDelErr) {
           console.error('[Team Rollback Auth User Error]:', authDelErr);
         }
       };
+
+      // Prefer atomic subscription-locked RPC when available (REM-03)
+      if (typeof (adminClient as { rpc?: unknown }).rpc === 'function') {
+        const { data: provOut, error: provErr } = await adminClient.rpc(
+          'provision_team_member_atomic',
+          {
+            p_actor_id: user.id,
+            p_org_id: user.organizationId,
+            p_clinic_id: targetClinic,
+            p_new_user_id: newUserId,
+            p_email: b.email,
+            p_full_name: b.role === 'doctor' ? cleanDoctorName(b.name) : b.name,
+            p_role: b.role,
+            p_specialty_name: b.specialty,
+            p_fee: b.fee,
+            p_license: b.role === 'doctor' ? trimmedLicense : null,
+          },
+        );
+
+        if (provErr && provErr.code !== 'PGRST202') {
+          await rollbackNewMember();
+          if (provErr.code === 'P0008') {
+            throw new SupabaseActionError(
+              'حسابات الاستقبال متاحة في باقة Clinic Pro.',
+              422,
+              'TIER_RESTRICTION',
+            );
+          }
+          if (provErr.code === 'P0009') {
+            throw new SupabaseActionError(
+              'وصلت إلى الحد الأقصى للأطباء في باقتك.',
+              422,
+              'LIMIT_REACHED',
+            );
+          }
+          if (provErr.code === '23505') {
+            throw new SupabaseActionError(
+              'البريد الإلكتروني أو رقم الترخيص مستخدم مسبقاً.',
+              409,
+              'CONFLICT',
+            );
+          }
+          if (provErr.code === '42501') {
+            throw new SupabaseActionError('غير مصرح لك بإدارة فريق العمل.', 403, 'FORBIDDEN');
+          }
+          throw new SupabaseActionError(
+            provErr.message || 'تعذر إضافة العضو الجديد ذرياً.',
+            500,
+            'DB_ERROR',
+          );
+        }
+
+        const resolvedMemberId = typeof provOut === 'string' ? provOut : null;
+        if (resolvedMemberId) {
+          return { success: true, data: { id: resolvedMemberId, email: b.email, role: b.role } };
+        }
+      }
 
       const { error: userUpsertErr } = await adminClient.from('users').upsert({
         id: newUserId,

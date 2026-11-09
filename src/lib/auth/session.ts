@@ -49,13 +49,23 @@ export async function currentUser(): Promise<User | null> {
           .eq('id', authUser.id)
           .maybeSingle();
 
+        const validRoles: Role[] = [
+          'super_admin',
+          'clinic_owner',
+          'doctor',
+          'receptionist',
+          'patient',
+        ];
+        const appMetaRole = (authUser.app_metadata as Record<string, unknown> | undefined)?.role;
+        const trustedServerMetaRole: Role | undefined =
+          typeof appMetaRole === 'string' && validRoles.includes(appMetaRole as Role)
+            ? (appMetaRole as Role)
+            : undefined;
+
         const mappedRole: Role =
           profile?.role === 'admin'
             ? 'super_admin'
-            : (profile?.role as Role) ||
-              ((authUser.user_metadata?.intent_role === 'clinic_owner'
-                ? 'clinic_owner'
-                : 'patient') as Role);
+            : (profile?.role as Role) || trustedServerMetaRole || 'patient';
 
         let orgId: string | undefined;
         let clinicId: string | undefined;

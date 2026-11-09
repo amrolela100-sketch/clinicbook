@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineTool } from '../types';
-import { demoEnabled } from '@/lib/auth/session';
+import { demoEnabled, isSupabaseConfigured } from '@/lib/auth/session';
 import { canTransition } from '@/lib/services/appointment-lifecycle';
 import type { User } from '@/lib/types';
 import type { Organization } from '@/lib/services/booking-service';
@@ -21,10 +21,36 @@ export default defineTool({
   }),
   async execute({ appointmentId, action, reason }) {
     if (!demoEnabled()) {
+      if (!isSupabaseConfigured()) {
+        return {
+          success: false,
+          code: 'SUPABASE_NOT_CONFIGURED',
+          message: 'قاعدة البيانات السحابية غير مهيأة حالياً.',
+        };
+      }
+
+      const { transitionSupabaseAppointment } =
+        await import('@/lib/services/supabase-booking-service');
+      const nextStatus = action === 'confirm_attendance' ? 'confirmed' : 'cancelled';
+      const effectiveReason =
+        action === 'cancel_appointment' ? reason || 'اعتذار المريض عبر المساعد الذكي' : undefined;
+
+      const res = await transitionSupabaseAppointment(appointmentId, nextStatus, effectiveReason);
+      if (!res.success) {
+        return {
+          success: false,
+          code: res.code ?? 'ACTION_ERROR',
+          message: res.error ?? 'تعذر تحديث حالة الموعد.',
+        };
+      }
+
       return {
-        success: false,
-        code: 'UNSUPPORTED_IN_PROD_TOOL',
-        message: 'يرجى إدارة المواعيد عبر واجهة المنصة الرسمية.',
+        success: true,
+        status: nextStatus,
+        message:
+          nextStatus === 'confirmed'
+            ? 'تم تأكيد موعد المريض بنجاح، وتنبيه العيادة.'
+            : 'تم إلغاء الموعد وتحرير الفترة الزمنية لتصبح متاحة فوراً لمرضى آخرين.',
       };
     }
 

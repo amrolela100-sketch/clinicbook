@@ -99,12 +99,17 @@ export async function POST(request: Request) {
         const client = await createSupabaseServer();
         const origin = request.headers.get('origin') ?? process.env.NEXT_PUBLIC_APP_URL ?? '';
 
+        const callbackTarget =
+          effectiveIntent === 'clinic_owner'
+            ? `${origin}/auth/callback?next=${encodeURIComponent('/register-clinic?onboarding=1')}`
+            : `${origin}/auth/callback`;
+
         const { data, error } = await client.auth.signUp({
           email,
           password,
           options: {
-            data: { full_name: fullName, phone: phone ?? '', intent_role: effectiveIntent },
-            emailRedirectTo: `${origin}/auth/callback`,
+            data: { full_name: fullName, phone: phone ?? '' },
+            emailRedirectTo: callbackTarget,
           },
         });
 
@@ -124,7 +129,7 @@ export async function POST(request: Request) {
           });
         }
 
-        // Session obtained — ensure public.users record
+        // Session obtained — ensure public.users record & immutable server app_metadata
         const userId = data.user!.id;
         const userRole: Role = effectiveIntent === 'clinic_owner' ? 'clinic_owner' : 'patient';
         try {
@@ -140,6 +145,17 @@ export async function POST(request: Request) {
           });
           if (syncErr) {
             console.error('Supabase signup public.users sync error:', syncErr);
+          }
+          const adminAuth = admin.auth?.admin as
+            | {
+                updateUserById?: (
+                  id: string,
+                  attrs: { app_metadata: Record<string, unknown> },
+                ) => Promise<unknown>;
+              }
+            | undefined;
+          if (typeof adminAuth?.updateUserById === 'function') {
+            await adminAuth.updateUserById(userId, { app_metadata: { role: userRole } });
           }
         } catch (err) {
           console.error('Supabase signup public.users sync error:', err);

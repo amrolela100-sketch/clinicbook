@@ -37,4 +37,5 @@ END $$;
 --   3. supabase/migrations/20261014000003_public_slots_and_directory.sql
 --   4. supabase/migrations/20261014000004_review_aggregate.sql
 --   5. supabase/migrations/20261015000005_staff_atomic_and_directory_hardening.sql
+--   6. supabase/migrations/20261109000006_admin_and_tenant_atomic_rpcs.sql
 -- =========================================================================

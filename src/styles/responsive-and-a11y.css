@@ -1,0 +1,2394 @@
+@media (min-width: 1500px) {
+  .hero {
+    min-height: 700px;
+    padding-block: 50px 80px;
+  }
+  .hero h1 {
+    font-size: 84px;
+  }
+  .hero-visual {
+    height: 560px;
+  }
+  .workspace-content {
+    padding: 38px 42px;
+  }
+  .activity-chart {
+    height: 215px;
+  }
+  .donut-container {
+    width: 180px;
+    height: 180px;
+  }
+  .daily-card table td {
+    padding-block: 16px;
+  }
+}
+@media (max-width: 1200px) {
+  .public-container {
+    width: calc(100% - 60px);
+  }
+  .public-header {
+    padding-inline: 30px;
+  }
+  .public-header nav {
+    gap: 22px;
+  }
+  .public-nav-actions {
+    gap: 17px;
+  }
+  .hero {
+    gap: 38px;
+    min-height: 600px;
+  }
+  .hero h1 {
+    font-size: 66px;
+  }
+  .headline-flower {
+    inset-inline-end: 45px;
+    top: 88px;
+    width: 44px;
+  }
+  .hero-visual {
+    height: 455px;
+  }
+  .hero-search {
+    width: calc(100% + 36px);
+  }
+  .hero-search .btn {
+    padding-inline: 13px;
+  }
+  .floating-rating {
+    inset-inline-end: -17px;
+    padding: 14px;
+  }
+  .floating-booking {
+    inset-inline-start: -16px;
+    padding: 14px;
+  }
+  .floating-stroke {
+    display: none;
+  }
+  .hero-description {
+    font-size: 13px;
+  }
+  .hero-assurance {
+    font-size: 8px;
+  }
+  .doctor-card-content {
+    padding-inline: 12px;
+  }
+  .doctor-location {
+    font-size: 8px;
+  }
+  .doctor-card h3 {
+    font-size: 17px;
+  }
+  .doctor-card-top .rating small {
+    display: none;
+  }
+  .doctor-card-bottom {
+    flex-wrap: wrap;
+  }
+  .how-section {
+    gap: 26px;
+  }
+  .sidebar {
+    width: 220px;
+    padding-inline: 15px;
+  }
+  .sidebar .logo > span:last-child {
+    font-size: 23px;
+  }
+  .workspace-body {
+    margin-inline-start: 220px;
+  }
+  .workspace-content {
+    padding: 27px 25px;
+  }
+  .workspace-topbar {
+    padding-inline: 25px;
+  }
+  .workspace-content h1 {
+    font-size: 24px;
+  }
+  .workspace-content .date-chip {
+    font-size: 10px;
+    padding: 9px;
+  }
+  .stats-grid {
+    gap: 14px;
+  }
+  .stat-card {
+    padding: 17px 15px;
+  }
+  .stat-top {
+    font-size: 10px;
+  }
+  .stat-bottom {
+    font-size: 8px;
+  }
+  .stat-middle > strong {
+    font-size: 32px;
+  }
+  .stat-icon {
+    width: 29px;
+    height: 29px;
+  }
+  .stat-icon > svg {
+    width: 18px;
+  }
+  .dashboard-chart-row,
+  .dashboard-bottom-row {
+    gap: 17px;
+    grid-template-columns: minmax(0, 2fr) minmax(218px, 1fr);
+  }
+  .card-heading {
+    padding-inline: 20px;
+  }
+  .activity-card .segmented button {
+    font-size: 9px;
+    padding-inline: 7px;
+  }
+  .welcome-banner {
+    padding: 20px;
+    gap: 14px;
+  }
+  .welcome-banner h3 {
+    font-size: 16px;
+  }
+  .welcome-banner p {
+    font-size: 10px;
+  }
+  .welcome-banner > a {
+    font-size: 9px;
+  }
+  .welcome-banner-icon {
+    width: 49px;
+    height: 49px;
+  }
+  .daily-card table td,
+  .daily-card table th {
+    padding-inline: 10px;
+  }
+  .daily-card .patient-cell strong {
+    font-size: 10px;
+  }
+  .daily-card .visit-type {
+    font-size: 8px;
+  }
+  .daily-card .badge {
+    font-size: 8px;
+  }
+  .team-doctor-row {
+    padding-inline: 18px;
+    gap: 9px;
+  }
+  .team-doctor-row strong {
+    font-size: 10px;
+  }
+  .team-card-bottom {
+    padding-inline: 18px;
+    font-size: 8px;
+  }
+  .small-count {
+    font-size: 8px;
+  }
+  .donut-legend {
+    padding-inline: 20px;
+    gap: 10px 14px;
+  }
+  .donut-legend > span {
+    font-size: 9px;
+  }
+  .schedule-layout,
+  .medical-layout {
+    gap: 18px;
+    grid-template-columns: minmax(0, 2.2fr) minmax(205px, 1fr);
+  }
+  .schedule-day {
+    padding-inline: 17px;
+    gap: 9px;
+  }
+  .schedule-day-name {
+    width: 100px;
+    gap: 7px;
+  }
+  .shift-row {
+    gap: 6px;
+  }
+  .shift-row input {
+    max-width: 96px;
+    font-size: 11px;
+  }
+  .schedule-day-name strong {
+    font-size: 11px;
+  }
+  .medication-row {
+    grid-template-columns: 1fr 1fr;
+    position: relative;
+    padding-bottom: 40px;
+  }
+  .medication-row > .icon-button {
+    position: absolute;
+    bottom: 2px;
+    inset-inline-end: 10px;
+  }
+  .pricing-card {
+    padding-inline: 18px;
+  }
+  .pricing-card li {
+    font-size: 11px;
+  }
+  .current-plan-details {
+    gap: 25px;
+    margin: 0;
+  }
+  .current-plan-details strong {
+    font-size: 11px;
+  }
+  .settings-layout {
+    grid-template-columns: 185px 1fr;
+    gap: 18px;
+  }
+  .search-layout {
+    grid-template-columns: 215px 1fr;
+    gap: 23px;
+  }
+  .search-doctors {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .search-doctors .doctor-card-photo {
+    height: 230px;
+  }
+  .onboarding-page {
+    gap: 55px;
+  }
+  .onboarding-intro h1 {
+    font-size: 43px;
+  }
+  .auth-art-overlay {
+    inset-inline: 30px;
+  }
+  .auth-art-overlay h2 {
+    font-size: 35px;
+  }
+}
+@media (max-width: 1000px) {
+  .public-header .logo > span:last-child {
+    font-size: 23px;
+  }
+  .public-header nav {
+    font-size: 11px;
+    gap: 18px;
+  }
+  .public-nav-actions {
+    font-size: 11px;
+    gap: 14px;
+  }
+  .public-nav-actions .btn {
+    font-size: 10px;
+    padding-inline: 11px;
+  }
+  .hero {
+    gap: 25px;
+    min-height: 560px;
+  }
+  .hero h1 {
+    font-size: 57px;
+  }
+  .headline-flower {
+    width: 38px;
+    top: 77px;
+    inset-inline-end: 32px;
+  }
+  .hero-visual {
+    height: 407px;
+    padding-inline-start: 15px;
+  }
+  .hero-search {
+    padding: 8px;
+    gap: 3px;
+    width: calc(100% + 55px);
+  }
+  .hero-search > label {
+    padding-inline: 4px;
+    gap: 6px;
+  }
+  .hero-search select {
+    font-size: 10px;
+  }
+  .hero-search label small {
+    font-size: 8px;
+  }
+  .hero-search .btn {
+    font-size: 10px;
+    gap: 7px;
+  }
+  .floating-rating {
+    padding: 11px;
+    inset-inline-end: -10px;
+  }
+  .floating-rating > strong {
+    font-size: 25px;
+  }
+  .floating-rating > span {
+    font-size: 7px;
+  }
+  .floating-booking {
+    padding: 11px;
+    inset-inline-start: -17px;
+    bottom: 80px;
+  }
+  .floating-booking strong {
+    font-size: 11px;
+  }
+  .floating-booking p {
+    font-size: 9px;
+  }
+  .booking-check {
+    width: 34px;
+    height: 34px;
+  }
+  .hero-photo-tag {
+    font-size: 8px;
+    inset-inline-end: 24px;
+  }
+  .visual-scribble {
+    width: 60px;
+    inset-inline-start: -30px;
+    top: 8px;
+  }
+  .hero-assurance {
+    font-size: 7px;
+  }
+  .specialties-grid {
+    gap: 10px;
+  }
+  .specialty-card strong {
+    font-size: 11px;
+  }
+  .specialty-icon {
+    width: 46px;
+    height: 46px;
+  }
+  .section-heading h2 {
+    font-size: 24px;
+  }
+  .doctor-grid {
+    gap: 14px;
+  }
+  .doctor-card-photo {
+    height: 165px;
+  }
+  .doctor-card h3 {
+    font-size: 15px;
+  }
+  .doctor-specialty {
+    font-size: 9px;
+  }
+  .doctor-location {
+    font-size: 8px;
+  }
+  .doctor-card-bottom {
+    gap: 6px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .book-link {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .how-section {
+    gap: 23px;
+  }
+  .how-intro h2 {
+    font-size: 28px;
+  }
+  .how-step h3 {
+    font-size: 16px;
+  }
+  .how-step p {
+    font-size: 11px;
+  }
+  .clinic-cta {
+    padding: 40px 45px;
+  }
+  .mini-window {
+    width: 225px;
+  }
+  .cta-illustration {
+    width: 250px;
+  }
+  .public-footer {
+    padding-inline: 30px;
+  }
+  .sidebar {
+    width: 200px;
+    padding-inline: 12px;
+  }
+  .sidebar-logo {
+    padding-inline: 8px;
+  }
+  .sidebar .logo > span:last-child {
+    font-size: 21px;
+  }
+  .sidebar .brandmark {
+    width: 27px;
+    height: 27px;
+  }
+  .clinic-switcher {
+    padding: 10px 8px;
+    gap: 8px;
+  }
+  .clinic-switcher strong {
+    font-size: 10px;
+  }
+  .clinic-switcher small {
+    font-size: 8px;
+  }
+  .clinic-symbol {
+    width: 30px;
+    height: 30px;
+  }
+  .sidebar-link {
+    font-size: 11px;
+    gap: 10px;
+  }
+  .sidebar-section-label {
+    font-size: 9px;
+  }
+  .workspace-body {
+    margin-inline-start: 200px;
+  }
+  .workspace-content {
+    padding: 24px 20px;
+  }
+  .workspace-topbar {
+    padding-inline: 20px;
+    height: 69px;
+  }
+  .workspace-content h1 {
+    font-size: 23px;
+  }
+  .heading-actions > .date-chip {
+    display: none;
+  }
+  .page-heading p {
+    font-size: 11px;
+  }
+  .topbar-search {
+    min-width: 170px;
+    font-size: 9px;
+  }
+  .workspace-breadcrumb {
+    font-size: 10px;
+    gap: 8px;
+  }
+  .topbar-divider {
+    margin-inline: 3px;
+  }
+  .welcome-banner > a {
+    display: none;
+  }
+  .welcome-banner h3 {
+    font-size: 15px;
+  }
+  .stats-grid {
+    gap: 10px;
+  }
+  .stat-card {
+    padding: 15px 12px;
+  }
+  .stat-top {
+    font-size: 10px;
+  }
+  .stat-icon {
+    width: 27px;
+    height: 27px;
+  }
+  .stat-middle > strong {
+    font-size: 31px;
+  }
+  .stat-spark {
+    display: none;
+  }
+  .stat-bottom {
+    font-size: 8px;
+    white-space: normal;
+  }
+  .dashboard-chart-row {
+    gap: 15px;
+    grid-template-columns: minmax(0, 1.8fr) minmax(195px, 1fr);
+  }
+  .dashboard-bottom-row {
+    grid-template-columns: 1fr;
+  }
+  .doctors-today {
+    display: none;
+  }
+  .activity-card .card-heading {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .activity-chart {
+    height: 173px;
+  }
+  .chart-summary {
+    padding-inline: 18px;
+  }
+  .chart-key > span {
+    display: none;
+  }
+  .chart-summary > div:first-child {
+    gap: 7px;
+  }
+  .chart-summary > div:first-child > span {
+    font-size: 9px;
+  }
+  .chart-key {
+    font-size: 8px;
+  }
+  .distribution-card .card-heading p {
+    font-size: 9px;
+  }
+  .donut-container {
+    margin-top: 13px;
+  }
+  .donut-legend {
+    gap: 10px 12px;
+  }
+  .daily-card .patient-cell strong {
+    font-size: 12px;
+  }
+  .daily-card .badge {
+    font-size: 10px;
+  }
+  .daily-card .visit-type {
+    font-size: 10px;
+  }
+  .daily-card table td {
+    padding-block: 14px;
+  }
+  .upgrade-card strong {
+    font-size: 10px;
+  }
+  .upgrade-card p {
+    font-size: 9px;
+  }
+  .workspace-footer {
+    padding-inline: 20px;
+    font-size: 9px;
+  }
+  .workspace-footer > span:first-child {
+    display: none;
+  }
+  .list-toolbar {
+    flex-wrap: wrap;
+    padding: 18px;
+  }
+  .list-toolbar > .input-icon {
+    flex-basis: 100%;
+  }
+  .list-toolbar > input,
+  .list-toolbar > select {
+    flex: 1;
+    width: auto;
+  }
+  .appointment-page-stats {
+    gap: 12px;
+  }
+  .appointment-page-stats > button {
+    padding: 17px;
+  }
+  .appointment-page-stats span {
+    font-size: 11px;
+  }
+  .schedule-layout,
+  .medical-layout {
+    grid-template-columns: 1fr;
+  }
+  .schedule-layout > aside,
+  .medical-layout > aside {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .schedule-note,
+  .visit-history {
+    margin: 0;
+  }
+  .usage-card {
+    padding: 18px;
+    gap: 11px;
+  }
+  .usage-card .text-link {
+    display: none;
+  }
+  .usage-card h3 {
+    font-size: 13px;
+  }
+  .usage-card .badge {
+    font-size: 8px;
+  }
+  .team-table-top .input-icon {
+    max-width: 210px;
+  }
+  .current-plan-details {
+    flex-direction: column;
+    gap: 20px;
+  }
+  .pricing-grid {
+    gap: 13px;
+  }
+  .pricing-card {
+    padding-inline: 14px;
+  }
+  .pricing-card h3 {
+    font-size: 21px;
+  }
+  .pricing-card .plan-ar {
+    font-size: 9px;
+  }
+  .pricing-card li {
+    font-size: 10px;
+  }
+  .pricing-card .btn {
+    font-size: 11px;
+    padding-inline: 8px;
+  }
+  .settings-layout {
+    grid-template-columns: 1fr;
+  }
+  .settings-nav {
+    flex-direction: row;
+    gap: 8px;
+  }
+  .settings-nav a {
+    flex: 1;
+    justify-content: center;
+    padding: 12px 8px;
+    font-size: 11px;
+  }
+  .doctor-profile-grid {
+    grid-template-columns: 1.15fr 1fr;
+    gap: 22px;
+  }
+  .profile-main {
+    padding-inline: 23px;
+  }
+  .profile-main h1 {
+    font-size: 28px;
+  }
+  .profile-meta {
+    gap: 13px;
+  }
+  .profile-meta > span {
+    font-size: 9px;
+  }
+  .booking-panel {
+    padding: 21px;
+  }
+  .booking-panel-head h2 {
+    font-size: 19px;
+  }
+  .date-control input {
+    width: 139px;
+    font-size: 10px;
+  }
+  .slot-grid {
+    gap: 6px;
+  }
+  .patient-appt-doctor h3 {
+    font-size: 17px;
+  }
+  .patient-appt-doctor .avatar {
+    width: 55px;
+    height: 55px;
+  }
+  .patient-appt-doctor p {
+    font-size: 10px;
+  }
+  .patient-appt-info {
+    gap: 12px;
+    font-size: 10px;
+  }
+  .patient-appt-info > span:last-child {
+    display: none;
+  }
+  .auth-form-side {
+    padding-inline: 30px;
+  }
+  .auth-art-overlay {
+    inset-inline: 23px;
+    padding: 27px;
+  }
+  .auth-art-overlay h2 {
+    font-size: 32px;
+  }
+  .onboarding-page {
+    gap: 35px;
+  }
+  .onboarding-intro h1 {
+    font-size: 38px;
+  }
+  .onboarding-form {
+    padding: 26px;
+  }
+  .onboarding-intro > p {
+    font-size: 12px;
+  }
+}
+@media (max-width: 760px) {
+  .mobile-menu {
+    display: flex;
+  }
+  .public-header {
+    height: 80px;
+    padding-inline: 22px;
+    gap: 13px;
+  }
+  .public-header nav {
+    display: none;
+    position: absolute;
+    top: 112px;
+    inset-inline: 20px;
+    z-index: 40;
+    flex-direction: column;
+    background: white;
+    padding: 20px;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    box-shadow: 0 7px 24px #223e2112;
+    font-size: 13px;
+    gap: 20px;
+  }
+  .public-header nav.mobile-open {
+    display: flex;
+  }
+  .public-nav-actions {
+    gap: 10px;
+  }
+  .public-nav-actions .btn {
+    display: none;
+  }
+  .public-nav-actions .login-link {
+    font-size: 11px;
+  }
+  .public-announcement {
+    font-size: 9px;
+    gap: 8px;
+  }
+  .public-announcement > span:last-child {
+    font-size: 8px;
+  }
+  .public-container {
+    width: calc(100% - 44px);
+  }
+  .hero {
+    grid-template-columns: 1fr;
+    gap: 35px;
+    min-height: auto;
+    padding-block: 28px 48px;
+  }
+  .hero h1 {
+    font-size: 66px;
+    max-width: 420px;
+    line-height: 1.28;
+  }
+  .hero-eyebrow {
+    font-size: 12px;
+    margin-bottom: 14px;
+  }
+  .headline-flower {
+    top: 88px;
+    inset-inline-end: 35px;
+    width: 41px;
+  }
+  .hero-description {
+    font-size: 13px;
+    margin-bottom: 26px;
+  }
+  .desktop-only {
+    display: none;
+  }
+  .hero-search {
+    width: 100%;
+    padding: 9px;
+    gap: 5px;
+  }
+  .hero-search > label {
+    gap: 7px;
+  }
+  .hero-search .btn > span {
+    display: none;
+  }
+  .hero-search .btn > svg {
+    width: 20px;
+  }
+  .hero-search .btn {
+    padding-inline: 15px;
+  }
+  .hero-assurance {
+    font-size: 8px;
+    gap: 6px;
+    margin-top: 15px;
+  }
+  .hero-visual {
+    max-width: 490px;
+    height: 460px;
+    margin-inline: auto;
+    padding-inline: 26px 20px;
+  }
+  .hero-photo {
+    border-radius: 175px 175px 16px 16px;
+    object-position: 50% 34%;
+  }
+  .hero-backdrop {
+    inset: 20px 10px -6px 34px;
+  }
+  .floating-rating {
+    inset-inline-end: 0;
+    top: 32px;
+    padding: 14px 16px;
+  }
+  .floating-rating > strong {
+    font-size: 28px;
+  }
+  .floating-rating > span {
+    font-size: 8px;
+  }
+  .floating-booking {
+    inset-inline-start: 0;
+    bottom: 70px;
+    padding: 14px 16px;
+    gap: 12px;
+  }
+  .floating-booking strong {
+    font-size: 12px;
+  }
+  .floating-booking p {
+    font-size: 10px;
+  }
+  .booking-check {
+    width: 38px;
+    height: 38px;
+  }
+  .hero-photo-tag {
+    inset-inline-end: 45px;
+    bottom: 21px;
+    font-size: 8px;
+  }
+  .visual-scribble {
+    inset-inline-start: 0;
+    top: 8px;
+    width: 60px;
+    z-index: 1;
+  }
+  .specialties-section {
+    padding-block: 22px 38px;
+  }
+  .section-heading {
+    gap: 12px;
+    margin-bottom: 22px;
+  }
+  .section-heading h2 {
+    font-size: 24px;
+  }
+  .section-heading .eyebrow {
+    font-size: 10px;
+  }
+  .section-heading > .text-link {
+    font-size: 10px;
+    gap: 6px;
+    align-self: flex-end;
+    padding-bottom: 4px;
+  }
+  .specialties-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .specialty-card {
+    padding: 21px 10px 17px;
+    gap: 13px;
+  }
+  .specialty-card strong {
+    font-size: 12px;
+  }
+  .featured-section {
+    padding-block: 38px 43px;
+  }
+  .doctor-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 15px;
+  }
+  .doctor-card-photo {
+    height: 215px;
+  }
+  .doctor-card-content {
+    padding: 15px 13px 13px;
+  }
+  .doctor-card h3 {
+    font-size: 17px;
+  }
+  .doctor-specialty {
+    font-size: 10px;
+  }
+  .doctor-card-bottom {
+    margin-top: 14px;
+    padding-top: 12px;
+    gap: 9px;
+  }
+  .book-link {
+    font-size: 11px;
+  }
+  .doctor-location {
+    font-size: 9px;
+  }
+  .how-section {
+    grid-template-columns: 1fr 1fr;
+    gap: 30px 25px;
+    padding-block: 34px;
+  }
+  .how-step {
+    padding-top: 25px;
+  }
+  .how-step h3 {
+    font-size: 17px;
+  }
+  .how-number {
+    top: 23px;
+    font-size: 40px;
+  }
+  .how-step > svg {
+    margin-bottom: 18px;
+  }
+  .clinic-cta {
+    padding: 34px 30px;
+    margin-block: 40px 45px;
+    border-radius: 14px;
+  }
+  .clinic-cta h2 {
+    font-size: 29px;
+  }
+  .clinic-cta > div > span {
+    font-size: 10px;
+  }
+  .clinic-cta p {
+    font-size: 11px;
+    max-width: 230px;
+  }
+  .clinic-cta .btn {
+    font-size: 11px;
+    padding-inline: 15px;
+  }
+  .cta-illustration {
+    width: 155px;
+    margin-inline-end: -15px;
+  }
+  .mini-window {
+    width: 155px;
+    border-width: 5px;
+    box-shadow: 9px 9px 0 #3c613f;
+  }
+  .mini-window-body {
+    padding: 13px;
+  }
+  .mini-check {
+    width: 35px;
+    height: 35px;
+  }
+  .mini-check svg {
+    width: 24px;
+  }
+  .mini-window h3 {
+    font-size: 13px;
+  }
+  .mini-window p {
+    font-size: 8px;
+  }
+  .mini-window-top {
+    height: 19px;
+  }
+  .mini-bars {
+    gap: 5px;
+    height: 33px;
+  }
+  .mini-bars > i {
+    width: 9px;
+  }
+  .cta-plus {
+    font-size: 66px !important;
+    top: -31px;
+    inset-inline-end: -12px;
+  }
+  .public-footer {
+    padding-inline: 22px;
+    padding-top: 30px;
+    gap: 27px;
+  }
+  .public-footer > div:nth-child(2) {
+    font-size: 11px;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .footer-bottom {
+    font-size: 9px;
+    flex-wrap: wrap;
+    gap: 13px;
+  }
+  .footer-bottom > span:nth-child(2) {
+    order: 3;
+    flex-basis: 100%;
+    font-size: 9px;
+  }
+  .search-layout {
+    grid-template-columns: 1fr;
+    gap: 25px;
+  }
+  .search-toolbar {
+    gap: 10px;
+  }
+  .search-toolbar > select {
+    width: 150px;
+    font-size: 11px;
+  }
+  .search-filters {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 15px;
+    padding: 20px;
+  }
+  .filter-title {
+    grid-column: 1/-1;
+    margin-bottom: 15px;
+  }
+  .search-filters .field {
+    margin-bottom: 8px;
+  }
+  .search-filters h4 {
+    grid-column: 1/-1;
+    margin: 8px 0;
+  }
+  .specialty-filters {
+    grid-column: 1/-1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+  }
+  .specialty-filters label {
+    font-size: 11px;
+    gap: 5px;
+    min-height: 30px;
+  }
+  .specialty-filters svg {
+    width: 15px;
+  }
+  .filter-divider,
+  .filter-note {
+    display: none;
+  }
+  .search-filters .switch-line {
+    grid-column: 1/-1;
+    border-top: 1px solid var(--line);
+    margin-top: 10px;
+    padding-top: 15px;
+  }
+  .search-doctors .doctor-card-photo {
+    height: 230px;
+  }
+  .results-label {
+    font-size: 11px;
+  }
+  .results-label > span {
+    font-size: 10px;
+  }
+  .doctor-profile-grid {
+    grid-template-columns: 1fr;
+  }
+  .booking-panel {
+    position: static;
+    padding: 25px;
+  }
+  .profile-main {
+    padding-inline: 25px;
+  }
+  .profile-main h1 {
+    font-size: 29px;
+  }
+  .profile-meta {
+    gap: 18px;
+  }
+  .profile-meta > span {
+    font-size: 10px;
+  }
+  .booking-panel-head h2 {
+    font-size: 23px;
+  }
+  .booking-panel-head p {
+    font-size: 12px;
+  }
+  .slot-grid {
+    gap: 10px;
+  }
+  .slot-grid button {
+    min-height: 47px;
+    font-size: 13px;
+  }
+  .days-carousel button {
+    min-width: 55px;
+  }
+  .date-control input {
+    width: 160px;
+    font-size: 12px;
+  }
+  .profile-reviews {
+    margin-top: 20px;
+  }
+  .patient-appointments-list {
+    grid-template-columns: 1fr;
+  }
+  .my-appointments .page-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 20px;
+  }
+  .patient-tabs {
+    gap: 20px;
+    margin-block: 25px;
+  }
+  .patient-tabs button {
+    font-size: 11px;
+    gap: 8px;
+  }
+  .patient-appt-doctor h3 {
+    font-size: 20px;
+  }
+  .patient-appt-doctor .avatar {
+    width: 66px;
+    height: 66px;
+  }
+  .patient-appt-info {
+    font-size: 12px;
+    gap: 18px;
+  }
+  .patient-appt-info > span:last-child {
+    display: flex;
+  }
+  .sidebar {
+    transform: translateX(100%);
+    transition: transform 0.23s;
+    width: 260px;
+    padding: 27px 20px 0;
+    z-index: 60;
+  }
+  .sidebar.sidebar-open {
+    transform: translateX(0);
+  }
+  .sidebar .logo > span:last-child {
+    font-size: 25px;
+  }
+  .sidebar .brandmark {
+    width: 31px;
+    height: 31px;
+  }
+  .sidebar-link {
+    font-size: 13px;
+    min-height: 46px;
+  }
+  .sidebar-section-label {
+    font-size: 11px;
+  }
+  .clinic-switcher {
+    padding: 12px;
+    gap: 12px;
+  }
+  .clinic-switcher strong {
+    font-size: 12px;
+  }
+  .clinic-switcher small {
+    font-size: 10px;
+  }
+  .clinic-symbol {
+    width: 37px;
+    height: 37px;
+  }
+  .sidebar .upgrade-card {
+    display: none;
+  }
+  .sidebar-bottom > .sidebar-link {
+    font-size: 12px;
+  }
+  .sidebar-user strong {
+    font-size: 13px;
+  }
+  .sidebar-user small {
+    font-size: 11px;
+  }
+  .sidebar-backdrop.visible {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: #193d2155;
+    backdrop-filter: blur(3px);
+    border: 0;
+  }
+  .workspace-body {
+    margin-inline-start: 0;
+  }
+  .workspace-topbar {
+    height: 66px;
+    padding-inline: 18px;
+  }
+  .workspace-breadcrumb {
+    font-size: 10px;
+    gap: 9px;
+  }
+  .workspace-breadcrumb .mobile-menu {
+    min-width: 28px;
+    padding: 0;
+  }
+  .breadcrumb-mark {
+    display: none;
+  }
+  .topbar-search {
+    width: 32px;
+    min-width: 32px;
+    padding: 0;
+    justify-content: center;
+    background: none;
+    border: 0;
+  }
+  .topbar-search > span,
+  .topbar-search kbd {
+    display: none;
+  }
+  .topbar-divider {
+    margin-inline: 3px;
+  }
+  .topbar-actions {
+    gap: 6px;
+  }
+  .workspace-content {
+    padding: 25px 20px;
+  }
+  .workspace-content h1 {
+    font-size: 26px;
+  }
+  .workspace-content .page-heading p {
+    font-size: 11px;
+    max-width: 270px;
+  }
+  .workspace-content .heading-actions .btn {
+    font-size: 11px;
+    padding-inline: 12px;
+    gap: 6px;
+  }
+  .welcome-banner {
+    padding: 20px;
+    gap: 16px;
+    margin-bottom: 21px;
+  }
+  .welcome-banner h3 {
+    font-size: 16px;
+    line-height: 1.7;
+  }
+  .welcome-banner p {
+    font-size: 10px;
+    line-height: 1.9;
+  }
+  .welcome-banner-icon {
+    width: 45px;
+    height: 45px;
+  }
+  .welcome-banner-icon > svg {
+    width: 26px;
+  }
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+  .stat-card {
+    padding: 19px 18px 16px;
+  }
+  .stat-top {
+    font-size: 12px;
+  }
+  .stat-icon {
+    width: 32px;
+    height: 32px;
+  }
+  .stat-middle > strong {
+    font-size: 35px;
+  }
+  .stat-spark {
+    display: flex;
+  }
+  .stat-bottom {
+    font-size: 9px;
+  }
+  .dashboard-chart-row {
+    grid-template-columns: minmax(0, 1.8fr) minmax(175px, 1fr);
+    gap: 15px;
+  }
+  .activity-card .card-heading {
+    padding: 19px 17px 5px;
+  }
+  .activity-card .card-heading p {
+    font-size: 9px;
+  }
+  .activity-chart {
+    height: 183px;
+  }
+  .chart-key {
+    display: none;
+  }
+  .distribution-card .card-heading {
+    padding: 19px 17px 5px;
+  }
+  .distribution-card .card-heading > svg {
+    display: none;
+  }
+  .donut-container {
+    width: 148px;
+    height: 148px;
+    margin-top: 17px;
+  }
+  .donut-legend {
+    padding: 0 16px 18px;
+    gap: 11px;
+  }
+  .daily-card .card-heading {
+    padding: 21px;
+  }
+  .table-tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 22px;
+    padding-inline: 20px;
+  }
+  .daily-card table {
+    min-width: 540px;
+  }
+  .daily-card table td,
+  .daily-card table th {
+    padding-inline: 15px;
+  }
+  .daily-card table td {
+    padding-block: 15px;
+  }
+  .table-footer {
+    font-size: 10px;
+  }
+  .workspace-footer {
+    padding: 16px 20px;
+    font-size: 9px;
+  }
+  .appointment-page-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  .appointment-page-stats > button {
+    padding: 19px;
+  }
+  .appointment-page-stats span {
+    font-size: 12px;
+  }
+  .list-toolbar {
+    gap: 10px;
+  }
+  .list-toolbar > .muted {
+    margin: 0;
+  }
+  .schedule-day {
+    padding-inline: 20px;
+    gap: 12px;
+  }
+  .schedule-day-name {
+    width: 105px;
+  }
+  .shift-row input {
+    max-width: 115px;
+    font-size: 12px;
+  }
+  .schedule-layout > aside {
+    gap: 18px;
+  }
+  .team-summary-grid {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+  .usage-card {
+    padding: 23px;
+    gap: 18px;
+  }
+  .usage-card h3 {
+    font-size: 16px;
+  }
+  .usage-card .text-link {
+    display: flex;
+  }
+  .usage-card .badge {
+    font-size: 10px;
+  }
+  .team-table-top {
+    padding-inline-end: 18px;
+    gap: 10px;
+  }
+  .team-table-top .table-tabs {
+    gap: 18px;
+    padding-inline: 18px;
+  }
+  .current-plan {
+    padding: 27px;
+    gap: 22px;
+    margin-bottom: 33px;
+  }
+  .current-plan-details > div {
+    gap: 9px;
+  }
+  .pricing-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .pricing-card {
+    padding: 28px 25px;
+  }
+  .pricing-card h3 {
+    font-size: 27px;
+  }
+  .pricing-card .plan-ar {
+    font-size: 12px;
+  }
+  .plan-price > b {
+    font-size: 43px;
+  }
+  .pricing-card li {
+    font-size: 13px;
+  }
+  .pricing-card ul {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px 12px;
+  }
+  .pricing-card .btn {
+    font-size: 13px;
+  }
+  .popular-plan {
+    font-size: 11px;
+    inset-inline-end: 25px;
+    padding: 5px 12px;
+    top: -15px;
+  }
+  .billing-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+  .settings-nav a {
+    font-size: 11px;
+  }
+  .integration-row p {
+    font-size: 10px;
+  }
+  .integration-row .badge {
+    font-size: 9px;
+  }
+  .admin-header {
+    height: 81px;
+    padding-inline: 22px;
+  }
+  .admin-header > div {
+    gap: 10px;
+  }
+  .admin-header > div > .btn {
+    font-size: 11px;
+    padding: 9px;
+  }
+  .admin-header .btn-ghost {
+    display: none;
+  }
+  .admin-content {
+    padding: 29px 20px 50px;
+  }
+  .reference-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  .auth-layout {
+    grid-template-columns: 1fr;
+  }
+  .auth-form-side {
+    padding: 25px;
+  }
+  .auth-form-wrap {
+    max-width: 410px;
+    margin: 40px auto 25px;
+  }
+  .auth-form-wrap > .logo {
+    margin-bottom: 32px;
+  }
+  .auth-form-wrap h1 {
+    font-size: 39px;
+  }
+  .auth-art-side {
+    display: none;
+  }
+  .demo-role-grid {
+    gap: 11px;
+  }
+  .demo-role-grid > button {
+    font-size: 12px;
+    min-height: 54px;
+    padding: 15px;
+  }
+  .onboarding-page {
+    grid-template-columns: 1fr;
+    gap: 30px;
+    padding-block: 25px 55px;
+  }
+  .onboarding-intro {
+    padding-top: 0;
+  }
+  .onboarding-intro h1 {
+    font-size: 36px;
+    line-height: 1.45;
+  }
+  .onboarding-intro > p {
+    font-size: 13px;
+    margin-top: 16px;
+  }
+  .onboarding-benefits,
+  .onboarding-note {
+    display: none;
+  }
+  .onboarding-form {
+    padding: 26px;
+  }
+  .dialog-content {
+    padding: 25px;
+  }
+  .toast-stack {
+    bottom: 20px;
+    left: 18px;
+    width: calc(100% - 36px);
+  }
+  .icon-button,
+  .btn-sm,
+  .row-menu {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .skeleton-grid .skeleton {
+    width: 65px;
+    height: 85px;
+  }
+}
+@media (max-width: 480px) {
+  .public-container {
+    width: calc(100% - 36px);
+  }
+  .public-header {
+    padding-inline: 18px;
+  }
+  .hero {
+    padding-top: 22px;
+    gap: 30px;
+  }
+  .hero h1 {
+    font-size: 60px;
+    max-width: 350px;
+  }
+  .headline-flower {
+    top: 80px;
+    inset-inline-end: 15px;
+    width: 38px;
+  }
+  .hero-description {
+    font-size: 12px;
+  }
+  .hero-assurance {
+    font-size: 7px;
+    gap: 5px;
+  }
+  .hero-search label small {
+    font-size: 8px;
+  }
+  .hero-visual {
+    height: 400px;
+    padding-inline: 21px 18px;
+  }
+  .floating-rating {
+    top: 30px;
+    padding: 12px;
+  }
+  .floating-rating > strong {
+    font-size: 26px;
+  }
+  .floating-rating > span {
+    font-size: 7px;
+  }
+  .floating-rating .avatar {
+    width: 25px;
+    height: 25px;
+  }
+  .floating-booking {
+    padding: 12px;
+    bottom: 72px;
+    gap: 10px;
+  }
+  .floating-booking strong {
+    font-size: 11px;
+  }
+  .floating-booking p {
+    font-size: 9px;
+  }
+  .booking-check {
+    width: 34px;
+    height: 34px;
+  }
+  .hero-photo-tag {
+    inset-inline-end: 34px;
+    font-size: 7px;
+    padding: 7px 10px;
+  }
+  .section-heading h2 {
+    font-size: 22px;
+    letter-spacing: -0.7px;
+  }
+  .section-heading > .text-link {
+    font-size: 9px;
+    gap: 4px;
+  }
+  .section-heading .eyebrow {
+    font-size: 9px;
+  }
+  .specialties-grid {
+    gap: 10px;
+  }
+  .specialty-card {
+    padding: 19px 8px 16px;
+  }
+  .specialty-card strong {
+    font-size: 11px;
+  }
+  .specialty-icon {
+    width: 44px;
+    height: 44px;
+  }
+  .doctor-grid {
+    gap: 12px;
+  }
+  .doctor-card-photo {
+    height: 182px;
+  }
+  .doctor-card-content {
+    padding: 14px 11px 12px;
+  }
+  .doctor-card h3 {
+    font-size: 16px;
+  }
+  .doctor-specialty {
+    font-size: 9px;
+  }
+  .doctor-location {
+    font-size: 8px;
+  }
+  .doctor-verified {
+    font-size: 7px;
+    padding: 4px 5px;
+    top: 8px;
+    inset-inline-start: 8px;
+  }
+  .doctor-card-top .rating {
+    font-size: 9px;
+  }
+  .doctor-card-bottom {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .doctor-photo-arrow {
+    width: 28px;
+    height: 28px;
+  }
+  .book-link {
+    font-size: 10px;
+  }
+  .how-intro h2 {
+    font-size: 26px;
+  }
+  .how-intro p,
+  .how-step p {
+    font-size: 11px;
+  }
+  .how-step h3 {
+    font-size: 16px;
+  }
+  .how-number {
+    font-size: 36px;
+  }
+  .clinic-cta {
+    padding: 30px 24px;
+    gap: 10px;
+  }
+  .clinic-cta h2 {
+    font-size: 28px;
+  }
+  .clinic-cta > div > span {
+    font-size: 9px;
+  }
+  .clinic-cta p {
+    font-size: 10px;
+    max-width: 175px;
+  }
+  .cta-illustration {
+    width: 103px;
+    margin-inline-end: -34px;
+    flex-shrink: 0;
+    opacity: 0.8;
+  }
+  .mini-window {
+    width: 136px;
+  }
+  .cta-plus {
+    font-size: 52px !important;
+    inset-inline-end: -10px;
+  }
+  .clinic-cta .btn {
+    font-size: 10px;
+    padding: 10px 13px;
+  }
+  .public-footer {
+    padding-inline: 18px;
+  }
+  .search-toolbar {
+    flex-wrap: wrap;
+  }
+  .search-toolbar > .input-icon {
+    flex-basis: 100%;
+  }
+  .search-toolbar > select {
+    width: 100%;
+    min-height: 44px;
+  }
+  .search-filters {
+    padding: 18px;
+  }
+  .search-doctors .doctor-card-photo {
+    height: 190px;
+  }
+  .results-label {
+    font-size: 11px;
+  }
+  .results-label > span {
+    font-size: 9px;
+  }
+  .profile-main {
+    padding-inline: 22px;
+  }
+  .profile-main > .badge {
+    font-size: 9px;
+    inset-inline-end: 20px;
+  }
+  .profile-main > .avatar {
+    width: 98px;
+    height: 98px;
+    border-width: 5px;
+  }
+  .profile-meta {
+    gap: 12px;
+  }
+  .profile-meta > span {
+    font-size: 10px;
+  }
+  .profile-cover-label {
+    font-size: 9px;
+  }
+  .booking-panel {
+    padding: 22px;
+  }
+  .slot-grid {
+    gap: 8px;
+  }
+  .patient-tabs {
+    gap: 14px;
+  }
+  .patient-tabs button {
+    font-size: 11px;
+    gap: 6px;
+  }
+  .patient-tabs button > svg {
+    width: 16px;
+  }
+  .patient-appt-doctor .avatar {
+    width: 56px;
+    height: 56px;
+  }
+  .patient-appt-doctor h3 {
+    font-size: 19px;
+  }
+  .patient-appt-doctor p {
+    font-size: 10px;
+  }
+  .patient-appt-info {
+    font-size: 11px;
+    gap: 14px;
+  }
+  .patient-appt-info > span:last-child {
+    display: none;
+  }
+  .pending-countdown {
+    font-size: 9px;
+    gap: 5px;
+  }
+  .patient-appt-actions .btn {
+    font-size: 11px;
+    padding: 9px;
+  }
+  .workspace-content {
+    padding: 23px 16px;
+  }
+  .workspace-content h1 {
+    font-size: 24px;
+  }
+  .workspace-content .page-heading {
+    gap: 10px;
+    align-items: flex-start;
+    margin-bottom: 21px;
+  }
+  .workspace-content .page-heading p {
+    font-size: 10px;
+    max-width: 220px;
+  }
+  .workspace-content .heading-actions {
+    align-self: flex-start;
+    padding-top: 3px;
+  }
+  .workspace-content .heading-actions > .btn {
+    font-size: 11px;
+    padding: 10px;
+    gap: 5px;
+  }
+  .workspace-content .page-heading:has(.btn-outline) {
+    flex-wrap: wrap;
+  }
+  .workspace-topbar {
+    padding-inline: 13px;
+    height: 65px;
+  }
+  .workspace-breadcrumb {
+    font-size: 10px;
+    gap: 6px;
+  }
+  .workspace-breadcrumb .mobile-menu {
+    min-width: 28px;
+  }
+  .topbar-actions {
+    gap: 3px;
+  }
+  .topbar-divider {
+    display: none;
+  }
+  .topbar-actions > .icon-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .topbar-search {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .welcome-banner {
+    padding: 17px;
+    gap: 12px;
+  }
+  .welcome-banner-icon {
+    width: 39px;
+    height: 39px;
+  }
+  .welcome-banner h3 {
+    font-size: 14px;
+  }
+  .welcome-banner p {
+    font-size: 9px;
+  }
+  .welcome-eyebrow {
+    font-size: 8px;
+  }
+  .stats-grid {
+    gap: 12px;
+  }
+  .stat-card {
+    padding: 16px 14px;
+  }
+  .stat-top {
+    font-size: 11px;
+  }
+  .stat-icon {
+    width: 28px;
+    height: 28px;
+  }
+  .stat-middle > strong {
+    font-size: 33px;
+  }
+  .stat-spark {
+    gap: 2px;
+  }
+  .stat-spark i {
+    width: 3px;
+  }
+  .stat-bottom {
+    font-size: 8px;
+  }
+  .dashboard-chart-row {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .activity-card .card-heading {
+    flex-wrap: nowrap;
+    padding: 21px 19px 9px;
+    gap: 8px;
+  }
+  .activity-card .card-heading h3 {
+    font-size: 16px;
+  }
+  .activity-card .card-heading p {
+    font-size: 9px;
+    max-width: 185px;
+  }
+  .activity-card .segmented button {
+    font-size: 9px;
+    padding-inline: 7px;
+  }
+  .chart-summary {
+    padding-inline: 21px;
+  }
+  .chart-summary strong {
+    font-size: 30px;
+  }
+  .chart-key {
+    display: flex;
+    font-size: 9px;
+  }
+  .activity-chart {
+    height: 185px;
+  }
+  .distribution-card {
+    display: grid;
+    grid-template-columns: 1fr 145px;
+    align-items: center;
+    padding: 15px 19px;
+    gap: 0 12px;
+  }
+  .distribution-card .card-heading {
+    grid-column: 1;
+    padding: 0;
+    margin-top: 8px;
+    align-self: start;
+  }
+  .distribution-card .card-heading h3 {
+    font-size: 15px;
+  }
+  .distribution-card .card-heading p {
+    font-size: 10px;
+  }
+  .donut-container {
+    grid-column: 2;
+    grid-row: 1/3;
+    margin: 0;
+    width: 142px;
+    height: 142px;
+  }
+  .donut-legend {
+    grid-column: 1;
+    grid-row: 2;
+    padding: 8px 0 4px;
+    gap: 10px 12px;
+  }
+  .donut-legend > span {
+    font-size: 9px;
+    gap: 4px;
+  }
+  .daily-card .card-heading {
+    padding: 21px 19px 16px;
+  }
+  .table-tabs {
+    gap: 18px;
+    padding-inline: 19px;
+  }
+  .table-tabs button {
+    font-size: 11px;
+    gap: 5px;
+  }
+  .table-footer {
+    padding: 14px 18px;
+    font-size: 9px;
+  }
+  .workspace-footer {
+    padding: 15px 16px;
+    font-size: 8px;
+    gap: 5px;
+  }
+  .appointment-page-stats > button {
+    padding: 17px;
+  }
+  .appointment-page-stats span {
+    font-size: 11px;
+  }
+  .list-toolbar {
+    padding: 16px;
+    gap: 9px;
+  }
+  .list-toolbar > .input-icon {
+    min-width: 0;
+  }
+  .list-toolbar > input,
+  .list-toolbar > select {
+    min-width: 0;
+    flex-basis: 44%;
+    font-size: 11px;
+  }
+  .schedule-controls {
+    padding-inline: 18px;
+    gap: 14px;
+  }
+  .schedule-controls > .field:last-child {
+    max-width: 115px;
+  }
+  .schedule-controls select {
+    font-size: 12px;
+  }
+  .schedule-day {
+    flex-wrap: wrap;
+    padding: 15px 18px;
+    gap: 12px;
+  }
+  .schedule-day-name {
+    width: 110px;
+  }
+  .schedule-shifts {
+    order: 3;
+    flex-basis: 100%;
+    flex: none;
+    align-items: flex-end;
+  }
+  .schedule-day > .add-shift {
+    margin-inline-start: auto;
+  }
+  .schedule-day:has(.day-off) .schedule-shifts {
+    order: 0;
+    flex: 1;
+    flex-basis: auto;
+    align-items: flex-start;
+  }
+  .shift-row {
+    width: 100%;
+    justify-content: flex-end;
+    gap: 9px;
+  }
+  .shift-row input {
+    max-width: 114px;
+    min-height: 42px;
+  }
+  .schedule-day:has(.day-off) .add-shift {
+    margin: 0;
+  }
+  .schedule-layout > aside,
+  .medical-layout > aside {
+    grid-template-columns: 1fr;
+  }
+  .form-footer {
+    padding: 18px;
+  }
+  .form-footer > .muted {
+    font-size: 10px;
+  }
+  .form-footer .btn {
+    font-size: 12px;
+  }
+  .medical-form > form {
+    padding-inline: 18px;
+  }
+  .medical-form .form-footer {
+    margin-inline: -18px;
+  }
+  .team-table-top {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0;
+  }
+  .team-table-top .input-icon {
+    margin: 14px 18px;
+    max-width: none;
+  }
+  .team-table-top .table-tabs button {
+    padding-block: 17px;
+  }
+  .team-table-top input {
+    min-height: 44px;
+    font-size: 12px;
+  }
+  .usage-card {
+    padding: 20px;
+    gap: 14px;
+  }
+  .current-plan {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 25px;
+    gap: 26px;
+  }
+  .current-plan-details {
+    flex-direction: row;
+    gap: 24px;
+    border-top: 1px solid #dbe8c9;
+    padding-top: 23px;
+    width: 100%;
+  }
+  .current-plan-details > div > span {
+    font-size: 9px;
+  }
+  .current-plan-details strong {
+    font-size: 11px;
+  }
+  .current-plan-details > div > svg {
+    width: 18px;
+  }
+  .pricing-card ul {
+    grid-template-columns: 1fr;
+  }
+  .pricing-card li {
+    font-size: 12px;
+  }
+  .billing-section-heading > .date-chip {
+    display: none;
+  }
+  .settings-nav {
+    flex-wrap: wrap;
+  }
+  .settings-nav a {
+    flex: 1 1 40%;
+    font-size: 10px;
+  }
+  .settings-nav a:last-child {
+    flex-basis: 100%;
+    justify-content: flex-start;
+    padding-inline: 16px;
+  }
+  .settings-form {
+    padding-inline: 18px;
+  }
+  .settings-form .form-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .integration-row {
+    padding: 19px 18px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .integration-row .badge {
+    margin-inline-start: 48px;
+    font-size: 9px;
+  }
+  .dialog-content {
+    padding: 22px;
+    width: calc(100vw - 28px);
+  }
+  .dialog-heading {
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .dialog-heading h2 {
+    font-size: 20px;
+  }
+  .dialog-heading p {
+    font-size: 11px;
+  }
+  .dialog-content .form-grid {
+    gap: 12px;
+  }
+  .prescription-paper {
+    padding: 20px;
+  }
+  .prescription-head h2 {
+    font-size: 22px;
+  }
+  .prescription-patient {
+    font-size: 12px;
+    gap: 10px;
+  }
+  .prescription-paper table {
+    white-space: normal;
+  }
+  .prescription-paper th,
+  .prescription-paper td {
+    padding: 10px 6px;
+    font-size: 11px;
+  }
+  .auth-form-side {
+    padding: 22px;
+  }
+  .auth-form-wrap {
+    margin-top: 34px;
+  }
+  .auth-form-wrap h1 {
+    font-size: 36px;
+  }
+  .demo-role-grid > button {
+    padding: 13px;
+    font-size: 11px;
+  }
+  .onboarding-form {
+    padding: 23px;
+  }
+  .onboarding-form > h2 {
+    font-size: 24px;
+  }
+  .onboarding-plans > label {
+    padding: 15px;
+    gap: 10px;
+  }
+  .onboarding-plans p {
+    font-size: 9px;
+  }
+  .onboarding-plans h3 {
+    font-size: 20px;
+  }
+  .admin-header {
+    padding-inline: 18px;
+  }
+  .admin-header > div > .badge {
+    display: none;
+  }
+  .admin-content {
+    padding: 27px 16px 50px;
+  }
+  .admin-tabs {
+    gap: 18px;
+    padding-inline: 18px;
+  }
+  .admin-tabs button {
+    font-size: 10px;
+  }
+  .admin-content .card-heading {
+    flex-wrap: wrap;
+  }
+  .reference-grid {
+    padding-inline: 18px;
+    gap: 13px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *:before,
+  *:after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  #prescription,
+  #prescription * {
+    visibility: visible !important;
+  }
+  .dialog-overlay,
+  .no-print,
+  .toast-stack {
+    display: none !important;
+  }
+  .dialog-content {
+    position: absolute !important;
+    inset: 0 !important;
+    transform: none !important;
+    width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+  .dialog-heading {
+    display: none !important;
+  }
+  #prescription {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 100%;
+    border: 0;
+    padding: 30px;
+  }
+}
+
+/* Contrast-corrected inverse surfaces and decorative text. */
+.public-announcement > span:last-child,
+.clinic-cta > div > span,
+.clinic-cta p,
+.auth-art-overlay > span,
+.auth-art-overlay p {
+  color: #c7d9b6;
+}
+.avatar {
+  color: #486335;
+}
+.activity-chart text {
+  fill: #687561;
+}
+.how-number {
+  color: #879878;
+}
+
+@font-face {
+  font-family: Inter;
+  src: url('/fonts/inter-400.ttf');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: Inter;
+  src: url('/fonts/inter-500.ttf');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: Inter;
+  src: url('/fonts/inter-600.ttf');
+  font-weight: 600;
+  font-display: swap;
+}
+/* Final AA contrast adjustments on tinted surfaces. */
+.how-number {
+  color: #798b68;
+}
+.sidebar-link.active,
+.table-tabs button.selected > span,
+.welcome-banner p b {
+  color: #506c3d;
+}
+.welcome-banner p > span {
+  color: #6b5e38;
+}
+
+/* Modern Web Guidance: Rendering & Containment Optimization */
+.how-section,
+.clinic-cta {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 450px;
+}
+
+.search-doctors .doctor-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+}
+
+.modal-card {
+  contain: layout style paint;
+}
