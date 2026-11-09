@@ -150,4 +150,26 @@ test.describe('ClinicBook Comprehensive Accessibility Audit (axe-core)', () => {
 
     expect(results.violations).toEqual([]);
   });
+
+  test('11. AI Medical Assistant Drawer meets WCAG AA under Dark Mode', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto('/');
+    await loaded(page);
+    await page.locator('.agent-fab').click();
+
+    const drawer = page.locator('aside[aria-label="المساعد الطبي الذكي"]');
+    await expect(drawer).toBeVisible();
+
+    const input = page.getByPlaceholder('اكتب استفسارك أو الأعراض التي تشعر بها...');
+    await input.fill('انا عم موت شو سوي');
+    await page.getByLabel('إرسال الرسالة').click();
+    await expect(page.getByText('بروتوكول فرز الطوارئ الطبية')).toBeVisible();
+
+    const results = await new AxeBuilder({ page })
+      .include('aside[aria-label="المساعد الطبي الذكي"]')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+
+    expect(results.violations).toEqual([]);
+  });
 });
