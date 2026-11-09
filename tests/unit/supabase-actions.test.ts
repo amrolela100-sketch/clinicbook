@@ -18,12 +18,16 @@ import type { User } from '../../src/lib/types';
 vi.mock('../../src/lib/supabase/server', () => ({
   createSupabaseServer: vi.fn().mockResolvedValue({
     auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
+    from: vi.fn().mockImplementation((table: string) => createTableBuilder(table)),
   }),
 }));
 
 const mockTableData: Record<string, unknown> = {};
+const mockTableErrors: Record<string, { message?: string; code?: string } | null> = {};
+const mockDeleteUser = vi.fn().mockResolvedValue({ data: { user: null }, error: null });
 
 function createTableBuilder(table: string) {
+  let op = 'select';
   const builder: any = {
     hasCount: false,
     select: vi
@@ -34,10 +38,22 @@ function createTableBuilder(table: string) {
         }
         return builder;
       }),
-    insert: vi.fn().mockResolvedValue({ error: null, data: null }),
-    update: vi.fn().mockImplementation(() => builder),
-    upsert: vi.fn().mockResolvedValue({ error: null, data: null }),
-    delete: vi.fn().mockImplementation(() => builder),
+    insert: vi.fn().mockImplementation(() => {
+      const err = mockTableErrors[`${table}.insert`] ?? mockTableErrors[table] ?? null;
+      return Promise.resolve({ error: err, data: null });
+    }),
+    update: vi.fn().mockImplementation(() => {
+      op = 'update';
+      return builder;
+    }),
+    upsert: vi.fn().mockImplementation(() => {
+      const err = mockTableErrors[`${table}.upsert`] ?? mockTableErrors[table] ?? null;
+      return Promise.resolve({ error: err, data: null });
+    }),
+    delete: vi.fn().mockImplementation(() => {
+      op = 'delete';
+      return builder;
+    }),
     eq: vi.fn().mockImplementation(() => builder),
     in: vi.fn().mockImplementation(() => builder),
     lt: vi.fn().mockImplementation(() => builder),
@@ -47,27 +63,30 @@ function createTableBuilder(table: string) {
     limit: vi.fn().mockImplementation(() => builder),
     maybeSingle: vi.fn().mockImplementation(() => {
       const custom = mockTableData[table];
+      const err = mockTableErrors[`${table}.select`] ?? null;
       if (table === 'reviews' && Array.isArray(custom)) {
-        return Promise.resolve({ data: null, error: null });
+        return Promise.resolve({ data: null, error: err });
       }
-      return Promise.resolve({ data: custom !== undefined ? custom : null, error: null });
+      return Promise.resolve({ data: custom !== undefined ? custom : null, error: err });
     }),
     single: vi.fn().mockImplementation(() => {
       const custom = mockTableData[table];
-      return Promise.resolve({ data: custom !== undefined ? custom : null, error: null });
+      const err = mockTableErrors[`${table}.select`] ?? null;
+      return Promise.resolve({ data: custom !== undefined ? custom : null, error: err });
     }),
     then: (resolve: any) => {
       const custom = mockTableData[table];
+      const err = mockTableErrors[`${table}.${op}`] ?? mockTableErrors[table] ?? null;
       if (builder.hasCount) {
         return Promise.resolve({
           count: typeof custom === 'number' ? custom : 0,
           data: [],
-          error: null,
+          error: err,
         }).then(resolve);
       }
       return Promise.resolve({
-        data: Array.isArray(custom) ? custom : custom ? [custom] : [],
-        error: null,
+        data: err ? null : Array.isArray(custom) ? custom : custom ? [custom] : [],
+        error: err,
       }).then(resolve);
     },
   };
@@ -82,6 +101,7 @@ vi.mock('../../src/lib/supabase/admin', () => ({
         createUser: vi
           .fn()
           .mockResolvedValue({ data: { user: { id: 'new-user-id' } }, error: null }),
+        deleteUser: (...args: unknown[]) => mockDeleteUser(...args),
       },
     },
   }),
@@ -92,6 +112,10 @@ describe('Supabase Actions Service Security & Validation', () => {
     for (const key of Object.keys(mockTableData)) {
       delete mockTableData[key];
     }
+    for (const key of Object.keys(mockTableErrors)) {
+      delete mockTableErrors[key];
+    }
+    mockDeleteUser.mockClear();
   });
 
   const patientUser: User = {
@@ -487,6 +511,9 @@ describe('Supabase Actions Service Security & Validation', () => {
   });
 
   it('executes settings update successfully by clinic owner', async () => {
+    mockTableData['organizations'] = { id: 'org-1' };
+    mockTableData['clinics'] = { id: 'clinic-1' };
+
     const res = await executeSupabaseAction(ownerUser, 'settings', {
       name: 'مركز النور الطبي',
       phone: '011-8899001',
@@ -502,9 +529,38 @@ describe('Supabase Actions Service Security & Validation', () => {
     }
   });
 
+  it('rejects settings update from doctors (only clinic_owner matches RLS & UI)', async () => {
+    await expect(
+      executeSupabaseAction(doctorUser, 'settings', {
+        name: 'مركز النور الطبي',
+        phone: '011-8899001',
+        address: 'دمشق - القصاع',
+        cancelHours: 3,
+        leadMinutes: 45,
+        autoConfirm: true,
+      }),
+    ).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' });
+  });
+
+  it('fails closed with 403 when settings update hits 0 rows under RLS', async () => {
+    mockTableData['organizations'] = [];
+
+    await expect(
+      executeSupabaseAction(ownerUser, 'settings', {
+        name: 'مركز النور الطبي',
+        phone: '011-8899001',
+        address: 'دمشق - القصاع',
+        cancelHours: 3,
+        leadMinutes: 45,
+        autoConfirm: true,
+      }),
+    ).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' });
+  });
+
   it('executes review submission successfully by patient', async () => {
     mockTableData['appointments'] = {
       id: 'appt-1',
+      organization_id: 'org-1',
       doctor_id: 'doc-1',
       patient_id: 'pat-1',
       status: 'completed',
@@ -523,12 +579,56 @@ describe('Supabase Actions Service Security & Validation', () => {
     }
   });
 
-  it('executes notification read successfully', async () => {
+  it('executes notification read successfully and throws 404 when 0 rows updated', async () => {
+    mockTableData['notifications'] = { id: 'notif-1' };
     const res = await executeSupabaseAction(doctorUser, 'notification', { id: 'notif-1' });
     expect(res.success).toBe(true);
     if (res.success) {
       expect(res.data).toEqual({ id: 'notif-1' });
     }
+
+    mockTableData['notifications'] = [];
+    await expect(
+      executeSupabaseAction(doctorUser, 'notification', { id: 'missing-notif' }),
+    ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
+  });
+
+  it('rolls back newly created auth user when team doctor profile insert fails', async () => {
+    mockTableData['subscriptions'] = { tier: 'clinic_pro', max_doctors: 10 };
+    mockTableData['specialties'] = { id: 'spec-1', name_ar: 'الطب العام' };
+    mockTableErrors['doctors.insert'] = { message: 'duplicate license_number', code: '23505' };
+
+    await expect(
+      executeSupabaseAction(ownerUser, 'team', {
+        name: 'د. مروان الكاتب',
+        email: 'rollback@example.com',
+        role: 'doctor',
+        specialty: 'الطب العام',
+        fee: 40,
+        license: 'SY-MED-9999',
+      }),
+    ).rejects.toMatchObject({ status: 500, code: 'DB_ERROR' });
+
+    expect(mockDeleteUser).toHaveBeenCalledWith('new-user-id');
+  });
+
+  it('surfaces DB errors instead of returning false 200 on verify, subscription, and reference', async () => {
+    mockTableData['organizations'] = { id: 'org-1' };
+    mockTableErrors['organizations.update'] = { message: 'write failed' };
+
+    await expect(
+      executeSupabaseAction(superAdminUser, 'verify', { id: 'org-1', status: 'approved' }),
+    ).rejects.toMatchObject({ status: 500, code: 'DB_ERROR' });
+
+    mockTableErrors['subscriptions.upsert'] = { message: 'upsert failed' };
+    await expect(
+      executeSupabaseAction(superAdminUser, 'subscription', { id: 'org-1', tier: 'clinic_pro' }),
+    ).rejects.toMatchObject({ status: 500, code: 'DB_ERROR' });
+
+    mockTableErrors['cities.insert'] = { message: 'insert failed' };
+    await expect(
+      executeSupabaseAction(superAdminUser, 'reference', { name: 'الرقة', type: 'city' }),
+    ).rejects.toMatchObject({ status: 500, code: 'DB_ERROR' });
   });
 
   it('executes billingRequest successfully by clinic owner', async () => {

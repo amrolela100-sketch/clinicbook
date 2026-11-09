@@ -76,7 +76,7 @@ describe('Integration: Actions API Route (/api/actions)', () => {
   it('executes actions in demo mode when user is logged in', async () => {
     delete process.env.FORCE_SUPABASE;
     const doc = roles.find((r) => r.role === 'doctor')!;
-    await createSession(doc.id, 'doctor');
+    await createSession(doc.id);
 
     const appt = appointments().find((a) => a.doctorId === doc.id);
     expect(appt).toBeDefined();
@@ -153,7 +153,7 @@ describe('Integration: Actions API Route (/api/actions)', () => {
   it('routes to Supabase action execution when user has active session and Supabase is forced', async () => {
     process.env.FORCE_SUPABASE = 'true';
     const owner = roles.find((r) => r.role === 'clinic_owner')!;
-    await createSession(owner.id, 'clinic_owner');
+    await createSession(owner.id);
 
     const req = new Request('http://localhost:3000/api/actions', {
       method: 'POST',
@@ -266,7 +266,7 @@ describe('Integration: Actions API Route (/api/actions)', () => {
       email: managerEmail,
       role: 'clinic_owner',
     });
-    await createSession(managerId, 'clinic_owner');
+    await createSession(managerId);
 
     const onboardReq = new Request('http://localhost:3000/api/actions', {
       method: 'POST',

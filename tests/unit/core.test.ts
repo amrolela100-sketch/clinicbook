@@ -212,4 +212,8 @@ describe('tenant isolation', () => {
         'appointment',
       ),
     ).toBe(false));
+  it('super_admin cannot access medical records', () =>
+    expect(canAccess({ id: 'admin-1', role: 'super_admin' }, resource, 'medical')).toBe(false));
+  it('super_admin cannot access clinic appointments via canAccess', () =>
+    expect(canAccess({ id: 'admin-1', role: 'super_admin' }, resource, 'appointment')).toBe(false));
 });
