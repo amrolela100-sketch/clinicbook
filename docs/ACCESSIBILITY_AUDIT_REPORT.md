@@ -50,7 +50,7 @@
 ## 3. ملف الاختبار البرمجي المعتمد
 
 تم إنشاء وحفظ جناح الاختبارات الدائم في المشروع:
-- [accessibility.spec.ts](file:///c:/Users/DELL/Documents/project1/clinicbook/tests/e2e/accessibility.spec.ts)
+- [`tests/e2e/accessibility.spec.ts`](../tests/e2e/accessibility.spec.ts)
 - يمكن إعادة تشغيله في أي وقت عبر الأمر:
   ```bash
   npx playwright test tests/e2e/accessibility.spec.ts
