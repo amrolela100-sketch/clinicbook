@@ -362,7 +362,7 @@ npm run test:concurrency
 npm run test:e2e
 
 # 5. تدقيق إمكانية الوصول وامتثال WCAG 2.1 AA
-node scripts/a11y.mjs
+npx playwright test tests/e2e/accessibility.spec.ts
 ```
 
 ### سجل التحقق والنتائج المؤكدة:

@@ -80,7 +80,7 @@ test('1. Public discovery, filters, doctor slots and mobile layout', async ({ pa
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(700);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
-  await page.screenshot({ path: 'docs/screenshots/doctor-mobile.png', fullPage: true });
+  await page.screenshot({ path: 'test-results/screenshots/doctor-mobile.png', fullPage: true });
   expect(errors).toEqual([]);
 });
 
@@ -128,7 +128,7 @@ test('3. Owner navigation, branch save, schedule save and permissions across wor
   await expect(page.locator('.stat-card')).toHaveCount(4);
   await loaded(page);
   await page.waitForTimeout(700);
-  await page.screenshot({ path: 'docs/screenshots/dashboard-desktop.png', fullPage: true });
+  await page.screenshot({ path: 'test-results/screenshots/dashboard-desktop.png', fullPage: true });
 
   // Quick search
   await page.keyboard.press('Control+k');
@@ -195,7 +195,7 @@ test('3. Owner navigation, branch save, schedule save and permissions across wor
   await expect(page.locator('.stat-card')).toHaveCount(4);
   await page.waitForTimeout(700);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
-  await page.screenshot({ path: 'docs/screenshots/dashboard-mobile.png', fullPage: true });
+  await page.screenshot({ path: 'test-results/screenshots/dashboard-mobile.png', fullPage: true });
   await page.getByRole('button', { name: 'فتح القائمة', exact: true }).click();
   await expect(page.locator('.sidebar')).toHaveClass(/sidebar-open/);
   await page.getByRole('link', { name: 'جدول الدوام', exact: true }).click();

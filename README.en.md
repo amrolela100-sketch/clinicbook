@@ -361,8 +361,8 @@ npm run test:concurrency
 # 4. End-to-end browser test automation & accessibility suite (Playwright)
 npm run test:e2e
 
-# 5. Standalone automated WCAG 2.1 AA accessibility audit (axe-core)
-node scripts/a11y.mjs
+# 5. Automated WCAG 2.1 AA accessibility audit (Playwright + axe-core)
+npx playwright test tests/e2e/accessibility.spec.ts
 ```
 
 ### Verified Benchmark Results:

@@ -48,7 +48,6 @@ desktop.ini
 
 # Logs & Archives
 *.log
-!docs/*.log
 *.zip
 *.tar.gz
 
