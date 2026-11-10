@@ -367,7 +367,7 @@ node scripts/a11y.mjs
 
 ### Verified Benchmark Results:
 
-- **145 Passing Unit & Integration Tests (145/145):** Validates half-open time interval calculations, daylight saving transitions (DST), appointment lifecycle state machine, multi-tenant isolation, and security hardening.
+- **173 Passing Unit & Integration Tests (173/173):** Validates half-open time interval calculations, daylight saving transitions (DST), appointment lifecycle state machine, atomic schedule replacement, multi-tenant isolation, and security hardening.
 - **Zero Double Bookings & IP Rate Limiting:** Atomic slot locking is verified directly on PostgreSQL 17 (1 winner, remaining rejected with `23P01`), while HTTP `/api/appointments` enforces a `10 req/min` IP rate limit (`429 Too Many Requests`) against booking floods.
 - **PostgreSQL 17 RLS Verification:** Full test suite verifying tenant boundary isolation, RPC impersonation prevention, and strict denial of medical record access to non-treating staff.
 - **Zero Automated A11y Violations:** Automated `axe-core` Playwright scans of the landing page and workspace dashboards confirm 100% compliance with WCAG 2.1 AA color contrast and focus requirements.

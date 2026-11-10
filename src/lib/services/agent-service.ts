@@ -35,8 +35,8 @@ async function loadVerifiedDoctors(): Promise<Doctor[]> {
       image: String(d.avatar_url ?? 'doctor-1.jpg'),
       verified: true,
       license: String(d.license_number ?? ''),
-      bookingHorizonDays: 30,
-      cancelHours: 2,
+      bookingHorizonDays: Number(d.booking_horizon_days ?? 30),
+      cancelHours: Number(d.cancel_window_hours ?? 2),
     }));
   }
   return [];

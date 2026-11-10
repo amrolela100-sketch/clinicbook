@@ -17,6 +17,8 @@ export interface PublicDoctorDirectoryRow {
   reviews_count: number;
   avatar_url: string | null;
   license_number: string;
+  booking_horizon_days?: number | null;
+  cancel_window_hours?: number | null;
 }
 
 export interface TenantDoctorDirectoryRow extends PublicDoctorDirectoryRow {

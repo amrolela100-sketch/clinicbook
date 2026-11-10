@@ -18,13 +18,39 @@ import type { User } from '../../src/lib/types';
 vi.mock('../../src/lib/supabase/server', () => ({
   createSupabaseServer: vi.fn().mockResolvedValue({
     auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
-    from: vi.fn().mockImplementation((table: string) => createTableBuilder(table)),
+    from: vi.fn().mockImplementation((table: string) => {
+      serverFromTables.push(table);
+      return createTableBuilder(table);
+    }),
+    rpc: vi.fn().mockImplementation(async (fn: string, args?: unknown) => {
+      serverRpcCalls.push({ fn, args });
+      return mockServerRpcResponses[fn] ?? { data: null, error: null };
+    }),
   }),
 }));
 
 const mockTableData: Record<string, unknown> = {};
 const mockTableErrors: Record<string, { message?: string; code?: string } | null> = {};
+const mockServerRpcResponses: Record<
+  string,
+  { data: unknown; error: { message?: string; code?: string } | null }
+> = {};
+const serverRpcCalls: Array<{ fn: string; args?: unknown }> = [];
+const mockAdminRpcResponses: Record<
+  string,
+  { data: unknown; error: { message?: string; code?: string } | null }
+> = {};
+const adminRpcCalls: Array<{ fn: string; args?: unknown }> = [];
+const serverFromTables: string[] = [];
 const mockDeleteUser = vi.fn().mockResolvedValue({ data: { user: null }, error: null });
+const mockCreateUser = vi
+  .fn()
+  .mockResolvedValue({ data: { user: { id: 'new-user-id' } }, error: null });
+let mockInviteUserResult: {
+  data: { user: { id: string } | null };
+  error: { message?: string } | null;
+} = { data: { user: { id: 'new-user-id' } }, error: null };
+const mockInviteUserByEmail = vi.fn().mockImplementation(async () => mockInviteUserResult);
 
 function createTableBuilder(table: string) {
   let op = 'select';
@@ -98,12 +124,20 @@ vi.mock('../../src/lib/supabase/admin', () => ({
     from: vi.fn().mockImplementation((table: string) => createTableBuilder(table)),
     auth: {
       admin: {
-        createUser: vi
-          .fn()
-          .mockResolvedValue({ data: { user: { id: 'new-user-id' } }, error: null }),
+        inviteUserByEmail: (...args: unknown[]) => mockInviteUserByEmail(...args),
+        createUser: (...args: unknown[]) => mockCreateUser(...args),
         deleteUser: (...args: unknown[]) => mockDeleteUser(...args),
       },
     },
+    rpc: vi.fn().mockImplementation(async (fn: string, args?: unknown) => {
+      adminRpcCalls.push({ fn, args });
+      return (
+        mockAdminRpcResponses[fn] ??
+        (fn === 'provision_team_member_atomic'
+          ? { data: 'new-user-id', error: null }
+          : { data: null, error: null })
+      );
+    }),
   }),
 }));
 
@@ -115,6 +149,18 @@ describe('Supabase Actions Service Security & Validation', () => {
     for (const key of Object.keys(mockTableErrors)) {
       delete mockTableErrors[key];
     }
+    for (const key of Object.keys(mockServerRpcResponses)) {
+      delete mockServerRpcResponses[key];
+    }
+    for (const key of Object.keys(mockAdminRpcResponses)) {
+      delete mockAdminRpcResponses[key];
+    }
+    serverRpcCalls.length = 0;
+    adminRpcCalls.length = 0;
+    serverFromTables.length = 0;
+    mockInviteUserResult = { data: { user: { id: 'new-user-id' } }, error: null };
+    mockInviteUserByEmail.mockClear();
+    mockCreateUser.mockClear();
     mockDeleteUser.mockClear();
   });
 
@@ -277,6 +323,37 @@ describe('Supabase Actions Service Security & Validation', () => {
     ).rejects.toThrowError('تم إنشاء المركز مسبقاً');
   });
 
+  it('requires the atomic onboarding migration instead of using compensating writes', async () => {
+    mockAdminRpcResponses['onboard_organization_atomic'] = {
+      data: null,
+      error: { message: 'function not found', code: 'PGRST202' },
+    };
+
+    await expect(
+      executeSupabaseAction(
+        {
+          id: 'owner-new',
+          name: 'مالك جديد',
+          email: 'owner-new@example.com',
+          role: 'clinic_owner',
+        },
+        'onboard',
+        {
+          name: 'مركز جديد',
+          city: 'دمشق',
+          district: 'الشعلان',
+          phone: '011-2233445',
+          doctorName: 'د. سمير',
+          email: 'doctor-new@example.com',
+          license: 'SY-ONBOARD-MIGRATION',
+          tier: 'solo_starter',
+        },
+      ),
+    ).rejects.toMatchObject({ status: 500, code: 'MIGRATION_REQUIRED' });
+
+    expect(mockDeleteUser).toHaveBeenCalledWith('new-user-id');
+  });
+
   it('throws for unknown action types', async () => {
     await expect(executeSupabaseAction(ownerUser, 'non_existent_action', {})).rejects.toThrowError(
       'إجراء غير معروف',
@@ -356,8 +433,10 @@ describe('Supabase Actions Service Security & Validation', () => {
       role: 'clinic_owner',
     };
 
-    mockTableData['cities'] = { id: 'city-1', name_ar: 'دمشق' };
-    mockTableData['specialties'] = { id: 'spec-1', name_ar: 'الطب العام' };
+    mockAdminRpcResponses['onboard_organization_atomic'] = {
+      data: [{ organization_id: 'org-new-1', clinic_id: 'clinic-new-1' }],
+      error: null,
+    };
 
     const res = await executeSupabaseAction(unattachedUser, 'onboard', {
       name: 'مركز الشفاء الطبي',
@@ -438,6 +517,59 @@ describe('Supabase Actions Service Security & Validation', () => {
     if (res.success) {
       expect(res.data).toEqual({ doctorId: doctorUser.id, shifts });
     }
+
+    expect(serverRpcCalls).toContainEqual({
+      fn: 'replace_availability_atomic',
+      args: {
+        p_doctor_id: doctorUser.id,
+        p_clinic_id: doctorUser.clinicId,
+        p_shifts: shifts,
+      },
+    });
+    expect(serverFromTables).not.toContain('availability');
+  });
+
+  it.each([
+    [{ code: '42501', message: 'FORBIDDEN' }, 403, 'FORBIDDEN'],
+    [{ code: '22023', message: 'OVERLAPPING_SHIFTS' }, 422, 'OVERLAP'],
+    [{ code: 'PGRST202', message: 'function not found' }, 500, 'MIGRATION_REQUIRED'],
+  ] as const)(
+    'maps atomic schedule RPC error $0 to status $1 and code $2',
+    async (error, status, code) => {
+      mockServerRpcResponses['replace_availability_atomic'] = { data: null, error };
+
+      await expect(
+        executeSupabaseAction(doctorUser, 'schedule', {
+          doctorId: doctorUser.id,
+          shifts: [{ day: 0, start: '09:00', end: '13:00', duration: 20, active: true }],
+        }),
+      ).rejects.toMatchObject({ status, code });
+
+      expect(serverFromTables).not.toContain('availability');
+    },
+  );
+
+  it('fails closed when the team invitation cannot be delivered', async () => {
+    mockTableData['subscriptions'] = { tier: 'clinic_pro', max_doctors: 10 };
+    mockTableData['specialties'] = { id: 'spec-1', name_ar: 'الطب العام' };
+    mockInviteUserResult = {
+      data: { user: null },
+      error: { message: 'SMTP provider unavailable' },
+    };
+
+    await expect(
+      executeSupabaseAction(ownerUser, 'team', {
+        name: 'د. مروان الكاتب',
+        email: 'invite-failed@example.com',
+        role: 'doctor',
+        specialty: 'الطب العام',
+        fee: 40,
+        license: 'SY-MED-INVITE-FAIL',
+      }),
+    ).rejects.toMatchObject({ status: 502, code: 'INVITE_FAILED' });
+
+    expect(mockInviteUserByEmail).toHaveBeenCalledOnce();
+    expect(mockCreateUser).not.toHaveBeenCalled();
   });
 
   it('executes exception action successfully', async () => {
@@ -476,6 +608,7 @@ describe('Supabase Actions Service Security & Validation', () => {
       expect(res.data).toHaveProperty('id');
       expect(res.data).toHaveProperty('email', 'marwan@example.com');
     }
+    expect(adminRpcCalls.some((call) => call.fn === 'provision_team_member_atomic')).toBe(true);
   });
 
   it('executes branch creation successfully by clinic owner', async () => {
@@ -593,10 +726,13 @@ describe('Supabase Actions Service Security & Validation', () => {
     ).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND' });
   });
 
-  it('rolls back newly created auth user when team doctor profile insert fails', async () => {
+  it('rolls back newly invited auth user when atomic team provisioning fails', async () => {
     mockTableData['subscriptions'] = { tier: 'clinic_pro', max_doctors: 10 };
     mockTableData['specialties'] = { id: 'spec-1', name_ar: 'الطب العام' };
-    mockTableErrors['doctors.insert'] = { message: 'duplicate license_number', code: '23505' };
+    mockAdminRpcResponses['provision_team_member_atomic'] = {
+      data: null,
+      error: { message: 'duplicate license_number', code: '23505' },
+    };
 
     await expect(
       executeSupabaseAction(ownerUser, 'team', {
@@ -607,9 +743,32 @@ describe('Supabase Actions Service Security & Validation', () => {
         fee: 40,
         license: 'SY-MED-9999',
       }),
-    ).rejects.toMatchObject({ status: 500, code: 'DB_ERROR' });
+    ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
 
     expect(mockDeleteUser).toHaveBeenCalledWith('new-user-id');
+  });
+
+  it('requires the atomic team migration instead of falling back to partial writes', async () => {
+    mockTableData['subscriptions'] = { tier: 'clinic_pro', max_doctors: 10 };
+    mockTableData['specialties'] = { id: 'spec-1', name_ar: 'الطب العام' };
+    mockAdminRpcResponses['provision_team_member_atomic'] = {
+      data: null,
+      error: { message: 'function not found', code: 'PGRST202' },
+    };
+
+    await expect(
+      executeSupabaseAction(ownerUser, 'team', {
+        name: 'د. مروان الكاتب',
+        email: 'migration-required@example.com',
+        role: 'doctor',
+        specialty: 'الطب العام',
+        fee: 40,
+        license: 'SY-MED-MIGRATION',
+      }),
+    ).rejects.toMatchObject({ status: 500, code: 'MIGRATION_REQUIRED' });
+
+    expect(mockDeleteUser).toHaveBeenCalledWith('new-user-id');
+    expect(adminRpcCalls.some((call) => call.fn === 'provision_team_member_atomic')).toBe(true);
   });
 
   it('surfaces DB errors instead of returning false 200 on verify, subscription, and reference', async () => {

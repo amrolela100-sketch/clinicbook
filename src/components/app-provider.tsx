@@ -1,5 +1,13 @@
 'use client';
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type ReactNode,
+} from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 import type { User, Doctor, Appointment, MedicalRecord, Shift } from '@/lib/types';
@@ -78,6 +86,7 @@ interface AppContext {
 const Ctx = createContext<AppContext>(null!);
 export const useApp = () => useContext(Ctx);
 export function AppProvider({ children }: { children: ReactNode }) {
+  const refreshVersion = useRef(0);
   const [data, setData] = useState<AppData | null>(null),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(''),
@@ -88,16 +97,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 5000);
   }, []);
   const refresh = useCallback(async () => {
+    const version = ++refreshVersion.current;
     try {
       const r = await fetch('/api/data', { cache: 'no-store' });
       const j = await r.json();
       if (!r.ok || !j.success) throw new Error();
+      if (version !== refreshVersion.current) return;
       setData(j.data);
       setError('');
     } catch {
+      if (version !== refreshVersion.current) return;
       setError('تعذر تحميل البيانات. تحقق من الاتصال وحاول مجدداً.');
     } finally {
-      setLoading(false);
+      if (version === refreshVersion.current) setLoading(false);
     }
   }, []);
   useEffect(() => {

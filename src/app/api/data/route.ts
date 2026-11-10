@@ -3,6 +3,7 @@ import { currentUser, demoEnabled } from '@/lib/auth/session';
 import { canAccess } from '@/lib/auth/guards';
 import type { Doctor, MedicalRecord, User } from '@/lib/types';
 import type { Organization } from '@/lib/services/booking-service';
+import { isOrganizationPubliclyBookable } from '@/lib/services/organization-policy';
 import { fetchSupabaseAppData } from '@/lib/services/supabase-data-service';
 
 export const dynamic = 'force-dynamic';
@@ -26,21 +27,15 @@ export async function GET() {
   const user = await currentUser();
   expirePending();
   const orgs = all<Organization>('organization');
+  const orgById = new Map(orgs.map((organization) => [organization.id, organization]));
   const doctors = all<Doctor>('doctor')
     .filter(
       (d) =>
         user?.organizationId === d.organizationId ||
-        (d.verified &&
-          orgs.some(
-            (o) =>
-              o.id === d.organizationId &&
-              o.status === 'approved' &&
-              ['active', 'trialing'].includes(o.subscriptionStatus) &&
-              new Date(o.periodEnd) > new Date(),
-          )),
+        (d.verified && isOrganizationPubliclyBookable(orgById.get(d.organizationId))),
     )
     .map((d) => {
-      const o = orgs.find((org) => org.id === d.organizationId);
+      const o = orgById.get(d.organizationId);
       const bookingHorizonDays =
         o?.tier === 'enterprise' ? 180 : o?.tier === 'clinic_pro' ? 90 : 30;
       return {

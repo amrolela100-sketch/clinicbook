@@ -150,7 +150,7 @@ describe('Integration: Actions API Route (/api/actions)', () => {
     expect(json.code).toBe('FORBIDDEN');
   });
 
-  it('routes to Supabase action execution when user has active session and Supabase is forced', async () => {
+  it('does not route a SQLite demo actor into Supabase actions when Supabase is forced', async () => {
     process.env.FORCE_SUPABASE = 'true';
     const owner = roles.find((r) => r.role === 'clinic_owner')!;
     await createSession(owner.id);
@@ -166,9 +166,9 @@ describe('Integration: Actions API Route (/api/actions)', () => {
 
     const res = await POST(req);
     const json = await res.json();
-    expect(res.status).toBe(200);
-    expect(json.success).toBe(true);
-    expect(json.data.tier).toBe('enterprise');
+    expect(res.status).toBe(401);
+    expect(json.success).toBe(false);
+    expect(json.code).toBe('UNAUTHORIZED');
   });
 
   it('rejects signin with non-existent email with 401 without creating random user', async () => {

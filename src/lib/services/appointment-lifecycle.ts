@@ -13,14 +13,22 @@ export function canTransition(
     code: 'INVALID_TRANSITION',
   });
   const before = now.getTime() < new Date(a.start).getTime();
-  const staff = ['doctor', 'receptionist', 'clinic_owner'].includes(role);
+  const administrativeStaff = ['doctor', 'receptionist', 'clinic_owner'].includes(role);
+  const clinicalStaff = ['doctor', 'receptionist'].includes(role);
   if (a.status === 'pending') {
     if (next === 'cancelled' && role === 'patient') return { success: true, data: true };
     if (next === 'expired' && role === 'system' && a.expiresAt && new Date(a.expiresAt) <= now)
       return { success: true, data: true };
-    if (next === 'confirmed' && staff && before && a.expiresAt && new Date(a.expiresAt) > now)
+    if (
+      next === 'confirmed' &&
+      administrativeStaff &&
+      before &&
+      a.expiresAt &&
+      new Date(a.expiresAt) > now
+    )
       return { success: true, data: true };
-    if (next === 'rejected' && staff && reason.trim()) return { success: true, data: true };
+    if (next === 'rejected' && administrativeStaff && reason.trim())
+      return { success: true, data: true };
   }
   if (a.status === 'confirmed') {
     if (
@@ -29,14 +37,15 @@ export function canTransition(
       new Date(a.start).getTime() - now.getTime() >= cancelHours * 3600000
     )
       return { success: true, data: true };
-    if (next === 'cancelled' && staff && reason.trim()) return { success: true, data: true };
-    if (next === 'checked_in' && staff) return { success: true, data: true };
-    if (next === 'no_show' && staff && !before) return { success: true, data: true };
+    if (next === 'cancelled' && administrativeStaff && reason.trim())
+      return { success: true, data: true };
+    if (next === 'checked_in' && clinicalStaff) return { success: true, data: true };
+    if (next === 'no_show' && clinicalStaff && !before) return { success: true, data: true };
   }
   if (
     ['confirmed', 'checked_in'].includes(a.status) &&
     next === 'completed' &&
-    (role === 'doctor' || role === 'clinic_owner') &&
+    role === 'doctor' &&
     !before
   )
     return { success: true, data: true };

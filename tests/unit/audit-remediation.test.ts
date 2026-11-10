@@ -120,8 +120,9 @@ import { executeSupabaseAction } from '../../src/lib/services/supabase-actions-s
 import getClinicSummaryTool from '../../agent/tools/get_clinic_summary';
 import handlePatientResponseTool from '../../agent/tools/handle_patient_response';
 import { generateMetadata } from '../../src/app/[[...path]]/page';
-import { ensureSeed, all } from '../../src/lib/demo-db';
+import { ensureSeed, all, get, put } from '../../src/lib/demo-db';
 import type { Doctor, User } from '../../src/lib/types';
+import type { Organization } from '../../src/lib/services/booking-service';
 
 describe('Full-Stack Audit Remediations Suite (REM-01 through REM-09)', () => {
   const savedEnv = { ...process.env };
@@ -158,6 +159,7 @@ describe('Full-Stack Audit Remediations Suite (REM-01 through REM-09)', () => {
       full_name: 'مدير المنصة',
       email: 'admin@clinicbook.sy',
       role: 'super_admin',
+      status: 'active',
     };
     mockRpcResponses['super_admin_dashboard_data'] = {
       data: {
@@ -221,6 +223,7 @@ describe('Full-Stack Audit Remediations Suite (REM-01 through REM-09)', () => {
       full_name: 'عمر الكيلاني',
       email: 'owner@clinic.sy',
       role: 'clinic_owner',
+      status: 'active',
     };
     mockTableResponses['organizations'] = {
       id: 'org-1',
@@ -289,6 +292,60 @@ describe('Full-Stack Audit Remediations Suite (REM-01 through REM-09)', () => {
     ]);
   });
 
+  it('projects each public doctor booking policy for patient views', async () => {
+    mockAuthUser = { id: 'patient-policy-1', email: 'patient@clinic.sy' };
+    mockTableResponses['users'] = {
+      id: 'patient-policy-1',
+      full_name: 'مريض',
+      email: 'patient@clinic.sy',
+      role: 'patient',
+      status: 'active',
+    };
+    mockRpcResponses['public_doctor_directory'] = {
+      data: [
+        {
+          id: 'doctor-policy-1',
+          full_name: 'د. لينا',
+          title_ar: 'طبيبة اختصاصية',
+          bio_ar: '',
+          specialty_id: 'specialty-1',
+          specialty_name: 'طب الأسرة',
+          organization_id: 'org-policy-1',
+          clinic_id: 'clinic-policy-1',
+          clinic_name: 'مركز الأسرة',
+          city_name: 'دمشق',
+          district: 'المزة',
+          consultation_fee: 40,
+          follow_up_fee: 25,
+          years_of_experience: 8,
+          rating_avg: 4.9,
+          reviews_count: 20,
+          avatar_url: null,
+          license_number: 'SY-POLICY-1',
+          booking_horizon_days: 120,
+          cancel_window_hours: 12,
+        },
+      ],
+      error: null,
+    };
+
+    const appData = await fetchSupabaseAppData();
+    expect(appData.doctors[0]).toMatchObject({
+      id: 'doctor-policy-1',
+      bookingHorizonDays: 120,
+      cancelHours: 12,
+    });
+  });
+
+  it('does not turn a failed public directory read into a valid empty result', async () => {
+    mockRpcResponses['public_doctor_directory'] = {
+      data: null,
+      error: { code: '08006', message: 'directory connection failed' },
+    };
+
+    await expect(fetchSupabaseAppData()).rejects.toThrow('PUBLIC_DATA_UNAVAILABLE');
+  });
+
   it('REM-02 & REM-03: executes atomic onboard & team RPCs with separate doctor identity, email invite, and rollback on conflict', async () => {
     const newOwner: User = {
       id: 'owner-fresh',
@@ -320,7 +377,7 @@ describe('Full-Stack Audit Remediations Suite (REM-01 through REM-09)', () => {
     const onboardRpcCall = adminCalls.find((c) => c.fn === 'rpc.onboard_organization_atomic');
     expect(onboardRpcCall).toBeDefined();
     expect((onboardRpcCall?.args as Record<string, unknown>).p_doctor_user_id).toBe(
-      'created-doc-auth-id',
+      'invited-user-1',
     );
 
     // Onboard conflict (23505) cleans up dedicated doctor auth user
@@ -340,7 +397,7 @@ describe('Full-Stack Audit Remediations Suite (REM-01 through REM-09)', () => {
         tier: 'solo_starter',
       }),
     ).rejects.toMatchObject({ status: 409, code: 'ALREADY_EXISTS' });
-    expect(mockDeleteAuthUser).toHaveBeenCalledWith('created-doc-auth-id');
+    expect(mockDeleteAuthUser).toHaveBeenCalledWith('invited-user-1');
 
     // Team invitation + atomic provisioning RPC
     const activeOwner: User = {
@@ -368,14 +425,20 @@ describe('Full-Stack Audit Remediations Suite (REM-01 through REM-09)', () => {
     expect(adminCalls.some((c) => c.fn === 'rpc.provision_team_member_atomic')).toBe(true);
   });
 
-  it('REM-04: ignores forged client-writable user_metadata.intent_role in currentUser() while trusting server app_metadata', async () => {
+  it('REM-04: requires an active profile and ignores metadata roles when resolving currentUser()', async () => {
     mockAuthUser = {
       id: 'forged-user-1',
       email: 'attacker@example.com',
       user_metadata: { intent_role: 'clinic_owner', role: 'super_admin' },
-      app_metadata: {},
+      app_metadata: { role: 'super_admin' },
     };
-    mockTableResponses['users'] = null;
+    mockTableResponses['users'] = {
+      id: 'forged-user-1',
+      full_name: 'مستخدم',
+      email: 'attacker@example.com',
+      role: 'patient',
+      status: 'active',
+    };
 
     const resolvedForged = await currentUser();
     expect(resolvedForged?.role).toBe('patient');
@@ -386,8 +449,9 @@ describe('Full-Stack Audit Remediations Suite (REM-01 through REM-09)', () => {
       user_metadata: {},
       app_metadata: { role: 'clinic_owner' },
     };
+    mockTableResponses['users'] = null;
     const resolvedServerMeta = await currentUser();
-    expect(resolvedServerMeta?.role).toBe('clinic_owner');
+    expect(resolvedServerMeta).toBeNull();
   });
 
   it('REM-05: resists X-Forwarded-For spoofing via platform headers & TRUSTED_PROXY_HOPS, sets DENY & optional enforcing CSP', async () => {
@@ -429,6 +493,7 @@ describe('Full-Stack Audit Remediations Suite (REM-01 through REM-09)', () => {
       full_name: 'د. باسل',
       email: 'doc@clinic.sy',
       role: 'doctor',
+      status: 'active',
     };
     mockTableResponses['doctors'] = { organization_id: 'org-prod-1' };
     mockTableResponses['organization_members'] = { clinic_id: 'cl-prod-1' };
@@ -500,5 +565,16 @@ describe('Full-Stack Audit Remediations Suite (REM-01 through REM-09)', () => {
     });
     expect(String(docMeta.title)).toContain(verifiedDoc.name);
     expect(String(docMeta.title)).toContain(verifiedDoc.specialty);
+
+    const organization = get<Organization>('organization', verifiedDoc.organizationId)!;
+    try {
+      put('organization', organization.id, { ...organization, subscriptionStatus: 'canceled' });
+      const hiddenDocMeta = await generateMetadata({
+        params: Promise.resolve({ path: ['doctors', verifiedDoc.id] }),
+      });
+      expect(String(hiddenDocMeta.title)).not.toContain(verifiedDoc.name);
+    } finally {
+      put('organization', organization.id, organization);
+    }
   });
 });

@@ -8,6 +8,7 @@ import {
   currentUser,
   demoEnabled,
   redirectForUser,
+  toSafeUser,
 } from '@/lib/auth/session';
 import type { User, Role } from '@/lib/types';
 import { checkRateLimit, getClientIp, RATE_LIMIT_CONFIGS } from '@/lib/rate-limit';
@@ -349,7 +350,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'الدور غير متاح.' }, { status: 400 });
 
     await createSession(user.id);
-    return NextResponse.json({ success: true, data: user });
+    return NextResponse.json({ success: true, data: toSafeUser(user) });
   }
 
   return NextResponse.json(

@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { fromZonedTime } from 'date-fns-tz';
 import {
   Search,
@@ -43,6 +43,7 @@ import type { Shift, MedicalRecord, Appointment } from '@/lib/types';
 import { formatDoctorName } from '@/lib/format';
 export function SchedulePage() {
   const { data, act } = useApp();
+  const draftVersion = useRef(0);
   const doctors =
     data?.doctors.filter(
       (d) =>
@@ -52,6 +53,7 @@ export function SchedulePage() {
   const [doctorId, setDoctorId] = useState(doctors[0]?.id ?? ''),
     [shifts, setShifts] = useState<Shift[]>([]),
     [duration, setDuration] = useState(30),
+    [dirty, setDirty] = useState(false),
     [busy, setBusy] = useState(false),
     [open, setOpen] = useState(false),
     [exStart, setExStart] = useState(''),
@@ -60,6 +62,7 @@ export function SchedulePage() {
   const clinicTimezone = data?.organization?.timezone || 'Asia/Damascus';
   const doctorSchedule = data?.schedules[doctorId];
   useEffect(() => {
+    if (dirty) return;
     const existing = doctorSchedule ?? [];
     setShifts(
       Array.from({ length: 7 }, (_, day) =>
@@ -69,10 +72,16 @@ export function SchedulePage() {
       ).flat(),
     );
     setDuration(existing[0]?.duration ?? 30);
-  }, [doctorId, doctorSchedule]);
+  }, [doctorId, doctorSchedule, dirty]);
   const names = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-  const update = (idx: number, patch: Partial<Shift>) =>
+  const markDirty = () => {
+    draftVersion.current += 1;
+    setDirty(true);
+  };
+  const update = (idx: number, patch: Partial<Shift>) => {
+    markDirty();
     setShifts((s) => s.map((v, i) => (i === idx ? { ...v, ...patch } : v)));
+  };
   const exStartUtc = exStart ? fromZonedTime(exStart, clinicTimezone) : null;
   const exEndUtc = exEnd ? fromZonedTime(exEnd, clinicTimezone) : null;
   const affected =
@@ -89,12 +98,14 @@ export function SchedulePage() {
     ).length ?? 0;
   async function save(e: FormEvent) {
     e.preventDefault();
+    const submittedVersion = draftVersion.current;
     setBusy(true);
-    await act(
+    const ok = await act(
       'schedule',
       { doctorId, shifts: shifts.map((s) => ({ ...s, duration })) },
       'تم تحديث جدول الدوام',
     );
+    if (ok && draftVersion.current === submittedVersion) setDirty(false);
     setBusy(false);
   }
   return (
@@ -117,7 +128,15 @@ export function SchedulePage() {
           <form onSubmit={save}>
             <div className="schedule-controls">
               <Field label="الطبيب">
-                <select value={doctorId} onChange={(e) => setDoctorId(e.target.value)}>
+                <select
+                  value={doctorId}
+                  disabled={busy}
+                  onChange={(e) => {
+                    draftVersion.current += 1;
+                    setDirty(false);
+                    setDoctorId(e.target.value);
+                  }}
+                >
                   {doctors.map((d) => (
                     <option key={d.id} value={d.id}>
                       {formatDoctorName(d.name)}
@@ -127,9 +146,12 @@ export function SchedulePage() {
               </Field>
               <Field label="مدة الموعد">
                 <select
-                  disabled={!editable}
+                  disabled={!editable || busy}
                   value={duration}
-                  onChange={(e) => setDuration(Number(e.target.value))}
+                  onChange={(e) => {
+                    markDirty();
+                    setDuration(Number(e.target.value));
+                  }}
                 >
                   {[10, 15, 20, 30, 45, 60].map((n) => (
                     <option key={n} value={n}>
@@ -150,13 +172,14 @@ export function SchedulePage() {
                       <input
                         type="checkbox"
                         role="switch"
-                        disabled={!editable}
+                        disabled={!editable || busy}
                         checked={rows.some((s) => s.active)}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          markDirty();
                           setShifts((s) =>
                             s.map((v) => (v.day === day ? { ...v, active: e.target.checked } : v)),
-                          )
-                        }
+                          );
+                        }}
                       />
                       <strong>{name}</strong>
                     </label>
@@ -169,7 +192,7 @@ export function SchedulePage() {
                               aria-label={`بداية ${name}`}
                               type="time"
                               step="900"
-                              disabled={!editable}
+                              disabled={!editable || busy}
                               value={s.start}
                               onChange={(e) => update(s.index, { start: e.target.value })}
                             />
@@ -178,7 +201,7 @@ export function SchedulePage() {
                               aria-label={`نهاية ${name}`}
                               type="time"
                               step="900"
-                              disabled={!editable}
+                              disabled={!editable || busy}
                               value={s.end}
                               onChange={(e) => update(s.index, { end: e.target.value })}
                             />
@@ -187,8 +210,11 @@ export function SchedulePage() {
                                 type="button"
                                 className="icon-button"
                                 aria-label="حذف الفترة"
-                                disabled={!editable}
-                                onClick={() => setShifts((v) => v.filter((_, i) => i !== s.index))}
+                                disabled={!editable || busy}
+                                onClick={() => {
+                                  markDirty();
+                                  setShifts((v) => v.filter((_, i) => i !== s.index));
+                                }}
                               >
                                 <Trash2 size={16} />
                               </button>
@@ -203,13 +229,14 @@ export function SchedulePage() {
                       type="button"
                       className="icon-button add-shift"
                       aria-label={`إضافة فترة ${name}`}
-                      disabled={!editable || rows.length >= 3}
-                      onClick={() =>
+                      disabled={!editable || busy || rows.length >= 3}
+                      onClick={() => {
+                        markDirty();
                         setShifts((s) => [
                           ...s,
                           { day, start: '18:00', end: '21:00', duration, active: true },
-                        ])
-                      }
+                        ]);
+                      }}
                     >
                       <Plus size={17} />
                     </button>
