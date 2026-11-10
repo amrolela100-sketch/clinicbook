@@ -158,14 +158,35 @@ describe('appointment lifecycle', () => {
     expect(
       canTransition(appt, 'cancelled', 'clinic_owner', new Date('2026-10-15T06:00:00Z')).success,
     ).toBe(false));
-  it('allows clinic_owner completion after start', () =>
+  it('denies clinic_owner completion after start', () =>
     expect(
       canTransition(appt, 'completed', 'clinic_owner', new Date('2026-10-15T10:00:00Z')).success,
-    ).toBe(true));
+    ).toBe(false));
   it('denies clinic_owner early completion before start', () =>
     expect(
       canTransition(appt, 'completed', 'clinic_owner', new Date('2026-10-15T08:00:00Z')).success,
     ).toBe(false));
+  it('denies clinic_owner check-in and no-show transitions', () => {
+    expect(
+      canTransition(appt, 'checked_in', 'clinic_owner', new Date('2026-10-15T08:00:00Z')).success,
+    ).toBe(false);
+    expect(
+      canTransition(appt, 'no_show', 'clinic_owner', new Date('2026-10-15T10:00:00Z')).success,
+    ).toBe(false);
+  });
+  it('allows receptionist check-in but denies completion', () => {
+    expect(
+      canTransition(appt, 'checked_in', 'receptionist', new Date('2026-10-15T08:00:00Z')).success,
+    ).toBe(true);
+    expect(
+      canTransition(
+        { ...appt, status: 'checked_in' },
+        'completed',
+        'receptionist',
+        new Date('2026-10-15T10:00:00Z'),
+      ).success,
+    ).toBe(false);
+  });
   it('terminal states cannot reopen', () =>
     expect(
       canTransition({ ...appt, status: 'completed' }, 'confirmed', 'doctor', new Date()).success,

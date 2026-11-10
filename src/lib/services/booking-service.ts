@@ -3,6 +3,7 @@ import { formatInTimeZone } from 'date-fns-tz';
 import { z } from 'zod';
 import { db, get, all, appointments, expirePending, saveAppointment, audit } from '../demo-db';
 import { getAvailableSlots } from './slots-engine';
+import { isOrganizationPubliclyBookable } from './organization-policy';
 import type { Appointment, Doctor, User, Shift, ActionResult } from '../types';
 export const bookingSchema = z
   .object({
@@ -39,13 +40,7 @@ export function slotsFor(doctorId: string, date: string, now: Date = new Date())
   const d = get<Doctor>('doctor', doctorId);
   if (!d || !d.verified) return [];
   const org = get<Organization>('organization', d.organizationId);
-  if (
-    !org ||
-    org.status !== 'approved' ||
-    !['active', 'trialing'].includes(org.subscriptionStatus) ||
-    new Date(org.periodEnd) <= now
-  )
-    return [];
+  if (!isOrganizationPubliclyBookable(org, now)) return [];
   const day = new Date(`${date}T12:00:00Z`).getUTCDay();
   const shifts = (get<Shift[]>('schedule', doctorId) ?? []).filter(
     (s) => s.day === day && s.active,

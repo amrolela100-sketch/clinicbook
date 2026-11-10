@@ -149,7 +149,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // --- Security headers & CSP Report-Only ---
+  // --- Security headers & CSP (enforced by default in production) ---
   let supabaseConnectSrc = '';
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (supabaseUrl) {
@@ -161,7 +161,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  const cspReportOnly = [
+  const csp = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}'`,
     "style-src 'self' 'unsafe-inline'",
@@ -173,9 +173,13 @@ export async function middleware(request: NextRequest) {
     "object-src 'none'",
   ].join('; ');
 
-  response.headers.set('Content-Security-Policy-Report-Only', cspReportOnly);
-  if (process.env.CSP_ENFORCE === 'true') {
-    response.headers.set('Content-Security-Policy', cspReportOnly);
+  const enforceCsp =
+    process.env.CSP_ENFORCE === 'true' ||
+    (process.env.NODE_ENV === 'production' && process.env.CSP_REPORT_ONLY !== 'true');
+  if (enforceCsp) {
+    response.headers.set('Content-Security-Policy', csp);
+  } else {
+    response.headers.set('Content-Security-Policy-Report-Only', csp);
   }
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('X-Frame-Options', 'DENY');

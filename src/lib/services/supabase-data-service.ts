@@ -102,8 +102,8 @@ function mapDoctorRow(
     image: d.avatar_url ?? 'doctor-1.jpg',
     verified,
     license: d.license_number ?? '',
-    bookingHorizonDays: 30,
-    cancelHours: 2,
+    bookingHorizonDays: Number(d.booking_horizon_days ?? 30),
+    cancelHours: Number(d.cancel_window_hours ?? 2),
   };
 }
 
@@ -114,10 +114,10 @@ export async function fetchSupabaseAppData(preResolvedUser?: User | null): Promi
   // 1. Execute independent public & directory reads in parallel (REM-01)
   const [
     { data: rawRpcDoctors, error: rpcDocsError },
-    { data: rawCities },
-    { data: rawSpecialties },
-    { data: rawAvailability },
-    { data: rawRpcReviews },
+    { data: rawCities, error: citiesError },
+    { data: rawSpecialties, error: specialtiesError },
+    { data: rawAvailability, error: availabilityError },
+    { data: rawRpcReviews, error: reviewsError },
   ] = await Promise.all([
     client.rpc('public_doctor_directory'),
     client.from('cities').select('id, name_ar, name_en'),
@@ -128,8 +128,15 @@ export async function fetchSupabaseAppData(preResolvedUser?: User | null): Promi
     client.rpc('public_reviews'),
   ]);
 
-  if (rpcDocsError) {
-    console.warn('public_doctor_directory RPC fallback warning:', rpcDocsError.message);
+  const publicReadError = [
+    rpcDocsError,
+    citiesError,
+    specialtiesError,
+    availabilityError,
+    reviewsError,
+  ].find(Boolean);
+  if (publicReadError) {
+    throw new Error(`PUBLIC_DATA_UNAVAILABLE: ${publicReadError.message || 'unknown read error'}`);
   }
 
   const doctorMap = new Map<string, Doctor>();
@@ -190,12 +197,12 @@ export async function fetchSupabaseAppData(preResolvedUser?: User | null): Promi
 
   if (user?.organizationId) {
     const [
-      { data: orgRow },
-      { data: rawBranches },
+      { data: orgRow, error: organizationError },
+      { data: rawBranches, error: branchesError },
       { data: rawTeamMembers, error: teamRpcError },
       { data: rawTenantDoctors, error: tenantDocsError },
       { data: rawBillingRequests, error: billingRpcError },
-      { data: rawEx },
+      { data: rawEx, error: exceptionsError },
     ] = await Promise.all([
       client
         .from('organizations')
@@ -214,7 +221,21 @@ export async function fetchSupabaseAppData(preResolvedUser?: User | null): Promi
       client.from('availability_exceptions').select('id, doctor_id, start_at, end_at, reason'),
     ]);
 
-    if (!tenantDocsError && rawTenantDoctors) {
+    const tenantDirectoryError = [
+      organizationError,
+      branchesError,
+      teamRpcError,
+      tenantDocsError,
+      billingRpcError,
+      exceptionsError,
+    ].find(Boolean);
+    if (tenantDirectoryError) {
+      throw new Error(
+        `TENANT_DATA_UNAVAILABLE: ${tenantDirectoryError.message || 'unknown read error'}`,
+      );
+    }
+
+    if (rawTenantDoctors) {
       for (const td of toArray<TenantDoctorDirectoryRow>(rawTenantDoctors)) {
         doctorMap.set(td.id, mapDoctorRow(td));
       }
@@ -261,7 +282,7 @@ export async function fetchSupabaseAppData(preResolvedUser?: User | null): Promi
       organization.city = branches[0].city;
     }
 
-    if (!teamRpcError && rawTeamMembers) {
+    if (rawTeamMembers) {
       team = toArray<TenantTeamMemberRpcRow>(rawTeamMembers).map((m) => ({
         id: m.id,
         name: m.full_name || 'عضو الفريق',
@@ -272,7 +293,7 @@ export async function fetchSupabaseAppData(preResolvedUser?: User | null): Promi
       }));
     }
 
-    if (!billingRpcError && rawBillingRequests) {
+    if (rawBillingRequests) {
       billingRequests = toArray<TenantBillingRequestRpcRow>(rawBillingRequests).map((r) => ({
         id: r.id,
         tier: r.tier,
@@ -333,7 +354,7 @@ export async function fetchSupabaseAppData(preResolvedUser?: User | null): Promi
             .eq('is_visible_to_patient', true)
         : user.role === 'doctor'
           ? client.from('medical_records').select('*').eq('doctor_id', user.id)
-          : Promise.resolve({ data: null });
+          : Promise.resolve({ data: null, error: null });
 
     const adminPromise =
       user.role === 'super_admin'
@@ -341,7 +362,11 @@ export async function fetchSupabaseAppData(preResolvedUser?: User | null): Promi
         : Promise.resolve({ data: null, error: null });
 
     if (user.role === 'patient') {
-      const [{ data: rawPatientAppts }, { data: rawMed }, { data: rawNotifs }] = await Promise.all([
+      const [
+        { data: rawPatientAppts, error: patientAppointmentsError },
+        { data: rawMed, error: recordsError },
+        { data: rawNotifs, error: notificationsError },
+      ] = await Promise.all([
         client
           .from('appointments')
           .select('*')
@@ -350,6 +375,15 @@ export async function fetchSupabaseAppData(preResolvedUser?: User | null): Promi
         recordsPromise,
         notificationsPromise,
       ]);
+
+      const patientReadError = [patientAppointmentsError, recordsError, notificationsError].find(
+        Boolean,
+      );
+      if (patientReadError) {
+        throw new Error(
+          `PATIENT_DATA_UNAVAILABLE: ${patientReadError.message || 'unknown read error'}`,
+        );
+      }
 
       appointments = toArray<RawAppointment>(rawPatientAppts).map((a) => {
         const doc = doctors.find((d) => d.id === a.doctor_id);
@@ -397,12 +431,22 @@ export async function fetchSupabaseAppData(preResolvedUser?: User | null): Promi
         }));
       }
     } else if (user.organizationId) {
-      const [{ data: rawTenantAppts, error: tenantErr }, { data: rawMed }, { data: rawNotifs }] =
-        await Promise.all([
-          client.rpc('get_tenant_appointments', { p_org: user.organizationId }),
-          recordsPromise,
-          notificationsPromise,
-        ]);
+      const [
+        { data: rawTenantAppts, error: tenantErr },
+        { data: rawMed, error: recordsError },
+        { data: rawNotifs, error: notificationsError },
+      ] = await Promise.all([
+        client.rpc('get_tenant_appointments', { p_org: user.organizationId }),
+        recordsPromise,
+        notificationsPromise,
+      ]);
+
+      const tenantClinicalReadError = [recordsError, notificationsError].find(Boolean);
+      if (tenantClinicalReadError) {
+        throw new Error(
+          `TENANT_CLINICAL_DATA_UNAVAILABLE: ${tenantClinicalReadError.message || 'unknown read error'}`,
+        );
+      }
 
       if (!tenantErr && rawTenantAppts) {
         appointments = toArray<TenantAppointmentRpcRow>(rawTenantAppts).map((a) => {
@@ -429,10 +473,16 @@ export async function fetchSupabaseAppData(preResolvedUser?: User | null): Promi
           };
         });
       } else {
-        const { data: rawStaffDirect } = await client
+        const { data: rawStaffDirect, error: directAppointmentsError } = await client
           .from('appointments')
           .select('*')
           .order('start_at', { ascending: true });
+
+        if (directAppointmentsError) {
+          throw new Error(
+            `TENANT_APPOINTMENTS_UNAVAILABLE: ${tenantErr?.message || directAppointmentsError.message || 'unknown read error'}`,
+          );
+        }
 
         appointments = toArray<RawAppointment>(rawStaffDirect).map((a) => {
           const doc = doctors.find((d) => d.id === a.doctor_id);
@@ -481,10 +531,15 @@ export async function fetchSupabaseAppData(preResolvedUser?: User | null): Promi
         }));
       }
     } else {
-      const [{ data: rawNotifs }, { data: rawAdmin, error: adminErr }] = await Promise.all([
-        notificationsPromise,
-        adminPromise,
-      ]);
+      const [{ data: rawNotifs, error: notificationsError }, { data: rawAdmin, error: adminErr }] =
+        await Promise.all([notificationsPromise, adminPromise]);
+
+      const platformReadError = [notificationsError, adminErr].find(Boolean);
+      if (platformReadError) {
+        throw new Error(
+          `PLATFORM_DATA_UNAVAILABLE: ${platformReadError.message || 'unknown read error'}`,
+        );
+      }
 
       if (rawNotifs) {
         notifications = rawNotifs.map((n) => ({
@@ -496,7 +551,7 @@ export async function fetchSupabaseAppData(preResolvedUser?: User | null): Promi
         }));
       }
 
-      if (user.role === 'super_admin' && !adminErr && rawAdmin && typeof rawAdmin === 'object') {
+      if (user.role === 'super_admin' && rawAdmin && typeof rawAdmin === 'object') {
         const snap = (Array.isArray(rawAdmin) ? rawAdmin[0] : rawAdmin) as
           Partial<SuperAdminDashboardSnapshot> | undefined;
         if (snap && (snap.organizations || snap.verifications || snap.audit)) {

@@ -135,7 +135,9 @@ export function getClientIp(request: Request): string {
         const idx = Math.max(0, hops.length - configuredHops);
         return hops[idx];
       }
-      return hops[0];
+      // Without an explicit topology, trust only the closest proxy's appended value.
+      // The leftmost value can be client-prepended and rotated to bypass rate limits.
+      return hops[hops.length - 1];
     }
     return '127.0.0.1';
   }

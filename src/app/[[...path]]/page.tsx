@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { currentUser, demoEnabled } from '@/lib/auth/session';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { formatDoctorName } from '@/lib/format';
+import { isOrganizationPubliclyBookable } from '@/lib/services/organization-policy';
 import type { Doctor } from '@/lib/types';
 import type { PublicDoctorDirectoryRow } from '@/lib/supabase/database.types';
 import { redirect, notFound } from 'next/navigation';
@@ -27,7 +28,14 @@ async function resolvePublicDoctor(doctorId: string): Promise<PublicDoctorSummar
     if (demoEnabled()) {
       const { get } = await import('@/lib/demo-db');
       const doc = get<Doctor>('doctor', doctorId);
-      if (!doc || !doc.verified) return null;
+      const org = doc
+        ? get<{
+            status: string;
+            subscriptionStatus: string;
+            periodEnd: string;
+          }>('organization', doc.organizationId)
+        : null;
+      if (!doc || !doc.verified || !isOrganizationPubliclyBookable(org)) return null;
       return {
         id: doc.id,
         name: doc.name,

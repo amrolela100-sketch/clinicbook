@@ -5,13 +5,17 @@ import path from 'node:path';
 import { NextRequest } from 'next/server';
 
 const mockCookieStore = new Map<string, string>();
-const adminCalls: Array<{ fn: string; table?: string }> = [];
+const adminCalls: Array<{ fn: string; table?: string; args?: unknown }> = [];
 const rpcCalls: Array<{ fn: string; args: unknown }> = [];
 const fromCalls: Array<{ table: string; op: string; filters: Array<[string, unknown]> }> = [];
 const writePayloads: Array<{ table: string; op: string; data: unknown }> = [];
 
-let mockAuthUser: { id: string; email?: string; user_metadata?: Record<string, unknown> } | null =
-  null;
+let mockAuthUser: {
+  id: string;
+  email?: string;
+  user_metadata?: Record<string, unknown>;
+  app_metadata?: Record<string, unknown>;
+} | null = null;
 let mockSignUpResult: {
   data: { user: { id: string; email?: string } | null; session: Record<string, unknown> | null };
   error: { message: string } | null;
@@ -151,15 +155,20 @@ vi.mock('../../src/lib/supabase/admin', () => ({
       from: vi.fn().mockImplementation((table: string) => createMockBuilder(table, true)),
       auth: {
         admin: {
+          inviteUserByEmail: vi
+            .fn()
+            .mockResolvedValue({ data: { user: { id: 'admin-new-id' } }, error: null }),
           createUser: vi
             .fn()
             .mockResolvedValue({ data: { user: { id: 'admin-new-id' } }, error: null }),
           deleteUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
         },
       },
-      rpc: vi.fn().mockImplementation(async (fn: string) => {
-        adminCalls.push({ fn: `rpc.${fn}` });
-        return { data: null, error: null };
+      rpc: vi.fn().mockImplementation(async (fn: string, args?: unknown) => {
+        adminCalls.push({ fn: `rpc.${fn}`, args });
+        return fn === 'provision_team_member_atomic'
+          ? { data: 'admin-new-id', error: null }
+          : { data: null, error: null };
       }),
     };
   }),
@@ -295,6 +304,69 @@ describe('Security & Production Hardening Regression Suite', () => {
       expect(loaded).not.toBeNull();
       expect(loaded?.id).toBe(patient.id);
       expect(loaded?.role).toBe('patient');
+      expect(loaded).not.toHaveProperty('passwordHash');
+    });
+
+    it('returns a safe identity projection from the demo quick-role endpoint', async () => {
+      const response = await sessionPOST(
+        new Request('http://localhost:3000/api/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'doctor' }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as { success: boolean; data: User };
+      expect(body.success).toBe(true);
+      expect(body.data.role).toBe('doctor');
+      expect(body.data).not.toHaveProperty('passwordHash');
+    });
+
+    it('rejects a suspended Supabase profile as an authenticated application actor', async () => {
+      process.env.CLINICBOOK_MODE = 'production';
+      process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key';
+      mockAuthUser = {
+        id: 'suspended-user',
+        email: 'suspended@example.com',
+        user_metadata: { full_name: 'Suspended User' },
+      };
+      mockTableResponses['users'] = {
+        id: 'suspended-user',
+        full_name: 'Suspended User',
+        email: 'suspended@example.com',
+        role: 'clinic_owner',
+        status: 'suspended',
+      };
+
+      expect(await currentUser()).toBeNull();
+      expect(fromCalls.some((call) => call.table === 'organizations')).toBe(false);
+    });
+
+    it('rejects missing or failed profile lookups even with stale privileged app metadata', async () => {
+      process.env.CLINICBOOK_MODE = 'production';
+      process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key';
+      mockAuthUser = {
+        id: 'deleted-admin',
+        email: 'deleted-admin@example.com',
+        app_metadata: { role: 'super_admin' },
+      };
+
+      mockTableResponses['users'] = null;
+      expect(await currentUser()).toBeNull();
+
+      mockTableErrors['users.select'] = { message: 'profile lookup unavailable' };
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        expect(await currentUser()).toBeNull();
+        expect(errorSpy).toHaveBeenCalledWith('Supabase profile lookup error:', {
+          message: 'profile lookup unavailable',
+        });
+      } finally {
+        errorSpy.mockRestore();
+      }
     });
 
     it('logs error when Supabase signup public.users upsert sync fails instead of failing silently', async () => {
@@ -351,6 +423,7 @@ describe('Security & Production Hardening Regression Suite', () => {
         full_name: 'سارة',
         email: 'p@test.local',
         role: 'patient',
+        status: 'active',
       };
       mockTableResponses['availability'] = { clinic_id: clinicUuid, slot_duration_minutes: 30 };
       mockRpcResponses['create_appointment_atomic'] = {
@@ -387,6 +460,7 @@ describe('Security & Production Hardening Regression Suite', () => {
         full_name: 'نور',
         email: 'rec@test.local',
         role: 'receptionist',
+        status: 'active',
       };
       mockTableResponses['organization_members'] = {
         organization_id: orgUuid,
@@ -442,6 +516,7 @@ describe('Security & Production Hardening Regression Suite', () => {
         full_name: 'سارة',
         email: 'p@test.local',
         role: 'patient',
+        status: 'active',
       };
       mockTableResponses['clinics'] = { timezone: 'Asia/Damascus' };
       // 2026-11-12T07:00:00.000Z = 10:00:00 Asia/Damascus on Thursday (day_of_week = 4)
@@ -495,6 +570,7 @@ describe('Security & Production Hardening Regression Suite', () => {
         full_name: 'سارة',
         email: 'p@test.local',
         role: 'patient',
+        status: 'active',
       };
       mockTableResponses['availability'] = { clinic_id: clinicUuid, slot_duration_minutes: 30 };
 
@@ -574,6 +650,7 @@ describe('Security & Production Hardening Regression Suite', () => {
         full_name: 'عمر',
         email: 'owner@test.local',
         role: 'clinic_owner',
+        status: 'active',
       };
       mockTableResponses['organizations'] = {
         id: orgUuid,
@@ -674,15 +751,14 @@ describe('Security & Production Hardening Regression Suite', () => {
         doctorId: 'doc-branch-2',
         shifts: [{ day: 1, start: '10:00', end: '13:00', duration: 30, active: true }],
       });
-      const availInsert = writePayloads.find(
-        (w) =>
-          w.table === 'availability' &&
-          w.op === 'insert' &&
-          Array.isArray(w.data) &&
-          (w.data[0] as { doctor_id?: string }).doctor_id === 'doc-branch-2',
+      const atomicScheduleCall = rpcCalls.find(
+        (call) =>
+          call.fn === 'replace_availability_atomic' &&
+          (call.args as { p_doctor_id?: string }).p_doctor_id === 'doc-branch-2',
       );
-      expect(availInsert).toBeDefined();
-      expect((availInsert?.data as Array<{ clinic_id: string }>)[0].clinic_id).toBe('clinic-2');
+      expect(atomicScheduleCall).toBeDefined();
+      expect((atomicScheduleCall?.args as { p_clinic_id: string }).p_clinic_id).toBe('clinic-2');
+      expect(fromCalls.some((call) => call.table === 'availability')).toBe(false);
 
       // Patient review writes organization_id into audit_logs
       mockTableResponses['appointments'] = {
@@ -880,14 +956,13 @@ describe('Security & Production Hardening Regression Suite', () => {
 
       // Blank clinicId should not query clinics and should fall back to user.clinicId ('clinic-1')
       expect(fromCalls.some((c) => c.table === 'clinics' && c.op === 'select')).toBe(false);
-      const memberInsert = writePayloads.find(
-        (w) => w.table === 'organization_members' && w.op === 'insert',
+      const provisionCall = adminCalls.find(
+        (call) => call.fn === 'rpc.provision_team_member_atomic',
       );
-      expect((memberInsert?.data as { clinic_id?: string | null }).clinic_id).toBe('clinic-1');
-
-      // Trimmed license is inserted into doctors
-      const docInsert = writePayloads.find((w) => w.table === 'doctors' && w.op === 'insert');
-      expect((docInsert?.data as { license_number?: string }).license_number).toBe('SY-777');
+      expect(provisionCall).toBeDefined();
+      expect(
+        provisionCall?.args as { p_clinic_id?: string | null; p_license?: string },
+      ).toMatchObject({ p_clinic_id: 'clinic-1', p_license: 'SY-777' });
 
       // Admin license uniqueness query error must surface as 500 DB_ERROR
       mockTableErrors['admin.doctors.select'] = { message: 'admin doctors lookup failed' };
@@ -1291,6 +1366,15 @@ describe('Security & Production Hardening Regression Suite', () => {
       }
     });
 
+    it('uses the rightmost proxy-appended IP when trusted hop count is not configured', () => {
+      delete process.env.TRUSTED_PROXY_HOPS;
+      const request = new Request('http://localhost:3000/api/session', {
+        headers: { 'x-forwarded-for': '1.2.3.4, 10.0.0.1' },
+      });
+
+      expect(getClientIp(request)).toBe('10.0.0.1');
+    });
+
     it('skips currentUser and Supabase auth lookups when /api/agent/chat returns 429 RATE_LIMITED', async () => {
       process.env.CLINICBOOK_MODE = 'production';
       process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
@@ -1445,6 +1529,18 @@ describe('Security & Production Hardening Regression Suite', () => {
       process.env.CLINICBOOK_MODE = 'production';
       expect(await currentUser()).toBeNull();
     });
+
+    it('never uses a SQLite actor when FORCE_SUPABASE overrides demo mode', async () => {
+      ensureSeed();
+      const admin = roles.find((r) => r.role === 'super_admin')!;
+      const token = await createSession(admin.id);
+      mockCookieStore.set('clinicbook-session', token);
+
+      process.env.FORCE_SUPABASE = 'true';
+      process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co';
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key';
+      expect(await currentUser()).toBeNull();
+    });
   });
 
   // ─── P1-4: Middleware Security Headers, CSP, CSRF & Body Size ───────────────
@@ -1549,7 +1645,7 @@ describe('Security & Production Hardening Regression Suite', () => {
       expect((await middleware(bodylessDeleteSession)).status).toBe(200);
     });
 
-    it('emits CSP-Report-Only with dynamic nonce and emits HSTS strictly in production', async () => {
+    it('reports CSP in development and enforces it with HSTS in production', async () => {
       const pageReq = new NextRequest('http://localhost:3000/', {
         method: 'GET',
         headers: { host: 'localhost:3000' },
@@ -1566,6 +1662,15 @@ describe('Security & Production Hardening Regression Suite', () => {
       (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
       const prodRes = await middleware(pageReq);
       expect(prodRes.headers.get('Strict-Transport-Security')).toContain('max-age=31536000');
+      expect(prodRes.headers.get('Content-Security-Policy')).toContain("default-src 'self'");
+      expect(prodRes.headers.get('Content-Security-Policy-Report-Only')).toBeNull();
+
+      process.env.CSP_REPORT_ONLY = 'true';
+      const reportingProdRes = await middleware(pageReq);
+      expect(reportingProdRes.headers.get('Content-Security-Policy')).toBeNull();
+      expect(reportingProdRes.headers.get('Content-Security-Policy-Report-Only')).toContain(
+        "default-src 'self'",
+      );
     });
   });
 

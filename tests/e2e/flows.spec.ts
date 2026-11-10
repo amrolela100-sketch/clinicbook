@@ -138,6 +138,13 @@ test('3. Owner navigation, branch save, schedule save and permissions across wor
   // Schedule page
   await page.goto('/workspace/schedule');
   await expect(page.locator('.schedule-week')).toBeVisible();
+  const firstDay = page.locator('.schedule-day').first();
+  const firstDayToggle = firstDay.getByRole('switch');
+  if (!(await firstDayToggle.isChecked())) await firstDayToggle.check();
+  const unsavedStart = firstDay.getByLabel('بداية الأحد');
+  await unsavedStart.fill('08:15');
+  await page.waitForTimeout(21_000);
+  await expect(unsavedStart).toHaveValue('08:15');
   await page.getByRole('button', { name: 'حفظ جدول الدوام' }).click();
   await expect(page.getByText('تم تحديث جدول الدوام', { exact: true })).toBeVisible();
 
@@ -238,10 +245,9 @@ test('4. Reception direct booking, check-in and cash collection', async ({ page 
 
 test('5. Doctor writes clinical record and printable prescription', async ({ page }) => {
   await login(page, 'doctor');
-  await page.goto('/workspace/appointments');
-  await expect(page.locator('tbody tr').first()).toBeVisible();
-
-  const data = await page.request.get('/api/data').then((r) => r.json());
+  const dataResponse = await page.request.get('/api/data');
+  expect(dataResponse.ok()).toBeTruthy();
+  const data = await dataResponse.json();
   const appts = data.data?.appointments ?? [];
   const targetAppt = appts[0];
 

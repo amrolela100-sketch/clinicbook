@@ -39,4 +39,7 @@ END $$;
 --   5. supabase/migrations/20261015000005_staff_atomic_and_directory_hardening.sql
 --   6. supabase/migrations/20261109000006_admin_and_tenant_atomic_rpcs.sql
 --   7. supabase/migrations/20261109000007_harden_auth_trigger_search_path.sql
+--   8. supabase/migrations/20261110000001_replace_availability_atomic.sql
+--   9. supabase/migrations/20261110000002_transition_rules_parity.sql
+--  10. supabase/migrations/20261110000003_public_doctor_policy_projection.sql
 -- =========================================================================

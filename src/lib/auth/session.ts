@@ -32,6 +32,18 @@ export function getSessionCookieName(): string {
   return isProd ? '__Host-clinicbook-session' : 'clinicbook-session';
 }
 
+/** Strip persistence-only fields before an identity crosses an HTTP or module seam. */
+export function toSafeUser(user: User): User {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    ...(user.organizationId ? { organizationId: user.organizationId } : {}),
+    ...(user.clinicId ? { clinicId: user.clinicId } : {}),
+  };
+}
+
 export async function currentUser(): Promise<User | null> {
   // 1. Check Supabase Auth session (cookie-based, refreshed by middleware)
   if (!demoEnabled() && isSupabaseConfigured()) {
@@ -43,29 +55,22 @@ export async function currentUser(): Promise<User | null> {
       } = await client.auth.getUser();
 
       if (authUser) {
-        const { data: profile } = await client
+        const { data: profile, error: profileError } = await client
           .from('users')
-          .select('id, full_name, email, role')
+          .select('id, full_name, email, role, status')
           .eq('id', authUser.id)
           .maybeSingle();
 
-        const validRoles: Role[] = [
-          'super_admin',
-          'clinic_owner',
-          'doctor',
-          'receptionist',
-          'patient',
-        ];
-        const appMetaRole = (authUser.app_metadata as Record<string, unknown> | undefined)?.role;
-        const trustedServerMetaRole: Role | undefined =
-          typeof appMetaRole === 'string' && validRoles.includes(appMetaRole as Role)
-            ? (appMetaRole as Role)
-            : undefined;
+        // Match current_app_role(): authority requires a verifiable active database profile.
+        if (profileError || !profile || profile.status !== 'active') {
+          if (profileError) {
+            console.error('Supabase profile lookup error:', { message: profileError.message });
+          }
+          return null;
+        }
 
         const mappedRole: Role =
-          profile?.role === 'admin'
-            ? 'super_admin'
-            : (profile?.role as Role) || trustedServerMetaRole || 'patient';
+          profile?.role === 'admin' ? 'super_admin' : (profile.role as Role) || 'patient';
 
         let orgId: string | undefined;
         let clinicId: string | undefined;
@@ -101,6 +106,7 @@ export async function currentUser(): Promise<User | null> {
             .from('organization_members')
             .select('clinic_id')
             .eq('user_id', authUser.id)
+            .eq('is_active', true)
             .limit(1)
             .maybeSingle();
           if (member?.clinic_id) clinicId = member.clinic_id;
@@ -109,6 +115,7 @@ export async function currentUser(): Promise<User | null> {
             .from('organization_members')
             .select('organization_id, clinic_id')
             .eq('user_id', authUser.id)
+            .eq('is_active', true)
             .limit(1)
             .maybeSingle();
           if (member?.organization_id) orgId = member.organization_id;
@@ -137,7 +144,7 @@ export async function currentUser(): Promise<User | null> {
 
   // 2. Check session cookie (for quick role preview & demo workspace)
   // Strictly disabled outside explicit demo mode: production never imports or touches SQLite
-  if (process.env.CLINICBOOK_MODE === 'demo') {
+  if (demoEnabled()) {
     try {
       const jar = await cookies();
       const cookieName = getSessionCookieName();
@@ -156,7 +163,7 @@ export async function currentUser(): Promise<User | null> {
 
       // Crucial security fix: Always read role strictly from stored user record, NEVER from row.role
       const u = get<User>('user', row.user_id);
-      return u ?? null;
+      return u ? toSafeUser(u) : null;
     } catch {
       // Outside request context
       return null;

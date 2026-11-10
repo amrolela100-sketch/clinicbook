@@ -120,6 +120,59 @@ async function main() {
       "INSERT INTO organization_members(organization_id,clinic_id,user_id,member_role) VALUES($1,$2,$3,'receptionist')",
       [orgA, clinicA, recA],
     );
+
+    const scheduleRpc = 'SELECT replace_availability_atomic($1,$2,$3::jsonb)';
+    const replacementShifts = [
+      { day: 1, start: '09:00', end: '12:00', duration: 30, active: true },
+      { day: 3, start: '13:00', end: '17:00', duration: 20, active: true },
+      { day: 5, start: '09:00', end: '11:00', duration: 30, active: false },
+    ];
+    await asUser(ownerA, scheduleRpc, [docPending, clinicA, JSON.stringify(replacementShifts)]);
+    const replacedSchedule = await pool.query<{
+      day_of_week: number;
+      slot_duration_minutes: number;
+    }>(
+      'SELECT day_of_week,slot_duration_minutes FROM availability WHERE doctor_id=$1 ORDER BY day_of_week',
+      [docPending],
+    );
+    assert.deepEqual(replacedSchedule.rows, [
+      { day_of_week: 1, slot_duration_minutes: 30 },
+      { day_of_week: 3, slot_duration_minutes: 20 },
+    ]);
+
+    const overlappingShifts = [
+      { day: 1, start: '09:00', end: '12:00', duration: 30, active: true },
+      { day: 1, start: '11:00', end: '14:00', duration: 30, active: true },
+    ];
+    await assert.rejects(
+      asUser(ownerA, scheduleRpc, [docPending, clinicA, JSON.stringify(overlappingShifts)]),
+      (e: unknown) => (e as { code: string }).code === '22023',
+    );
+    assert.equal(
+      (
+        await pool.query<{ n: number }>(
+          'SELECT count(*)::int AS n FROM availability WHERE doctor_id=$1',
+          [docPending],
+        )
+      ).rows[0].n,
+      2,
+    );
+    await assert.rejects(
+      asUser(docB, scheduleRpc, [docPending, clinicA, JSON.stringify(replacementShifts)]),
+      (e: unknown) => (e as { code: string }).code === '42501',
+    );
+    await assert.rejects(
+      asUser(docA, scheduleRpc, [docA, clinicA2, JSON.stringify(replacementShifts)]),
+      (e: unknown) => (e as { code: string }).code === '42501',
+    );
+    await assert.rejects(
+      asUser(docA, 'DELETE FROM availability WHERE doctor_id=$1', [docA]),
+      (e: unknown) => (e as { code: string }).code === '42501',
+    );
+    console.log(
+      'PASS atomic availability replacement, validation rollback, and tenant authorization',
+    );
+
     const target = new Date(Date.now() + 3 * 86400000);
     target.setUTCHours(7, 0, 0, 0);
     const start = target.toISOString(),
@@ -218,11 +271,29 @@ async function main() {
       1,
     );
     console.log('PASS EMR treating doctor/patient only; reception and owner denied');
-    await asUser(docA, 'SELECT transition_appointment($1,$2,$3)', [winner.id, 'confirmed', null]);
+    await asUser(ownerA, 'SELECT transition_appointment($1,$2,$3)', [winner.id, 'confirmed', null]);
     await assert.rejects(
       asUser(recA, 'SELECT transition_appointment($1,$2,$3)', [winner.id, 'completed', null]),
     );
-    console.log('PASS lifecycle role checks');
+    const ownerCompletionProbe = randomUUID();
+    await pool.query(
+      "INSERT INTO appointments(id,organization_id,clinic_id,doctor_id,patient_id,start_at,end_at,status) VALUES($1,$2,$3,$4,$5,now()-interval '1 hour',now()-interval '30 minutes','confirmed')",
+      [ownerCompletionProbe, orgA, clinicA, docA, patientA],
+    );
+    await assert.rejects(
+      asUser(ownerA, 'SELECT transition_appointment($1,$2,$3)', [
+        ownerCompletionProbe,
+        'completed',
+        null,
+      ]),
+      (e: unknown) => (e as { code: string }).code === '22023',
+    );
+    await asUser(docA, 'SELECT transition_appointment($1,$2,$3)', [
+      ownerCompletionProbe,
+      'completed',
+      null,
+    ]);
+    console.log('PASS lifecycle parity: owner confirms, only treating doctor completes');
     const review = await asUser(
       patientA,
       'INSERT INTO reviews(appointment_id,doctor_id,patient_id,rating) VALUES($1,$2,$3,5) RETURNING id',
@@ -450,10 +521,23 @@ async function main() {
     );
 
     // ─── P0-3: Hardened Directory, Team & Review RPCs ─────────────────
+    await pool.query('UPDATE subscriptions SET booking_horizon_days=120 WHERE organization_id=$1', [
+      orgA,
+    ]);
+    await pool.query('UPDATE clinics SET cancel_window_hours=12 WHERE id=$1', [clinicA]);
+    await pool.query('UPDATE clinics SET cancel_window_hours=24 WHERE id=$1', [clinicA2]);
+    await pool.query(
+      'UPDATE organization_members SET clinic_id=$1 WHERE organization_id=$2 AND user_id=$3',
+      [clinicA2, orgA, docA],
+    );
     const anonDocs = await asAnon<Record<string, unknown>>(
       'SELECT * FROM public_doctor_directory()',
     );
-    assert.ok(anonDocs.some((d) => d.id === docA));
+    const publicDocA = anonDocs.find((d) => d.id === docA);
+    assert.ok(publicDocA);
+    assert.equal(publicDocA.clinic_id, clinicA2);
+    assert.equal(publicDocA.booking_horizon_days, 120);
+    assert.equal(publicDocA.cancel_window_hours, 24);
     assert.ok(!anonDocs.some((d) => d.id === docPending));
     assert.ok(!('email' in anonDocs[0]) && !('phone' in anonDocs[0]) && !('role' in anonDocs[0]));
 
