@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+vi.mock('server-only', () => ({}));
+
 import { POST } from '../../src/app/api/agent/chat/route';
 
 describe('Integration: Agent Chat API Endpoint (/api/agent/chat)', () => {

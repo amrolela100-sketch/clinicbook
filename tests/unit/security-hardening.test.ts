@@ -1276,7 +1276,9 @@ describe('Security & Production Hardening Regression Suite', () => {
       expect(malformedBody.success).toBe(false);
       expect(malformedBody.code).toBe('VALIDATION_ERROR');
 
-      // Exhaust chat rate limit (20) using invalid payloads on another IP -> 21st must return 429
+      // Untrusted forwarding headers share one bucket, so reset the local
+      // counter before measuring the invalid-payload budget itself.
+      _resetRateLimitStore();
       for (let i = 0; i < RATE_LIMIT_CONFIGS.chat.limit; i++) {
         const res = await chatPOST(
           new Request('http://localhost:3000/api/agent/chat', {
@@ -1327,18 +1329,70 @@ describe('Security & Production Hardening Regression Suite', () => {
       expect(cronBody.code).toBe('INTERNAL_ERROR');
     });
 
-    it('falls back cleanly on blank x-forwarded-for in getClientIp and evicts expired buckets in 60s cleanup timer', async () => {
+    it('fails closed before executing actions when production shared rate limiting is not configured', async () => {
+      (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
+      process.env.CLINICBOOK_MODE = 'production';
+      delete process.env.UPSTASH_REDIS_REST_URL;
+      delete process.env.UPSTASH_REDIS_REST_TOKEN;
+      delete process.env.RATE_LIMIT_KEY_SECRET;
+      const response = await actionsPOST(
+        new Request('http://localhost:3000/api/actions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'settings', payload: {} }),
+        }),
+      );
+
+      expect(response.status).toBe(503);
+      expect(await response.json()).toMatchObject({
+        success: false,
+        code: 'RATE_LIMIT_UNAVAILABLE',
+      });
+    });
+
+    it('requires shared rate protection before appointment and assistant work in production', async () => {
+      (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
+      process.env.CLINICBOOK_MODE = 'production';
+      delete process.env.UPSTASH_REDIS_REST_URL;
+      delete process.env.UPSTASH_REDIS_REST_TOKEN;
+      delete process.env.RATE_LIMIT_KEY_SECRET;
+
+      const appointmentResponse = await appointmentsPOST(
+        new Request('http://localhost:3000/api/appointments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+        }),
+      );
+      expect(appointmentResponse.status).toBe(503);
+      expect(await appointmentResponse.json()).toMatchObject({ code: 'RATE_LIMIT_UNAVAILABLE' });
+
+      const chatResponse = await chatPOST(
+        new Request('http://localhost:3000/api/agent/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'chat', message: 'مرحبا' }),
+        }),
+      );
+      expect(chatResponse.status).toBe(503);
+      expect(await chatResponse.json()).toMatchObject({ code: 'RATE_LIMIT_UNAVAILABLE' });
+    });
+
+    it('uses one shared identity for untrusted or malformed forwarding headers and evicts expired buckets', async () => {
+      vi.stubEnv('VERCEL', '0');
+      delete process.env.TRUSTED_PROXY_HOPS;
       const blankXffReq = new Request('http://localhost:3000/api/session', {
         method: 'POST',
         headers: { 'x-forwarded-for': '   ', 'x-real-ip': ' 203.0.113.5 ' },
       });
-      expect(getClientIp(blankXffReq)).toBe('203.0.113.5');
+      expect(getClientIp(blankXffReq)).toBe('127.0.0.1');
 
       const leadingCommaReq = new Request('http://localhost:3000/api/session', {
         method: 'POST',
         headers: { 'x-forwarded-for': ', 10.0.0.2' },
       });
       expect(getClientIp(leadingCommaReq)).toBe('127.0.0.1');
+      vi.unstubAllEnvs();
 
       vi.useFakeTimers();
       try {
@@ -1370,13 +1424,20 @@ describe('Security & Production Hardening Regression Suite', () => {
       }
     });
 
-    it('uses the rightmost proxy-appended IP when trusted hop count is not configured', () => {
+    it('refuses client-supplied forwarding chains unless the deployment declares trusted proxy hops', () => {
+      vi.stubEnv('VERCEL', '0');
       delete process.env.TRUSTED_PROXY_HOPS;
-      const request = new Request('http://localhost:3000/api/session', {
+      const spoofed = new Request('http://localhost:3000/api/session', {
+        headers: { 'x-forwarded-for': '1.2.3.4, 10.0.0.1', 'x-real-ip': '10.0.0.1' },
+      });
+      expect(getClientIp(spoofed)).toBe('127.0.0.1');
+
+      vi.stubEnv('TRUSTED_PROXY_HOPS', '1');
+      const behindProxy = new Request('http://localhost:3000/api/session', {
         headers: { 'x-forwarded-for': '1.2.3.4, 10.0.0.1' },
       });
-
-      expect(getClientIp(request)).toBe('10.0.0.1');
+      expect(getClientIp(behindProxy)).toBe('10.0.0.1');
+      vi.unstubAllEnvs();
     });
 
     it('skips currentUser and Supabase auth lookups when /api/agent/chat returns 429 RATE_LIMITED', async () => {
@@ -1695,6 +1756,32 @@ describe('Security & Production Hardening Regression Suite', () => {
       expect(nonce).not.toBe('client-controlled');
       expect(response.headers.get('x-middleware-request-content-security-policy')).toBe(policy);
       expect(response.headers.get('x-middleware-request-x-nonce')).toBe(nonce);
+    });
+
+    it('fails closed on production CSRF checks when the canonical app origin is missing', async () => {
+      const previousNodeEnv = process.env.NODE_ENV;
+      const previousAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+      (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
+      delete process.env.NEXT_PUBLIC_APP_URL;
+      try {
+        const response = await middleware(
+          new NextRequest('http://localhost:3000/api/actions', {
+            method: 'POST',
+            headers: {
+              host: 'localhost:3000',
+              origin: 'http://localhost:3000',
+              'content-type': 'application/json',
+              'content-length': '2',
+            },
+            body: '{}',
+          }),
+        );
+        expect(response.status).toBe(503);
+        expect(await response.json()).toMatchObject({ code: 'SERVICE_UNAVAILABLE' });
+      } finally {
+        (process.env as Record<string, string | undefined>).NODE_ENV = previousNodeEnv;
+        if (previousAppUrl) process.env.NEXT_PUBLIC_APP_URL = previousAppUrl;
+      }
     });
   });
 

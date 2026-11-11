@@ -1,10 +1,9 @@
 /**
- * Rate Limiting Module (In-Memory Token Bucket)
+ * Local token buckets and trusted-ingress IP selection.
  *
- * NOTE: This is an in-memory solution suited for single-instance Node.js deployments.
- * For distributed multi-instance / serverless production clusters, replace this with
- * an external centralized store like Redis or Upstash.
+ * HTTP handlers use http-rate-limit.ts, which requires shared Redis in production.
  */
+import { isIP } from 'node:net';
 
 interface TokenBucketRecord {
   tokens: number;
@@ -95,55 +94,41 @@ export function checkRateLimit(key: string, config: RateLimitConfig): RateLimitR
   };
 }
 
-const VALID_IP_PATTERN = /^[0-9a-fA-F:.]{2,64}$/;
-
 function normalizeValidIp(candidate: string | undefined | null): string | null {
   if (!candidate) return null;
   const trimmed = candidate.trim();
-  if (!trimmed || !VALID_IP_PATTERN.test(trimmed)) return null;
-  return trimmed;
+  if (trimmed.length > 64 || isIP(trimmed) === 0) return null;
+  return trimmed.toLowerCase();
 }
 
 /**
- * Extract client IP from ingress headers with spoof-resistance (REM-05):
- * 1. Prioritizes platform-verified single-IP headers (`cf-connecting-ip`, `x-vercel-forwarded-for`).
- * 2. Supports right-to-left hop counting on `x-forwarded-for` via `TRUSTED_PROXY_HOPS`
- *    so spoofed client-prepended entries cannot bypass rate limiting behind reverse proxies.
- * 3. Validates strict IP character/length bounds to prevent memory key pollution.
+ * Trust Vercel's overwritten ingress headers only when the server is actually
+ * running on Vercel. Header markers such as cf-ray/x-vercel-id prove nothing.
+ * A non-Vercel proxy topology requires explicit configuration and an origin
+ * that cannot be reached around the proxy. Unknown callers share one bucket.
  */
 export function getClientIp(request: Request): string {
-  const cfIp = normalizeValidIp(request.headers.get('cf-connecting-ip'));
-  if (cfIp) return cfIp;
-
-  const vercelForwarded = request.headers.get('x-vercel-forwarded-for');
-  if (vercelForwarded) {
-    const vercelIp = normalizeValidIp(vercelForwarded.split(',')[0]);
-    if (vercelIp) return vercelIp;
+  if (process.env.VERCEL === '1') {
+    return (
+      normalizeValidIp(
+        request.headers.get('x-vercel-forwarded-for') ?? request.headers.get('x-forwarded-for'),
+      ) ?? '127.0.0.1'
+    );
   }
-
+  const configuredHops = Number(process.env.TRUSTED_PROXY_HOPS ?? '0');
   const forwarded = request.headers.get('x-forwarded-for');
-  if (forwarded && forwarded.trim().length > 0) {
-    const rawParts = forwarded.split(',');
-    if (rawParts[0].trim().length === 0) {
-      // Reject malformed leading-comma headers (e.g. ", 10.0.0.2")
-      return normalizeValidIp(request.headers.get('x-real-ip')) || '127.0.0.1';
+  if (
+    Number.isInteger(configuredHops) &&
+    configuredHops > 0 &&
+    forwarded &&
+    forwarded.length <= 4096
+  ) {
+    const hops = forwarded.split(',').map(normalizeValidIp);
+    if (hops.length >= configuredHops && hops.every((hop) => hop !== null)) {
+      return hops[hops.length - configuredHops]!;
     }
-    const hops = rawParts.map((p) => normalizeValidIp(p)).filter((p): p is string => p !== null);
-    if (hops.length > 0) {
-      const configuredHops = Number(process.env.TRUSTED_PROXY_HOPS ?? '0');
-      if (Number.isInteger(configuredHops) && configuredHops > 0) {
-        const idx = Math.max(0, hops.length - configuredHops);
-        return hops[idx];
-      }
-      // Without an explicit topology, trust only the closest proxy's appended value.
-      // The leftmost value can be client-prepended and rotated to bypass rate limits.
-      return hops[hops.length - 1];
-    }
-    return '127.0.0.1';
   }
-
-  const realIp = normalizeValidIp(request.headers.get('x-real-ip'));
-  return realIp || '127.0.0.1';
+  return '127.0.0.1';
 }
 
 /** Pre-configured rate limits for sensitive endpoints */
@@ -158,6 +143,9 @@ export const RATE_LIMIT_CONFIGS = {
   bookSlot: { limit: 5, windowMs: 10 * 60 * 1000 },
   // Direct Appointments creation: 10 per minute
   appointments: { limit: 10, windowMs: 60 * 1000 },
+  // Bound all action traffic before authentication, then the verified actor separately.
+  actions: { limit: 120, windowMs: 60 * 1000 },
+  actionActor: { limit: 60, windowMs: 60 * 1000 },
 } as const;
 
 /** Reset rate limit store (useful for tests) */

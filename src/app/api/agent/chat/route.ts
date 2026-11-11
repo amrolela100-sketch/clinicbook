@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { processAgentMessage } from '@/lib/services/agent-service';
 import bookAppointmentTool from '../../../../../agent/tools/book_appointment';
 import { currentUser } from '@/lib/auth/session';
-import { checkRateLimit, getClientIp, RATE_LIMIT_CONFIGS } from '@/lib/rate-limit';
+import { RATE_LIMIT_CONFIGS } from '@/lib/rate-limit';
+import { limitHttpRequest } from '@/lib/http-rate-limit';
 
 const chatRequestSchema = z.discriminatedUnion('action', [
   z.object({
@@ -32,27 +33,16 @@ const chatRequestSchema = z.discriminatedUnion('action', [
 
 export async function POST(req: Request) {
   try {
-    const ip = getClientIp(req);
     const json = await req.json().catch(() => null);
     const parsed = chatRequestSchema.safeParse(json);
 
     if (!parsed.success) {
-      const rate = checkRateLimit(`${ip}:/api/agent/chat:invalid`, RATE_LIMIT_CONFIGS.chat);
-      if (!rate.allowed) {
-        return NextResponse.json(
-          {
-            success: false,
-            code: 'RATE_LIMITED',
-            error: 'تجاوزت الحد المسموح من الطلبات. يرجى الانتظار قليلاً.',
-          },
-          {
-            status: 429,
-            headers: {
-              'Retry-After': String(Math.ceil(rate.resetMs / 1000)),
-            },
-          },
-        );
-      }
+      const rateResponse = await limitHttpRequest(
+        req,
+        '/api/agent/chat:invalid',
+        RATE_LIMIT_CONFIGS.chat,
+      );
+      if (rateResponse) return rateResponse;
       return NextResponse.json(
         {
           success: false,
@@ -66,22 +56,12 @@ export async function POST(req: Request) {
     const payload = parsed.data;
 
     if (payload.action === 'chat') {
-      const rate = checkRateLimit(`${ip}:/api/agent/chat:chat`, RATE_LIMIT_CONFIGS.chat);
-      if (!rate.allowed) {
-        return NextResponse.json(
-          {
-            success: false,
-            code: 'RATE_LIMITED',
-            error: 'تجاوزت الحد المسموح من الرسائل. يرجى الانتظار قليلاً.',
-          },
-          {
-            status: 429,
-            headers: {
-              'Retry-After': String(Math.ceil(rate.resetMs / 1000)),
-            },
-          },
-        );
-      }
+      const rateResponse = await limitHttpRequest(
+        req,
+        '/api/agent/chat:chat',
+        RATE_LIMIT_CONFIGS.chat,
+      );
+      if (rateResponse) return rateResponse;
 
       const user = await currentUser();
       const result = await processAgentMessage(
@@ -98,22 +78,12 @@ export async function POST(req: Request) {
 
     if (payload.action === 'book_slot') {
       // 1. Rate limiting on slot booking
-      const rate = checkRateLimit(`${ip}:/api/agent/chat:book_slot`, RATE_LIMIT_CONFIGS.bookSlot);
-      if (!rate.allowed) {
-        return NextResponse.json(
-          {
-            success: false,
-            code: 'RATE_LIMITED',
-            error: 'تجاوزت عدد محاولات الحجز المسموحة. يرجى الانتظار قليلاً.',
-          },
-          {
-            status: 429,
-            headers: {
-              'Retry-After': String(Math.ceil(rate.resetMs / 1000)),
-            },
-          },
-        );
-      }
+      const rateResponse = await limitHttpRequest(
+        req,
+        '/api/agent/chat:book_slot',
+        RATE_LIMIT_CONFIGS.bookSlot,
+      );
+      if (rateResponse) return rateResponse;
 
       // 2. Authentication check: book_slot requires an authenticated patient session
       const user = await currentUser();

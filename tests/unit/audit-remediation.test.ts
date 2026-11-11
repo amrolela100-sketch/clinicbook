@@ -465,14 +465,22 @@ describe('Full-Stack Audit Remediations Suite (REM-01 through REM-09)', () => {
   });
 
   it('REM-05: resists X-Forwarded-For spoofing via platform headers & TRUSTED_PROXY_HOPS, sets DENY & optional enforcing CSP', async () => {
+    process.env.VERCEL = '0';
     const cfReq = new Request('http://localhost:3000/api/session', {
       headers: {
         'cf-connecting-ip': '198.51.100.77',
         'x-forwarded-for': '1.2.3.4, 5.6.7.8',
       },
     });
-    expect(getClientIp(cfReq)).toBe('198.51.100.77');
+    expect(getClientIp(cfReq)).toBe('127.0.0.1');
 
+    process.env.VERCEL = '1';
+    const vercelReq = new Request('http://localhost:3000/api/session', {
+      headers: { 'x-vercel-forwarded-for': '198.51.100.77' },
+    });
+    expect(getClientIp(vercelReq)).toBe('198.51.100.77');
+
+    process.env.VERCEL = '0';
     process.env.TRUSTED_PROXY_HOPS = '1';
     const spoofedXffReq = new Request('http://localhost:3000/api/session', {
       headers: {

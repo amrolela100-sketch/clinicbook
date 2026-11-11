@@ -207,6 +207,21 @@ describe('Full-Stack Audit Pass #2 Remediation Suite (REM-V2-01..REM-V2-06)', ()
     });
     const spoofedRes = await middleware(spoofedHostPairReq);
     expect(spoofedRes.status).toBe(403);
+
+    const forgedPlatformReq = new NextRequest('http://localhost:3000/api/actions', {
+      method: 'POST',
+      headers: {
+        host: 'localhost:3000',
+        'x-forwarded-host': 'evil.example',
+        'x-vercel-id': 'client-controlled',
+        'cf-ray': 'client-controlled',
+        origin: 'https://evil.example',
+        'content-type': 'application/json',
+        'content-length': '2',
+      },
+      body: '{}',
+    });
+    expect((await middleware(forgedPlatformReq)).status).toBe(403);
   });
 
   it('REM-V2-05: exposes operational /api/health, dynamic sitemap.xml, and privacy-aware robots.txt', async () => {

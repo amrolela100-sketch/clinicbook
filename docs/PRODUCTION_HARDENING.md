@@ -18,6 +18,7 @@ No migrations have been applied to a remote database.
 | #8 | Privileged Auth provisioning is service-role-only, refuses unrelated/claimed identities, checks scoped unused invitations and uses fixed Starter onboarding entitlements. | Actual PostgreSQL roles, invitation state, cleanup and concurrent provisioning |
 | #13 | Demo onboarding updates the complete stored account and retains its password hash; safe HTTP projections remain unchanged. | Authenticated `POST /api/actions` and persisted account checks |
 | #7 | Per-request nonces reach Next's renderer and JSON-LD, and client-supplied CSP headers are replaced. | Middleware and a real production build/browser |
+| #9 | Production write endpoints require shared Redis counters, HMAC identifiers, actor/account budgets and a trusted ingress IP contract; Redis failure returns 503 instead of falling back. | Two real production instances, spoofed headers and Redis outage/timeout |
 
 The audit's claim that direct availability writes were open at the base commit was
 too broad: `20261110000001` already revoked direct DML. The vulnerable schedule RPC,
@@ -66,6 +67,33 @@ reproduced and fixed.
 - A real Supabase staging invitation/acceptance/rollback test is still required:
   local verification models the Auth columns but does not run GoTrue or SMTP.
 
+## Distributed rate limiting (Vercel + Upstash)
+
+- `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` and a 32+ character
+  `RATE_LIMIT_KEY_SECRET` are **required** in production. Missing configuration
+  returns `503 RATE_LIMIT_UNAVAILABLE` before authentication or mutation work.
+- Login attempts are bounded per trusted IP **and** per normalized account; actions
+  are bounded per IP and per authenticated actor. The action route applies its
+  actor budget before demo or Supabase action execution.
+- Identifiers are HMAC-SHA256 hashed before reaching Redis. The limiter uses a
+  token bucket matching each existing policy, not a different window.
+- The Upstash SDK's default timeout is **fail-open**. It is disabled; the HTTP
+  transport has a 2-second abort deadline, and any error, timeout or malformed
+  response becomes 503. There is no local-counter fallback in production.
+- On Vercel, only `x-vercel-forwarded-for` (or the platform-written
+  `x-forwarded-for`) is trusted, and only when `VERCEL=1`. Client-supplied
+  `cf-connecting-ip`, `x-real-ip`, `cf-ray`, `x-vercel-id` and forwarding chains
+  cannot rotate a bucket. Self-hosting needs `TRUSTED_PROXY_HOPS` and an origin
+  that is unreachable around the proxy; otherwise callers share one bucket.
+- CSRF origin checks in production use `NEXT_PUBLIC_APP_URL`, not a
+  client-supplied host/platform header.
+- Verified in production mode: 10 login attempts spread across **two separate
+  Next processes** share one budget; Redis 500 and a 3.5-second stall both produce
+  503 instead of a successful credential check.
+- Still required on staging: confirm the real Upstash credentials, latency,
+  eviction policy and alerting. The loopback fixture models the REST protocol, not
+  Upstash's service.
+
 ## Additional dependency findings
 
 The repository audit did not cover several advisories returned by `npm audit`:
@@ -83,14 +111,15 @@ The repository audit did not cover several advisories returned by `npm audit`:
 
 ## Verification so far
 
-- Vitest: **176/176** passing across 12 files.
+- Vitest: **181/181** passing across 12 files.
 - TypeScript: `npm run typecheck` passes.
 - PostgreSQL: all migrations and `tests/postgres/verify.ts` pass on an isolated
   PostgreSQL 17 instance, including 50 competing bookings with only one winner.
 - PostgreSQL verification is not a full Supabase Auth/PostgREST or browser test.
-- Production browser smoke: **2/2** passing against `next build` / `next start`,
-  with public Supabase directory fixtures on loopback. This verifies hydration and
-  nonce propagation without live keys, Auth sessions or patient data.
+- Production browser smoke: **6/6** passing against `next build` / `next start`,
+  with Supabase and Redis protocol fixtures on loopback. This verifies hydration,
+  nonce propagation, cross-instance shared limits, spoof resistance and fail-closed
+  Redis outages without live keys, Auth sessions or patient data.
 - Demo browser regression: **22/22** passing, including the existing axe scans.
   These tested views are not a claim of complete WCAG conformance.
 - CI Gate 4 runs `npm run test:production`. Demo E2E uses a development server and

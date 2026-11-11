@@ -44,15 +44,19 @@ import { POST } from '../../src/app/api/actions/route';
 import { POST as sessionPOST } from '../../src/app/api/session/route';
 import { createSession } from '../../src/lib/auth/session';
 import { roles, appointments, get, put } from '../../src/lib/demo-db';
+import { _resetRateLimitStore } from '../../src/lib/rate-limit';
+import { hashPassword } from '../../src/lib/auth/password';
 
 describe('Integration: Actions API Route (/api/actions)', () => {
   const originalEnv = process.env.FORCE_SUPABASE;
 
   beforeEach(() => {
     mockCookieStore.clear();
+    _resetRateLimitStore();
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     if (originalEnv === undefined) {
       delete process.env.FORCE_SUPABASE;
     } else {
@@ -132,6 +136,51 @@ describe('Integration: Actions API Route (/api/actions)', () => {
     const json = await res.json();
     expect(json.success).toBe(false);
     expect(json.code).toBe('UNAUTHORIZED');
+  });
+
+  it('bounds authenticated actions by the verified actor even when client IPs change', async () => {
+    delete process.env.FORCE_SUPABASE;
+    vi.stubEnv('VERCEL', '0');
+    vi.stubEnv('TRUSTED_PROXY_HOPS', '1');
+    const owner = roles.find((user) => user.role === 'clinic_owner')!;
+    await createSession(owner.id);
+
+    for (let i = 0; i < 61; i++) {
+      const response = await POST(
+        new Request('http://localhost:3000/api/actions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-forwarded-for': `192.0.2.${i + 1}` },
+          body: JSON.stringify({ action: 'unsupported-test-action', payload: {} }),
+        }),
+      );
+      expect(response.status).toBe(i < 60 ? 400 : 429);
+    }
+  });
+
+  it('bounds credential attempts by account even when trusted client IPs change', async () => {
+    delete process.env.FORCE_SUPABASE;
+    vi.stubEnv('VERCEL', '0');
+    vi.stubEnv('TRUSTED_PROXY_HOPS', '1');
+    const accountId = `rate-account-${Date.now()}`;
+    const accountEmail = `${accountId}@example.test`;
+    put('user', accountId, {
+      id: accountId,
+      name: 'حساب اختبار',
+      role: 'patient',
+      email: accountEmail,
+      passwordHash: await hashPassword('valid-fixture-password'),
+    });
+
+    for (let i = 0; i < 11; i++) {
+      const response = await sessionPOST(
+        new Request('http://localhost:3000/api/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-forwarded-for': `192.0.2.${i + 1}` },
+          body: JSON.stringify({ email: accountEmail, password: 'wrong-fixture-password' }),
+        }),
+      );
+      expect(response.status).toBe(i < 10 ? 401 : 429);
+    }
   });
 
   it('rejects unauthenticated demo onboarding without adopting an existing account', async () => {

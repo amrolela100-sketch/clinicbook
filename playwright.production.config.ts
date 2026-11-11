@@ -2,6 +2,29 @@ import { defineConfig } from '@playwright/test';
 
 const appUrl = 'http://127.0.0.1:3100';
 const fixtureUrl = 'http://127.0.0.1:4191';
+const runtimeEnv = {
+  NODE_ENV: 'production',
+  CLINICBOOK_MODE: 'production',
+  FORCE_SUPABASE: 'false',
+  VERCEL: '0',
+  COOKIE_SECURE: 'true',
+  CSP_ENFORCE: 'true',
+  CSP_REPORT_ONLY: 'false',
+  NEXT_TELEMETRY_DISABLED: '1',
+  NEXT_PUBLIC_APP_URL: appUrl,
+  NEXT_PUBLIC_SUPABASE_URL: fixtureUrl,
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: 'local-production-test-anon-key',
+  SUPABASE_SERVICE_ROLE_KEY: '',
+  UPSTASH_REDIS_REST_URL: `${fixtureUrl}/redis`,
+  UPSTASH_REDIS_REST_TOKEN: 'local-redis-fixture-token',
+  RATE_LIMIT_KEY_SECRET: 'local-test-secret-not-for-deployment-32-characters',
+  GROQ_API_KEY: '',
+  GEMINI_API_KEY: '',
+  OPENROUTER_API_KEY: '',
+  OPENAI_API_KEY: '',
+  AI_API_KEY: '',
+  AGENTROUTER_API_KEY: '',
+};
 
 export default defineConfig({
   testDir: './tests/production',
@@ -28,25 +51,13 @@ export default defineConfig({
       url: `${appUrl}/login`,
       timeout: 240000,
       reuseExistingServer: false,
-      env: {
-        NODE_ENV: 'production',
-        CLINICBOOK_MODE: 'production',
-        FORCE_SUPABASE: 'false',
-        COOKIE_SECURE: 'true',
-        CSP_ENFORCE: 'true',
-        CSP_REPORT_ONLY: 'false',
-        NEXT_TELEMETRY_DISABLED: '1',
-        NEXT_PUBLIC_APP_URL: appUrl,
-        NEXT_PUBLIC_SUPABASE_URL: fixtureUrl,
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: 'local-production-test-anon-key',
-        SUPABASE_SERVICE_ROLE_KEY: '',
-        GROQ_API_KEY: '',
-        GEMINI_API_KEY: '',
-        OPENROUTER_API_KEY: '',
-        OPENAI_API_KEY: '',
-        AI_API_KEY: '',
-        AGENTROUTER_API_KEY: '',
-      },
+      env: runtimeEnv,
+    },
+    {
+      command: 'node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3101',
+      url: 'http://127.0.0.1:3101/login',
+      reuseExistingServer: false,
+      env: runtimeEnv,
     },
   ],
 });

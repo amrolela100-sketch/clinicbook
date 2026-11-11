@@ -8,6 +8,8 @@ import { canTransition } from '@/lib/services/appointment-lifecycle';
 import { overlaps } from '@/lib/services/slots-engine';
 import type { Appointment, Doctor, MedicalRecord, Shift, User } from '@/lib/types';
 import type { Organization } from '@/lib/services/booking-service';
+import { limitHttpRequest } from '@/lib/http-rate-limit';
+import { RATE_LIMIT_CONFIGS } from '@/lib/rate-limit';
 
 function revalidateAppPaths() {
   try {
@@ -51,6 +53,12 @@ function pickDoctorImage(existingDocs: Doctor[]): string {
 
 export async function POST(request: Request) {
   try {
+    const rateResponse = await limitHttpRequest(
+      request,
+      '/api/actions',
+      RATE_LIMIT_CONFIGS.actions,
+    );
+    if (rateResponse) return rateResponse;
     const raw = await request.json().catch(() => null);
     const envelope = z.object({ action: z.string(), payload: z.unknown() }).parse(raw);
     const p = envelope.payload;
@@ -64,6 +72,13 @@ export async function POST(request: Request) {
           { status: 401 },
         );
       }
+      const actorRate = await limitHttpRequest(
+        request,
+        '/api/actions:actor',
+        RATE_LIMIT_CONFIGS.actionActor,
+        user.id,
+      );
+      if (actorRate) return actorRate;
 
       const { executeSupabaseAction, SupabaseActionError } =
         await import('@/lib/services/supabase-actions-service');
@@ -98,6 +113,15 @@ export async function POST(request: Request) {
       await import('@/lib/demo-db');
     ensureSeed();
     let user = await currentUser();
+    if (user) {
+      const actorRate = await limitHttpRequest(
+        request,
+        '/api/actions:actor',
+        RATE_LIMIT_CONFIGS.actionActor,
+        user.id,
+      );
+      if (actorRate) return actorRate;
+    }
     if (action === 'onboard') {
       if (!user) {
         throw new ActionError('يرجى تسجيل الدخول أولاً.', 401);

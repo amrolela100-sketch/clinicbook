@@ -11,7 +11,8 @@ import {
   toSafeUser,
 } from '@/lib/auth/session';
 import type { User, Role } from '@/lib/types';
-import { checkRateLimit, getClientIp, RATE_LIMIT_CONFIGS } from '@/lib/rate-limit';
+import { RATE_LIMIT_CONFIGS } from '@/lib/rate-limit';
+import { limitHttpRequest } from '@/lib/http-rate-limit';
 
 const sessionSchema = z.object({
   mode: z.enum(['signin', 'signup']).optional(),
@@ -39,30 +40,17 @@ function translateAuthError(msg: string): string {
   return msg;
 }
 
-function rateLimitedResponse(resetMs: number) {
-  return NextResponse.json(
-    {
-      success: false,
-      code: 'RATE_LIMITED',
-      error: 'تجاوزت الحد المسموح من محاولات تسجيل الدخول. يرجى المحاولة لاحقاً.',
-    },
-    {
-      status: 429,
-      headers: {
-        'Retry-After': String(Math.ceil(resetMs / 1000)),
-      },
-    },
-  );
-}
-
 export async function POST(request: Request) {
-  const ip = getClientIp(request);
   const body = await request.json().catch(() => null);
   const parsed = sessionSchema.safeParse(body);
 
   if (!parsed.success) {
-    const rate = checkRateLimit(`${ip}:/api/session:login`, RATE_LIMIT_CONFIGS.login);
-    if (!rate.allowed) return rateLimitedResponse(rate.resetMs);
+    const rateResponse = await limitHttpRequest(
+      request,
+      '/api/session:login',
+      RATE_LIMIT_CONFIGS.login,
+    );
+    if (rateResponse) return rateResponse;
     return NextResponse.json(
       { success: false, error: 'بيانات غير صالحة، تحقق من الحقول المطلوبة.' },
       { status: 400 },
@@ -71,16 +59,31 @@ export async function POST(request: Request) {
 
   const { mode, role, email, password, fullName, phone, intent } = parsed.data;
   const isExplicitDemo =
-    process.env.CLINICBOOK_MODE === 'demo' && process.env.FORCE_SUPABASE !== 'true';
-  const isPureDemoRoleSwitch =
-    isExplicitDemo && Boolean(role) && !email && !password && !fullName && mode !== 'signup';
-
-  const rate = isPureDemoRoleSwitch
-    ? checkRateLimit(`${ip}:/api/session:demo-switch`, RATE_LIMIT_CONFIGS.demoSwitch)
-    : checkRateLimit(`${ip}:/api/session:login`, RATE_LIMIT_CONFIGS.login);
-
-  if (!rate.allowed) {
-    return rateLimitedResponse(rate.resetMs);
+    process.env.NODE_ENV !== 'production' &&
+    process.env.CLINICBOOK_MODE === 'demo' &&
+    process.env.FORCE_SUPABASE !== 'true';
+  const isPureRoleSwitch = Boolean(role) && !email && !password && !fullName && mode !== 'signup';
+  if (isPureRoleSwitch && !isExplicitDemo) {
+    return NextResponse.json(
+      { success: false, code: 'FORBIDDEN', error: 'تجربة الأدوار غير متاحة خارج وضع demo المحلي.' },
+      { status: 403 },
+    );
+  }
+  const isPureDemoRoleSwitch = isExplicitDemo && isPureRoleSwitch;
+  const rateResponse = await limitHttpRequest(
+    request,
+    isPureDemoRoleSwitch ? '/api/session:demo-switch' : '/api/session:login',
+    isPureDemoRoleSwitch ? RATE_LIMIT_CONFIGS.demoSwitch : RATE_LIMIT_CONFIGS.login,
+  );
+  if (rateResponse) return rateResponse;
+  if (email) {
+    const accountRate = await limitHttpRequest(
+      request,
+      '/api/session:account',
+      RATE_LIMIT_CONFIGS.login,
+      email.trim().toLowerCase(),
+    );
+    if (accountRate) return accountRate;
   }
 
   // ─── 1. Sign Up ────────────────────────────────────────────

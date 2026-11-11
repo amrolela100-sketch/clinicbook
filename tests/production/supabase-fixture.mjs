@@ -38,8 +38,61 @@ const fixtures = new Map([
   ],
 ]);
 
-const server = createServer((request, response) => {
+const redisCounters = new Map();
+let redisMode = 'healthy';
+
+const server = createServer(async (request, response) => {
   const pathname = new URL(request.url ?? '/', 'http://127.0.0.1:4191').pathname;
+  if (pathname === '/test-control') {
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    const control = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+    if (control.reset) redisCounters.clear();
+    if (control.mode) redisMode = control.mode;
+    response.writeHead(200, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({ status: 'ready' }));
+    return;
+  }
+  if (pathname === '/auth/v1/token') {
+    request.resume();
+    response.writeHead(401, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({ msg: 'Invalid login credentials', code: 'invalid_credentials' }));
+    return;
+  }
+  if (pathname === '/redis') {
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    if (redisMode === 'fail') {
+      response.writeHead(500, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ error: 'fixture redis unavailable' }));
+      return;
+    }
+    if (redisMode === 'timeout') {
+      await new Promise((resolve) => setTimeout(resolve, 3500));
+      response.writeHead(503, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ error: 'fixture redis timeout' }));
+      return;
+    }
+    const command = JSON.parse(Buffer.concat(chunks).toString('utf8') || 'null');
+    if (
+      request.headers.authorization !== 'Bearer local-redis-fixture-token' ||
+      !Array.isArray(command) ||
+      !['evalsha', 'eval'].includes(String(command[0]).toLowerCase())
+    ) {
+      response.writeHead(400, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ error: 'Unsupported fixture Redis request' }));
+      return;
+    }
+    const keyCount = Number(command[2]);
+    const key = command[3];
+    const args = command.slice(3 + keyCount);
+    const [capacity, interval, , now, cost] = args.map(Number);
+    const used = (redisCounters.get(key) ?? 0) + cost;
+    redisCounters.set(key, used);
+    response.writeHead(200, { 'Content-Type': 'application/json' });
+    response.end(JSON.stringify({ result: [capacity - used, now + interval, capacity] }));
+    return;
+  }
   const known = fixtures.has(pathname);
   response.writeHead(known ? 200 : 404, {
     'Content-Type': 'application/json',

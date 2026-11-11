@@ -17,18 +17,27 @@ export async function middleware(request: NextRequest) {
       );
     }
 
-    const trustedProxy =
-      Number(process.env.TRUSTED_PROXY_HOPS ?? '0') > 0 ||
-      Boolean(request.headers.get('x-vercel-id') || request.headers.get('cf-ray'));
-    const host =
-      (trustedProxy ? request.headers.get('x-forwarded-host') : null) ??
-      request.headers.get('host');
+    // A client-supplied platform marker must not turn x-forwarded-host into
+    // an authority for CSRF checks. Production uses the configured app origin.
+    let expectedOrigin: string;
+    try {
+      const configuredUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+      if (process.env.NODE_ENV === 'production' && !configuredUrl) {
+        throw new Error('NEXT_PUBLIC_APP_URL is required in production');
+      }
+      expectedOrigin = new URL(configuredUrl || request.nextUrl.origin).origin;
+    } catch {
+      return NextResponse.json(
+        { success: false, code: 'SERVICE_UNAVAILABLE', error: 'إعدادات مصدر التطبيق غير صالحة.' },
+        { status: 503 },
+      );
+    }
 
     const origin = request.headers.get('origin');
     const referer = request.headers.get('referer');
     if (origin) {
       try {
-        if (new URL(origin).host !== host)
+        if (new URL(origin).origin !== expectedOrigin)
           return NextResponse.json(
             { success: false, code: 'CSRF_FORBIDDEN', error: 'طلب غير مسموح من مصدر خارجي.' },
             { status: 403 },
@@ -41,7 +50,7 @@ export async function middleware(request: NextRequest) {
       }
     } else if (!isCronRoute && referer) {
       try {
-        if (new URL(referer).host !== host)
+        if (new URL(referer).origin !== expectedOrigin)
           return NextResponse.json(
             { success: false, code: 'CSRF_FORBIDDEN', error: 'مرجع الطلب غير مسموح.' },
             { status: 403 },
