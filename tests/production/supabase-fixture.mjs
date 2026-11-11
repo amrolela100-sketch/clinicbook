@@ -40,6 +40,7 @@ const fixtures = new Map([
 
 const redisCounters = new Map();
 let redisMode = 'healthy';
+let databaseMode = 'healthy';
 
 const server = createServer(async (request, response) => {
   const pathname = new URL(request.url ?? '/', 'http://127.0.0.1:4191').pathname;
@@ -49,8 +50,34 @@ const server = createServer(async (request, response) => {
     const control = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
     if (control.reset) redisCounters.clear();
     if (control.mode) redisMode = control.mode;
+    if (control.databaseMode) databaseMode = control.databaseMode;
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify({ status: 'ready' }));
+    return;
+  }
+  if (pathname === '/rest/v1/rpc/healthcheck') {
+    request.resume();
+    if (request.headers.apikey !== 'local-production-test-service-key') {
+      response.writeHead(403, { 'Content-Type': 'application/json' });
+      response.end(JSON.stringify({ code: 'FIXTURE_SERVICE_ROLE_REQUIRED' }));
+      return;
+    }
+    if (databaseMode === 'timeout') {
+      await new Promise((resolve) => setTimeout(resolve, 3500));
+      if (response.destroyed) return;
+    }
+    const failed = databaseMode === 'fail' || databaseMode === 'missing';
+    response.writeHead(failed ? 503 : 200, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+    });
+    response.end(
+      JSON.stringify(
+        failed
+          ? { code: databaseMode === 'missing' ? 'PGRST202' : 'PGRST001', message: 'private-dsn' }
+          : { ok: databaseMode !== 'malformed', schema: '20261111000012' },
+      ),
+    );
     return;
   }
   if (pathname === '/auth/v1/token') {

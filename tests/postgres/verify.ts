@@ -1,6 +1,7 @@
 import pg from 'pg';
 import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
+import { verifyHealth } from './health.verify';
 const pool = new pg.Pool({
   connectionString:
     process.env.TEST_DATABASE_URL ??
@@ -1581,6 +1582,7 @@ async function main() {
     console.log(
       'PASS REM-01..03 & REM-V2-05: atomic/governance RPCs and 100% SECURITY DEFINER pg_temp hardening verified',
     );
+    await verifyHealth(pool, asService, asUser, asAnon);
   } finally {
     if (inserted) {
       const allUsers = [...ids, ...extraUsers];

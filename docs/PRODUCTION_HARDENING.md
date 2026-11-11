@@ -23,6 +23,7 @@ No migrations have been applied to a remote database.
 | #6 | Clinical records use restrictive parent references, ten-year retention metadata, legal holds and service-only idempotent archival. Application and service roles cannot hard-delete them. | Actual PostgreSQL constraints, roles, legal-hold/archive behavior and delete guard |
 | #10.3 | One treating-doctor RPC locks the visit, preserves lifecycle validation and commits record save plus visit completion atomically. Direct client record writes are revoked. | Actual PostgreSQL rollback after a forced insert failure, actor isolation/concurrency, and service error mapping |
 | #14 | Agent booking confirmation uses a labelled Radix modal, confines focus, isolates its Escape handling and returns focus to the selected time slot. | Real browser keyboard, background focus, close/cancel, and successful booking |
+| #27 | Readiness executes a service-only database/schema RPC with an abortable two-second deadline; failures return 503 without environment or AI details. | Actual PostgreSQL execute grants/schema readiness, HTTP unit tests and a real production transport outage/timeout |
 
 The audit's claim that direct availability writes were open at the base commit was
 too broad: `20261110000001` already revoked direct DML. The vulnerable schedule RPC,

@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+vi.mock('server-only', () => ({}));
+
 import { NextRequest } from 'next/server';
 import { processAgentMessage } from '@/lib/services/agent-service';
 import { callAgentRouter } from '@/lib/services/agentrouter-client';
@@ -230,10 +233,10 @@ describe('Full-Stack Audit Pass #2 Remediation Suite (REM-V2-01..REM-V2-06)', ()
     expect(healthRes.headers.get('Cache-Control')).toContain('no-store');
     const body = (await healthRes.json()) as {
       status: string;
-      checks: { databaseConfigured: boolean };
+      checks: { database: boolean };
     };
     expect(body.status).toBe('ok');
-    expect(body.checks.databaseConfigured).toBe(true);
+    expect(body.checks.database).toBe(true);
 
     const map = await sitemap();
     expect(map.some((entry) => entry.url.endsWith('/search'))).toBe(true);
