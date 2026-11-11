@@ -121,6 +121,66 @@ async function main() {
       [orgA, clinicA, recA],
     );
 
+    await pool.query(
+      "INSERT INTO organization_members(organization_id,clinic_id,user_id,member_role) VALUES($1,$2,$3,'receptionist')",
+      [orgB, clinicB, ownerA],
+    );
+    const foreignAuditId = randomUUID();
+    await pool.query(
+      "INSERT INTO audit_logs(id,organization_id,actor_id,action,entity_type) VALUES($1,$2,$3,'foreign.secret','organization')",
+      [foreignAuditId, orgB, ownerB],
+    );
+    try {
+      const crossTenantFeeUpdate = await asUser<{ id: string }>(
+        ownerA,
+        'UPDATE doctors SET consultation_fee=1 WHERE id=$1 RETURNING id',
+        [docB],
+      );
+      assert.equal(crossTenantFeeUpdate.length, 0);
+
+      await assert.rejects(
+        asUser(ownerA, 'SELECT replace_availability_atomic($1,$2,$3::jsonb)', [
+          docB,
+          clinicB,
+          JSON.stringify([
+            { day: 1, start: '10:00', end: '12:00', duration: 30, active: true },
+          ]),
+        ]),
+        (e: unknown) => (e as { code: string }).code === '42501',
+      );
+
+      const foreignClinicId = randomUUID();
+      await assert.rejects(
+        asUser(
+          ownerA,
+          "INSERT INTO clinics(id,organization_id,city_id,name,slug,district,address,phone) VALUES($1,$2,$3,'Foreign',$4,'Foreign','Foreign','123456789')",
+          [foreignClinicId, orgB, city, `foreign-${foreignClinicId}`],
+        ),
+        (e: unknown) => (e as { code: string }).code === '42501',
+      );
+
+      const foreignExceptionId = randomUUID();
+      await assert.rejects(
+        asUser(
+          ownerA,
+          "INSERT INTO availability_exceptions(id,doctor_id,clinic_id,start_at,end_at,reason,created_by) VALUES($1,$2,$3,now()+interval '10 days',now()+interval '10 days 1 hour','Foreign tenant mutation',$4)",
+          [foreignExceptionId, docB, clinicB, ownerA],
+        ),
+        (e: unknown) => (e as { code: string }).code === '42501',
+      );
+
+      assert.equal(
+        (await asUser(ownerA, 'SELECT id FROM audit_logs WHERE id=$1', [foreignAuditId])).length,
+        0,
+      );
+    } finally {
+      await pool.query('DELETE FROM organization_members WHERE organization_id=$1 AND user_id=$2', [
+        orgB,
+        ownerA,
+      ]);
+    }
+    console.log('PASS tenant role isolation: foreign organization membership grants no owner writes');
+
     const scheduleRpc = 'SELECT replace_availability_atomic($1,$2,$3::jsonb)';
     const replacementShifts = [
       { day: 1, start: '09:00', end: '12:00', duration: 30, active: true },
