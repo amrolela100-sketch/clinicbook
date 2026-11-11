@@ -1,4 +1,5 @@
 'use client';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { motion } from 'motion/react';
@@ -50,6 +51,62 @@ import { Modal } from './ui/dialog';
 import type { Doctor, Appointment } from '@/lib/types';
 import { cleanDoctorName, formatDoctorName } from '@/lib/format';
 import { AgentChatDrawer } from './agent-chat-drawer';
+
+// Keep persisted portrait names unchanged; only these local originals have WebP copies.
+const optimizedDoctorImages = new Map([
+  ['doctor-4.jpg', 'doctor-4.webp'],
+  ['doctor-5.jpg', 'doctor-5.webp'],
+  ['doctor-6.jpg', 'doctor-6.webp'],
+  ['doctor-samir.jpg', 'doctor-samir.webp'],
+]);
+
+// Match the public grids' columns, gutters and maximum container width.
+const homeDoctorImageSizes = [
+  '(max-width: 480px) calc(50vw - 26px)',
+  '(max-width: 760px) calc(50vw - 31.5px)',
+  '(max-width: 1000px) calc(25vw - 27.5px)',
+  '(max-width: 1200px) calc(25vw - 32px)',
+  '(max-width: 1320px) calc(25vw - 42px)',
+  '288px',
+].join(', ');
+const searchDoctorImageSizes = [
+  '(max-width: 480px) calc(50vw - 26px)',
+  '(max-width: 760px) calc(50vw - 31.5px)',
+  '(max-width: 1000px) calc(50vw - 158px)',
+  '(max-width: 1200px) calc(50vw - 159.5px)',
+  '(max-width: 1320px) calc(33.333vw - 136px)',
+  '304px',
+].join(', ');
+
+function doctorImageSource(image: string) {
+  return `/images/${optimizedDoctorImages.get(image) ?? image}`;
+}
+
+function DoctorAvatar({
+  name,
+  image,
+  size = 'md',
+}: {
+  name: string;
+  image: string;
+  size?: 'sm' | 'md' | 'lg';
+}) {
+  if (!image) return <Avatar name={name} size={size} />;
+  const sizePx = size === 'sm' ? 32 : size === 'lg' ? 112 : 44;
+  return (
+    <span className={`avatar avatar-${size}`}>
+      <Image
+        src={doctorImageSource(image)}
+        alt={name}
+        width={sizePx}
+        height={sizePx}
+        sizes={size === 'lg' ? '(max-width: 480px) 98px, 112px' : `${sizePx}px`}
+        loading="lazy"
+      />
+    </span>
+  );
+}
+
 const specialties = [
   { name: 'طب الأسنان', icon: Smile },
   { name: 'القلب والأوعية', icon: HeartPulse },
@@ -312,7 +369,7 @@ export function Home() {
             <span>أعلى تقييمات رضا المرضى</span>
             <div className="avatar-stack">
               {['doctor-1.jpg', 'doctor-2.jpg', 'doctor-3.jpg'].map((image, i) => (
-                <Avatar key={image} image={image} name={'طبيب ' + i} size="sm" />
+                <DoctorAvatar key={image} image={image} name={'طبيب ' + i} size="sm" />
               ))}
             </div>
           </div>
@@ -458,16 +515,23 @@ export function Home() {
     </>
   );
 }
-export function DoctorCard({ doctor: d }: { doctor: Doctor }) {
+export function DoctorCard({
+  doctor: d,
+  sizes = homeDoctorImageSizes,
+}: {
+  doctor: Doctor;
+  sizes?: string;
+}) {
   const formattedName = formatDoctorName(d.name);
   return (
     <article className="doctor-card">
       <Link href={`/doctors/${d.id}`} className="doctor-card-photo" style={{ background: d.color }}>
-        <img
-          src={`/images/${d.image}`}
+        <Image
+          src={doctorImageSource(d.image)}
           alt={formattedName}
           width={300}
           height={205}
+          sizes={sizes}
           loading="lazy"
         />
         <span className="doctor-verified">
@@ -670,7 +734,7 @@ export function SearchPage() {
           {doctors.length ? (
             <div className="doctor-grid search-doctors">
               {doctors.map((d) => (
-                <DoctorCard key={d.id} doctor={d} />
+                <DoctorCard key={d.id} doctor={d} sizes={searchDoctorImageSizes} />
               ))}
             </div>
           ) : (
@@ -781,7 +845,7 @@ export function DoctorPage({ id }: { id: string }) {
               <span className="profile-cover-label">كل تفصيلة في رعايتك، تهمّنا.</span>
             </div>
             <div className="profile-main">
-              <Avatar name={d.name} image={d.image} size="lg" />
+              <DoctorAvatar name={d.name} image={d.image} size="lg" />
               <Badge status="approved">ترخيص طبي موثّق</Badge>
               <h1>{formatDoctorName(d.name)}</h1>
               <p className="profile-specialty">أخصائي {d.specialty}</p>
@@ -945,7 +1009,7 @@ export function DoctorPage({ id }: { id: string }) {
         {data?.user?.role === 'patient' ? (
           <>
             <div className="booking-summary">
-              <Avatar name={d.name} image={d.image} />
+              <DoctorAvatar name={d.name} image={d.image} />
               <div>
                 <h3>{formatDoctorName(d.name)}</h3>
                 <p>
