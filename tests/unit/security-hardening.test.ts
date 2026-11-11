@@ -1676,6 +1676,26 @@ describe('Security & Production Hardening Regression Suite', () => {
         "default-src 'self'",
       );
     });
+
+    it('forwards the generated CSP and nonce to Next rendering instead of trusting incoming headers', async () => {
+      process.env.CSP_ENFORCE = 'true';
+      const response = await middleware(
+        new NextRequest('http://localhost:3000/', {
+          headers: {
+            host: 'localhost:3000',
+            'x-nonce': 'client-controlled',
+            'content-security-policy': "script-src 'nonce-client-controlled'",
+          },
+        }),
+      );
+      const policy = response.headers.get('Content-Security-Policy') ?? '';
+      const nonce = /'nonce-([^']+)'/.exec(policy)?.[1];
+
+      expect(nonce).toBeTruthy();
+      expect(nonce).not.toBe('client-controlled');
+      expect(response.headers.get('x-middleware-request-content-security-policy')).toBe(policy);
+      expect(response.headers.get('x-middleware-request-x-nonce')).toBe(nonce);
+    });
   });
 
   // ─── P1-5 & P1-6: Scrypt Password Hashing & Session Cookie Lifecycle ─────────

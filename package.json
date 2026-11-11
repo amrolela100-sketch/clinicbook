@@ -11,6 +11,7 @@
     "test:concurrency": "tsx scripts/test-concurrency.ts",
     "db:seed": "tsx scripts/seed.ts",
     "test:e2e": "playwright test",
+    "test:production": "playwright test --config=playwright.production.config.ts",
     "test:postgres": "tsx tests/postgres/verify.ts"
   },
   "dependencies": {

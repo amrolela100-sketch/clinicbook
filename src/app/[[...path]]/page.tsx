@@ -6,6 +6,7 @@ import { isOrganizationPubliclyBookable } from '@/lib/services/organization-poli
 import type { Doctor } from '@/lib/types';
 import type { PublicDoctorDirectoryRow } from '@/lib/supabase/database.types';
 import { redirect, notFound } from 'next/navigation';
+import { headers } from 'next/headers';
 import { ClinicApp } from '@/components/clinic-app';
 
 export const dynamic = 'force-dynamic';
@@ -248,9 +249,16 @@ export default async function Page({ params }: { params: Promise<{ path?: string
       }).replace(/</g, '\\u003c')
     : null;
 
+  const nonce = (await headers()).get('x-nonce') ?? undefined;
   return (
     <>
-      {jsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />}
+      {jsonLd && (
+        <script
+          type="application/ld+json"
+          nonce={nonce}
+          dangerouslySetInnerHTML={{ __html: jsonLd }}
+        />
+      )}
       <ClinicApp route={route} />
     </>
   );

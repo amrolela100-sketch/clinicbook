@@ -112,9 +112,35 @@ export async function middleware(request: NextRequest) {
   }
 
   // --- Prepare request headers with cryptographic CSP nonce ---
-  const nonce = btoa(crypto.randomUUID());
+  const nonce = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-nonce', nonce);
+
+  let supabaseConnectSrc = '';
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (supabaseUrl) {
+    try {
+      supabaseConnectSrc = ` ${new URL(supabaseUrl).origin}`;
+    } catch (err) {
+      console.warn('Invalid NEXT_PUBLIC_SUPABASE_URL in middleware:', err);
+    }
+  }
+  const csp = [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self'",
+    `connect-src 'self'${supabaseConnectSrc}`,
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "object-src 'none'",
+  ].join('; ');
+
+  // Next reads the request CSP to nonce its framework and hydration scripts.
+  // Never retain a client-supplied policy or an unrelated report-only nonce.
+  requestHeaders.set('Content-Security-Policy', csp);
+  requestHeaders.delete('Content-Security-Policy-Report-Only');
 
   // --- Supabase session refresh (all matched routes) ---
   let response = NextResponse.next({ request: { headers: requestHeaders } });
@@ -133,6 +159,9 @@ export async function middleware(request: NextRequest) {
             getAll: () => request.cookies.getAll(),
             setAll: (list) => {
               list.forEach(({ name, value }) => request.cookies.set(name, value));
+              const cookieHeader = request.headers.get('cookie');
+              if (cookieHeader) requestHeaders.set('cookie', cookieHeader);
+              else requestHeaders.delete('cookie');
               response = NextResponse.next({ request: { headers: requestHeaders } });
               list.forEach(({ name, value, options }) =>
                 response.cookies.set(name, value, options),
@@ -150,29 +179,6 @@ export async function middleware(request: NextRequest) {
   }
 
   // --- Security headers & CSP (enforced by default in production) ---
-  let supabaseConnectSrc = '';
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (supabaseUrl) {
-    try {
-      supabaseConnectSrc = ` ${new URL(supabaseUrl).origin}`;
-    } catch (err) {
-      // Invalid URL in env; log and keep connect-src strictly 'self' (fail-closed)
-      console.warn('Invalid NEXT_PUBLIC_SUPABASE_URL in middleware:', err);
-    }
-  }
-
-  const csp = [
-    "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}'`,
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
-    "font-src 'self'",
-    `connect-src 'self'${supabaseConnectSrc}`,
-    "frame-ancestors 'none'",
-    "base-uri 'self'",
-    "object-src 'none'",
-  ].join('; ');
-
   const enforceCsp =
     process.env.CSP_ENFORCE === 'true' ||
     (process.env.NODE_ENV === 'production' && process.env.CSP_REPORT_ONLY !== 'true');
