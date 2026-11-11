@@ -512,6 +512,15 @@ describe('Supabase Actions Service Security & Validation', () => {
     }
   });
 
+  it('requires an explicit branch even for a doctor editing their own schedule', async () => {
+    await expect(
+      executeSupabaseAction(doctorUser, 'schedule', {
+        doctorId: doctorUser.id,
+        shifts: [{ day: 0, start: '09:00', end: '13:00', duration: 20, active: true }],
+      }),
+    ).rejects.toMatchObject({ status: 422, code: 'MISSING_CLINIC' });
+  });
+
   it('executes schedule action successfully for doctor self-schedule', async () => {
     const shifts = [
       { day: 0, start: '09:00', end: '13:00', duration: 20 as const, active: true },
@@ -520,6 +529,7 @@ describe('Supabase Actions Service Security & Validation', () => {
 
     const res = await executeSupabaseAction(doctorUser, 'schedule', {
       doctorId: doctorUser.id,
+      clinicId: '10000000-0000-4000-8000-000000000012',
       shifts,
     });
 
@@ -532,7 +542,7 @@ describe('Supabase Actions Service Security & Validation', () => {
       fn: 'replace_availability_atomic',
       args: {
         p_doctor_id: doctorUser.id,
-        p_clinic_id: doctorUser.clinicId,
+        p_clinic_id: '10000000-0000-4000-8000-000000000012',
         p_shifts: shifts,
       },
     });
@@ -542,6 +552,7 @@ describe('Supabase Actions Service Security & Validation', () => {
   it.each([
     [{ code: '42501', message: 'FORBIDDEN' }, 403, 'FORBIDDEN'],
     [{ code: '22023', message: 'OVERLAPPING_SHIFTS' }, 422, 'OVERLAP'],
+    [{ code: '22023', message: 'DOCTOR_NOT_IN_CLINIC' }, 422, 'DOCTOR_NOT_IN_CLINIC'],
     [{ code: 'PGRST202', message: 'function not found' }, 500, 'MIGRATION_REQUIRED'],
   ] as const)(
     'maps atomic schedule RPC error $0 to status $1 and code $2',
@@ -551,6 +562,7 @@ describe('Supabase Actions Service Security & Validation', () => {
       await expect(
         executeSupabaseAction(doctorUser, 'schedule', {
           doctorId: doctorUser.id,
+          clinicId: '10000000-0000-4000-8000-000000000012',
           shifts: [{ day: 0, start: '09:00', end: '13:00', duration: 20, active: true }],
         }),
       ).rejects.toMatchObject({ status, code });

@@ -443,6 +443,7 @@ export async function executeSupabaseAction(
       const b = z
         .object({
           doctorId: text,
+          clinicId: z.string().uuid().optional(),
           shifts: z
             .array(
               z.object({
@@ -514,45 +515,9 @@ export async function executeSupabaseAction(
         }
       }
 
-      const scheduleOrgId = targetOrgId ?? user.organizationId;
-      let clinicId = isDocSelf ? user.clinicId : undefined;
-      if (!clinicId) {
-        let memberQuery = serverClient
-          .from('organization_members')
-          .select('clinic_id')
-          .eq('user_id', b.doctorId)
-          .eq('is_active', true);
-        if (scheduleOrgId) memberQuery = memberQuery.eq('organization_id', scheduleOrgId);
-        const { data: member, error: memberError } = await memberQuery.maybeSingle();
-        if (memberError) {
-          throw new SupabaseActionError(
-            memberError.message || 'تعذر تحديد فرع الطبيب.',
-            memberError.code === '42501' ? 403 : 500,
-            memberError.code === '42501' ? 'FORBIDDEN' : 'DB_ERROR',
-          );
-        }
-        clinicId = member?.clinic_id ?? undefined;
-      }
-      if (!clinicId && scheduleOrgId) {
-        const { data: docClinic, error: clinicError } = await serverClient
-          .from('clinics')
-          .select('id')
-          .eq('organization_id', scheduleOrgId)
-          .limit(1)
-          .maybeSingle();
-        if (clinicError) {
-          throw new SupabaseActionError(
-            clinicError.message || 'تعذر تحديد العيادة.',
-            clinicError.code === '42501' ? 403 : 500,
-            clinicError.code === '42501' ? 'FORBIDDEN' : 'DB_ERROR',
-          );
-        }
-        clinicId = docClinic?.id;
-      }
-      if (!clinicId) {
-        clinicId = user.clinicId;
-      }
-
+      // The selected branch is part of the operation, never inferred from the
+      // caller's membership or an arbitrary first clinic in the organization.
+      const clinicId = b.clinicId;
       if (!clinicId) {
         throw new SupabaseActionError('العيادة غير محددة لتسجيل الدوام.', 422, 'MISSING_CLINIC');
       }
@@ -573,6 +538,13 @@ export async function executeSupabaseAction(
           );
         }
         if (replaceErr.code === '22023') {
+          if (message.includes('DOCTOR_NOT_IN_CLINIC')) {
+            throw new SupabaseActionError(
+              'الطبيب غير مسجل في هذا الفرع، ولا يمكن إنشاء دوام له فيه.',
+              422,
+              'DOCTOR_NOT_IN_CLINIC',
+            );
+          }
           const overlap = message.includes('OVERLAPPING_SHIFTS');
           throw new SupabaseActionError(
             overlap ? 'يوجد تداخل في فترات الدوام.' : 'بيانات جدول الدوام غير صالحة.',

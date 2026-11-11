@@ -102,7 +102,11 @@ export function SchedulePage() {
     setBusy(true);
     const ok = await act(
       'schedule',
-      { doctorId, shifts: shifts.map((s) => ({ ...s, duration })) },
+      {
+        doctorId,
+        clinicId: doctors.find((doctor) => doctor.id === doctorId)?.clinicId,
+        shifts: shifts.map((s) => ({ ...s, duration })),
+      },
       'تم تحديث جدول الدوام',
     );
     if (ok && draftVersion.current === submittedVersion) setDirty(false);

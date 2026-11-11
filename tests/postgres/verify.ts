@@ -142,6 +142,10 @@ async function main() {
       [docPending, orgA, spec],
     );
     await pool.query(
+      "INSERT INTO organization_members(organization_id,clinic_id,user_id,member_role) VALUES($1,$2,$3,'doctor')",
+      [orgA, clinicA, docPending],
+    );
+    await pool.query(
       "INSERT INTO organization_members(organization_id,clinic_id,user_id,member_role) VALUES($1,$2,$3,'receptionist')",
       [orgA, clinicA, recA],
     );
@@ -212,18 +216,31 @@ async function main() {
       { day: 3, start: '13:00', end: '17:00', duration: 20, active: true },
       { day: 5, start: '09:00', end: '11:00', duration: 30, active: false },
     ];
+    // A schedule row in another branch must never be collateral damage.
+    await pool.query(
+      "INSERT INTO availability(doctor_id,clinic_id,day_of_week,start_time,end_time,slot_duration_minutes) VALUES($1,$2,2,'08:00','10:00',30)",
+      [docPending, clinicA2],
+    );
     await asUser(ownerA, scheduleRpc, [docPending, clinicA, JSON.stringify(replacementShifts)]);
     const replacedSchedule = await pool.query<{
       day_of_week: number;
       slot_duration_minutes: number;
     }>(
-      'SELECT day_of_week,slot_duration_minutes FROM availability WHERE doctor_id=$1 ORDER BY day_of_week',
-      [docPending],
+      'SELECT day_of_week,slot_duration_minutes FROM availability WHERE doctor_id=$1 AND clinic_id=$2 ORDER BY day_of_week',
+      [docPending, clinicA],
     );
     assert.deepEqual(replacedSchedule.rows, [
       { day_of_week: 1, slot_duration_minutes: 30 },
       { day_of_week: 3, slot_duration_minutes: 20 },
     ]);
+    const preservedBranchSchedule = await pool.query<{
+      day_of_week: number;
+      slot_duration_minutes: number;
+    }>(
+      'SELECT day_of_week,slot_duration_minutes FROM availability WHERE doctor_id=$1 AND clinic_id=$2 ORDER BY day_of_week',
+      [docPending, clinicA2],
+    );
+    assert.deepEqual(preservedBranchSchedule.rows, [{ day_of_week: 2, slot_duration_minutes: 30 }]);
 
     const overlappingShifts = [
       { day: 1, start: '09:00', end: '12:00', duration: 30, active: true },
@@ -236,11 +253,16 @@ async function main() {
     assert.equal(
       (
         await pool.query<{ n: number }>(
-          'SELECT count(*)::int AS n FROM availability WHERE doctor_id=$1',
-          [docPending],
+          'SELECT count(*)::int AS n FROM availability WHERE doctor_id=$1 AND clinic_id=$2',
+          [docPending, clinicA],
         )
       ).rows[0].n,
       2,
+    );
+    // An owner may not create a schedule in a branch where the doctor is not a member.
+    await assert.rejects(
+      asUser(ownerA, scheduleRpc, [docPending, clinicA2, JSON.stringify(replacementShifts)]),
+      (e: unknown) => (e as { code: string }).code === '22023',
     );
     await assert.rejects(
       asUser(docB, scheduleRpc, [docPending, clinicA, JSON.stringify(replacementShifts)]),
@@ -255,7 +277,7 @@ async function main() {
       (e: unknown) => (e as { code: string }).code === '42501',
     );
     console.log(
-      'PASS atomic availability replacement, validation rollback, and tenant authorization',
+      'PASS branch-scoped availability replacement, preserved other branches, validation rollback, and tenant authorization',
     );
 
     const target = new Date(Date.now() + 3 * 86400000);

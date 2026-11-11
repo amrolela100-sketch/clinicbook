@@ -19,11 +19,18 @@ No migrations have been applied to a remote database.
 | #13 | Demo onboarding updates the complete stored account and retains its password hash; safe HTTP projections remain unchanged. | Authenticated `POST /api/actions` and persisted account checks |
 | #7 | Per-request nonces reach Next's renderer and JSON-LD, and client-supplied CSP headers are replaced. | Middleware and a real production build/browser |
 | #9 | Production write endpoints require shared Redis counters, HMAC identifiers, actor/account budgets and a trusted ingress IP contract; Redis failure returns 503 instead of falling back. | Two real production instances, spoofed headers and Redis outage/timeout |
+| #12 | Schedule writes require an explicit branch, replace only that doctor's rows in that branch, and require the doctor's active branch membership. | Actual PostgreSQL branch preservation/authorization and action validation |
 
 The audit's claim that direct availability writes were open at the base commit was
 too broad: `20261110000001` already revoked direct DML. The vulnerable schedule RPC,
 doctor fees, clinic inserts, exception inserts and cross-tenant audit reads were
 reproduced and fixed.
+
+Schedule updates no longer infer the caller's clinic or the first clinic in an
+organization. The UI submits the selected doctor's branch. A stale schedule in
+another branch is preserved, not silently deleted. The existing membership model
+still assigns one branch per doctor per organization; this does not introduce
+multi-branch doctor membership.
 
 ## Audit and billing migration notes
 
