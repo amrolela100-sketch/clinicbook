@@ -134,6 +134,50 @@ describe('Integration: Actions API Route (/api/actions)', () => {
     expect(json.code).toBe('UNAUTHORIZED');
   });
 
+  it('rejects unauthenticated demo onboarding without adopting an existing account', async () => {
+    delete process.env.FORCE_SUPABASE;
+    const victimId = 'unauthenticated-onboarding-victim';
+    const victimEmail = 'onboarding-victim@clinicbook.demo';
+    put('user', victimId, {
+      id: victimId,
+      name: 'مستخدم محفوظ',
+      email: victimEmail,
+      role: 'patient',
+      passwordHash: 'sentinel-password-hash',
+    });
+
+    const req = new Request('http://localhost:3000/api/actions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'onboard',
+        payload: {
+          name: 'مركز غير مصرح',
+          city: 'دمشق',
+          district: 'الشعلان',
+          phone: '0111111111',
+          doctorName: 'د. مهاجم',
+          email: victimEmail,
+          license: 'SY-ATTACK-1',
+          tier: 'solo_starter',
+        },
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({ success: false });
+    expect(
+      get<{ role: string; organizationId?: string; passwordHash?: string }>('user', victimId),
+    ).toMatchObject({
+      role: 'patient',
+      passwordHash: 'sentinel-password-hash',
+    });
+    expect(
+      get<{ organizationId?: string }>('user', victimId)?.organizationId,
+    ).toBeUndefined();
+  });
+
   it('rejects quick role preview with 403 when Supabase is forced', async () => {
     process.env.FORCE_SUPABASE = 'true';
 

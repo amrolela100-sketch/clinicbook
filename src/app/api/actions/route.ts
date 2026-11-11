@@ -99,6 +99,10 @@ export async function POST(request: Request) {
     ensureSeed();
     let user = await currentUser();
     if (action === 'onboard') {
+      if (!user) {
+        throw new ActionError('يرجى تسجيل الدخول أولاً.', 401);
+      }
+
       const b = z
         .object({
           name: text,
