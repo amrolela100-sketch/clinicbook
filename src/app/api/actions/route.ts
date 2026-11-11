@@ -706,7 +706,7 @@ export async function POST(request: Request) {
           break;
         }
         case 'settings': {
-          if (!['clinic_owner', 'doctor', 'super_admin'].includes(u.role) || !org) deny();
+          if (u.role !== 'clinic_owner' || !org) deny();
           const b = z
             .object({
               name: text,

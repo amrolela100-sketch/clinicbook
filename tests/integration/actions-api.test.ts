@@ -138,6 +138,42 @@ describe('Integration: Actions API Route (/api/actions)', () => {
     expect(json.code).toBe('UNAUTHORIZED');
   });
 
+  it.each(['doctor', 'super_admin'])(
+    'denies organization settings to %s in demo too',
+    async (role) => {
+      vi.stubEnv('CLINICBOOK_MODE', 'demo');
+      vi.stubEnv('FORCE_SUPABASE', 'false');
+      const actor = roles.find((candidate) => candidate.role === role)!;
+      const actorId = `settings-role-test-${role}`;
+      put('user', actorId, { ...actor, id: actorId, organizationId: 'org-1' });
+      const before = get<Record<string, unknown>>('organization', 'org-1')!;
+      await createSession(actorId);
+      try {
+        const response = await POST(
+          new Request('http://localhost:3000/api/actions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'settings',
+              payload: {
+                name: 'not authorized to rename',
+                phone: '011-1234567',
+                address: 'test address',
+                cancelHours: 2,
+                leadMinutes: 60,
+                autoConfirm: false,
+              },
+            }),
+          }),
+        );
+        expect(response.status).toBe(403);
+        expect(get('organization', 'org-1')).toEqual(before);
+      } finally {
+        put('organization', 'org-1', before);
+      }
+    },
+  );
+
   it('bounds authenticated actions by the verified actor even when client IPs change', async () => {
     delete process.env.FORCE_SUPABASE;
     vi.stubEnv('VERCEL', '0');
