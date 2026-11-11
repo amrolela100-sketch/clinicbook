@@ -24,6 +24,7 @@ No migrations have been applied to a remote database.
 | #10.3 | One treating-doctor RPC locks the visit, preserves lifecycle validation and commits record save plus visit completion atomically. Direct client record writes are revoked. | Actual PostgreSQL rollback after a forced insert failure, actor isolation/concurrency, and service error mapping |
 | #14 | Agent booking confirmation uses a labelled Radix modal, confines focus, isolates its Escape handling and returns focus to the selected time slot. | Real browser keyboard, background focus, close/cancel, and successful booking |
 | #27 | Readiness executes a service-only database/schema RPC with an abortable two-second deadline; failures return 503 without environment or AI details. | Actual PostgreSQL execute grants/schema readiness, HTTP unit tests and a real production transport outage/timeout |
+| #28 | Cron requires an explicit secret in every environment and executes atomic, idempotent expiry/no-show/reminder/subscription/archive jobs. The scheduler is configured and HTTP responses contain counts only. | Actual PostgreSQL jobs, concurrent retries/legal holds, HTTP authorization and real production database failures/deadlines |
 
 The audit's claim that direct availability writes were open at the base commit was
 too broad: `20261110000001` already revoked direct DML. The vulnerable schedule RPC,
@@ -69,6 +70,31 @@ multi-branch doctor membership.
   until archival; this is an amendment, not a second completion.
 - Missing migration errors fail closed with `MIGRATION_REQUIRED`; the application
   never falls back to separate writes.
+
+## Operational scheduling and readiness
+
+- Configure a random `CRON_SECRET` on the deployment. There is no built-in secret,
+  even in previews or local demo. Both GET and POST require the exact Bearer value.
+- `vercel.json` schedules the retention endpoint hourly. Confirm that the selected
+  Vercel plan supports that frequency, or use an authenticated external scheduler.
+- `run_retention_jobs()` is service-role-only and serializes overlapping runs.
+  Pending appointments are the expiring slot holds. Only confirmed, unchecked-in
+  visits ending more than sixty minutes ago, with no medical record, become
+  no-shows. Checked-in or clinically documented visits are never auto-completed
+  or marked absent.
+- Confirmed appointments in the next twenty-four hours receive a generic in-app
+  patient notification. A unique appointment/kind key prevents duplicates on
+  retries. This is not SMS/email delivery and does not expose patient contact data.
+- Expired active/trialing subscriptions are marked expired, not deleted; medical
+  retention only archives eligible records and honors legal holds. All jobs commit
+  together or roll back together.
+- Cron has an abortable ten-second transport deadline and returns only validated
+  numeric counts with `no-store`. A lost response may hide a committed operation;
+  retrying is safe. Demo remains a local scan/expiry simulation, not those SQL jobs.
+- `/api/health` probes the database and required schema objects using a separate
+  service-only RPC. Its two-second deadline and `503 degraded` response are verified
+  against a real production Next process. Public health output never includes the
+  deployment mode, schema marker, AI configuration or error details.
 
 ## Audit and billing migration notes
 
@@ -172,7 +198,6 @@ The repository audit did not cover several advisories returned by `npm audit`:
 
 ## Remaining release blockers
 
-- #9: distributed rate limiting and a trusted-proxy contract for the deployment.
 - Production-like E2E, migration upgrade testing, backups/restore testing,
   monitoring, credential configuration and deployment-specific checks.
 

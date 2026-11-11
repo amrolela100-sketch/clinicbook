@@ -164,11 +164,19 @@ vi.mock('../../src/lib/supabase/admin', () => ({
           deleteUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
         },
       },
-      rpc: vi.fn().mockImplementation(async (fn: string, args?: unknown) => {
+      rpc: vi.fn().mockImplementation((fn: string, args?: unknown) => {
         adminCalls.push({ fn: `rpc.${fn}`, args });
-        return fn === 'provision_team_member_atomic'
-          ? { data: 'admin-new-id', error: null }
-          : { data: null, error: null };
+        if (fn === 'run_retention_jobs') {
+          const response = Promise.resolve(mockRpcResponses[fn] ?? { data: null, error: null });
+          return {
+            abortSignal: () => ({ then: response.then.bind(response) }),
+          };
+        }
+        return Promise.resolve(
+          fn === 'provision_team_member_atomic'
+            ? { data: 'admin-new-id', error: null }
+            : { data: null, error: null },
+        );
       }),
     };
   }),
@@ -690,7 +698,7 @@ describe('Security & Production Hardening Regression Suite', () => {
       expect(fromCalls.some((c) => c.table === 'medical_records')).toBe(false);
     });
 
-    it('executes operational actions without admin client, resolves doctor branch clinic_id, and leaves auditing to database triggers', async () => {
+    it('executes operational actions without admin client, keeps the explicit branch, and leaves auditing to database triggers', async () => {
       const doctorUser: User = {
         id: 'doc-1',
         name: 'د. سمير',
@@ -728,6 +736,7 @@ describe('Security & Production Hardening Regression Suite', () => {
       await executeSupabaseAction(doctorUser, 'payment', { id: 'appt-1' });
       await executeSupabaseAction(doctorUser, 'schedule', {
         doctorId: 'doc-1',
+        clinicId: clinicUuid,
         shifts: [{ day: 0, start: '09:00', end: '12:00', duration: 20, active: true }],
       });
 
@@ -753,11 +762,13 @@ describe('Security & Production Hardening Regression Suite', () => {
         autoConfirm: false,
       });
 
-      // Owner scheduling for a branch-2 doctor resolves branch clinic-2 via organization_members
+      // The selected branch is explicit, not inferred from the owner's clinic.
+      const secondBranchClinic = '88888888-8888-4888-8888-888888888888';
       mockTableResponses['doctors'] = { id: 'doc-branch-2', organization_id: 'org-1' };
       mockTableResponses['organization_members'] = { clinic_id: 'clinic-2' };
       await executeSupabaseAction(ownerUser, 'schedule', {
         doctorId: 'doc-branch-2',
+        clinicId: secondBranchClinic,
         shifts: [{ day: 1, start: '10:00', end: '13:00', duration: 30, active: true }],
       });
       const atomicScheduleCall = rpcCalls.find(
@@ -766,7 +777,9 @@ describe('Security & Production Hardening Regression Suite', () => {
           (call.args as { p_doctor_id?: string }).p_doctor_id === 'doc-branch-2',
       );
       expect(atomicScheduleCall).toBeDefined();
-      expect((atomicScheduleCall?.args as { p_clinic_id: string }).p_clinic_id).toBe('clinic-2');
+      expect((atomicScheduleCall?.args as { p_clinic_id: string }).p_clinic_id).toBe(
+        secondBranchClinic,
+      );
       expect(fromCalls.some((call) => call.table === 'availability')).toBe(false);
 
       // The database records the patient review; the client cannot insert raw audit events.
@@ -996,7 +1009,7 @@ describe('Security & Production Hardening Regression Suite', () => {
       ).rejects.toMatchObject({ status: 500, code: 'DB_ERROR' });
     });
 
-    it('propagates 403/500 errors on medical_records upsert and reviews lookup/insert', async () => {
+    it('propagates 403/500 errors on atomic encounter save and reviews lookup/insert', async () => {
       const doctorUser: User = {
         id: 'doc-1',
         name: 'د. سمير',
@@ -1021,13 +1034,28 @@ describe('Security & Production Hardening Regression Suite', () => {
         status: 'completed',
       };
 
-      mockTableErrors['medical_records.upsert'] = { code: '42501', message: 'rls denied' };
+      mockRpcResponses['save_medical_record_and_complete'] = {
+        data: null,
+        error: { code: '42501', message: 'rls denied' },
+      };
       await expect(
         executeSupabaseAction(doctorUser, 'medical', {
           appointmentId: 'appt-1',
           diagnosis: 'التهاب حاد',
         }),
       ).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' });
+
+      mockRpcResponses['save_medical_record_and_complete'] = {
+        data: null,
+        error: { code: '08006', message: 'db unavailable' },
+      };
+      await expect(
+        executeSupabaseAction(doctorUser, 'medical', {
+          appointmentId: 'appt-1',
+          diagnosis: 'التهاب حاد',
+        }),
+      ).rejects.toMatchObject({ status: 500, code: 'DB_ERROR' });
+      expect(fromCalls.some((call) => call.table === 'medical_records')).toBe(false);
 
       mockTableErrors['reviews.select'] = { code: '42501', message: 'rls select denied' };
       await expect(
@@ -1302,7 +1330,7 @@ describe('Security & Production Hardening Regression Suite', () => {
       expect(Number(throttledRes.headers.get('Retry-After'))).toBeGreaterThan(0);
     });
 
-    it('returns 422 VALIDATION_ERROR on malformed JSON in /api/actions and surfaces DB errors in /api/cron/retention', async () => {
+    it('returns 422 VALIDATION_ERROR on malformed JSON in /api/actions and rejects the retired cron fallback secret', async () => {
       const actionsRes = await actionsPOST(
         new Request('http://localhost:3000/api/actions', {
           method: 'POST',
@@ -1315,18 +1343,36 @@ describe('Security & Production Hardening Regression Suite', () => {
       expect(actionsBody.success).toBe(false);
       expect(actionsBody.code).toBe('VALIDATION_ERROR');
 
+      const cronSecret = randomUUID();
+      process.env.CRON_SECRET = cronSecret;
       process.env.CLINICBOOK_MODE = 'production';
-      mockTableErrors['appointments'] = { message: 'upcoming query failed' };
-      const cronRes = await retentionPOST(
+      mockRpcResponses['run_retention_jobs'] = {
+        data: null,
+        error: { code: '08006', message: 'operational query failed' },
+      };
+
+      const legacyCronRes = await retentionPOST(
         new Request('http://localhost:3000/api/cron/retention', {
           method: 'POST',
           headers: { authorization: 'Bearer clinicbook-internal-cron-secret' },
+        }),
+      );
+      expect(legacyCronRes.status).toBe(401);
+      const legacyCronBody = (await legacyCronRes.json()) as { success: boolean; code?: string };
+      expect(legacyCronBody.success).toBe(false);
+      expect(legacyCronBody.code).toBe('UNAUTHORIZED');
+
+      const cronRes = await retentionPOST(
+        new Request('http://localhost:3000/api/cron/retention', {
+          method: 'POST',
+          headers: { authorization: `Bearer ${cronSecret}` },
         }),
       );
       expect(cronRes.status).toBe(500);
       const cronBody = (await cronRes.json()) as { success: boolean; code?: string };
       expect(cronBody.success).toBe(false);
       expect(cronBody.code).toBe('INTERNAL_ERROR');
+      expect(adminCalls.some((call) => call.fn === 'rpc.run_retention_jobs')).toBe(true);
     });
 
     it('fails closed before executing actions when production shared rate limiting is not configured', async () => {

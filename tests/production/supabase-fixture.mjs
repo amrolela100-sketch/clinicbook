@@ -41,6 +41,7 @@ const fixtures = new Map([
 const redisCounters = new Map();
 let redisMode = 'healthy';
 let databaseMode = 'healthy';
+let jobsExecuted = false;
 
 const server = createServer(async (request, response) => {
   const pathname = new URL(request.url ?? '/', 'http://127.0.0.1:4191').pathname;
@@ -51,19 +52,22 @@ const server = createServer(async (request, response) => {
     if (control.reset) redisCounters.clear();
     if (control.mode) redisMode = control.mode;
     if (control.databaseMode) databaseMode = control.databaseMode;
+    if (control.resetJobs) jobsExecuted = false;
     response.writeHead(200, { 'Content-Type': 'application/json' });
     response.end(JSON.stringify({ status: 'ready' }));
     return;
   }
-  if (pathname === '/rest/v1/rpc/healthcheck') {
+  if (['/rest/v1/rpc/healthcheck', '/rest/v1/rpc/run_retention_jobs'].includes(pathname)) {
     request.resume();
     if (request.headers.apikey !== 'local-production-test-service-key') {
       response.writeHead(403, { 'Content-Type': 'application/json' });
       response.end(JSON.stringify({ code: 'FIXTURE_SERVICE_ROLE_REQUIRED' }));
       return;
     }
-    if (databaseMode === 'timeout') {
-      await new Promise((resolve) => setTimeout(resolve, 3500));
+    if (databaseMode === 'timeout' || databaseMode === 'cron-timeout') {
+      await new Promise((resolve) =>
+        setTimeout(resolve, databaseMode === 'cron-timeout' ? 11500 : 3500),
+      );
       if (response.destroyed) return;
     }
     const failed = databaseMode === 'fail' || databaseMode === 'missing';
@@ -71,6 +75,24 @@ const server = createServer(async (request, response) => {
       'Content-Type': 'application/json',
       'Cache-Control': 'no-store',
     });
+    if (pathname.endsWith('/run_retention_jobs') && !failed) {
+      const count = jobsExecuted ? 0 : 1;
+      jobsExecuted = true;
+      response.end(
+        JSON.stringify(
+          databaseMode === 'malformed'
+            ? { invalid: true }
+            : {
+                expiredCount: count,
+                noShowCount: count,
+                reminderCount: count,
+                subscriptionExpiredCount: count,
+                archivedCount: count,
+              },
+        ),
+      );
+      return;
+    }
     response.end(
       JSON.stringify(
         failed

@@ -2,6 +2,19 @@ import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 import { demoEnabled } from '@/lib/auth/session';
 import type { User } from '@/lib/types';
+import { z } from 'zod';
+
+const jobCounts = z.object({
+  expiredCount: z.number().int().nonnegative(),
+  noShowCount: z.number().int().nonnegative(),
+  reminderCount: z.number().int().nonnegative(),
+  subscriptionExpiredCount: z.number().int().nonnegative(),
+  archivedCount: z.number().int().nonnegative(),
+});
+
+function cronResponse(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
+}
 
 /**
  * نقطة النهاية السحابية للمهام المجدولة الدائمة (Automated Retention Cron)
@@ -10,18 +23,16 @@ import type { User } from '@/lib/types';
 export async function POST(req: Request) {
   try {
     const authHeader = req.headers.get('authorization') ?? '';
-    const cronSecret =
-      process.env.CRON_SECRET ||
-      (process.env.NODE_ENV !== 'production' ? 'clinicbook-internal-cron-secret' : undefined);
+    const cronSecret = process.env.CRON_SECRET;
 
     if (!cronSecret) {
-      return NextResponse.json(
+      return cronResponse(
         {
           success: false,
           code: 'CRON_NOT_CONFIGURED',
           error: 'خدمة الجدولة غير مهيأة أمنياً على الخادم.',
         },
-        { status: 500 },
+        500,
       );
     }
 
@@ -31,53 +42,59 @@ export async function POST(req: Request) {
     const valid = authBuf.length === expBuf.length && timingSafeEqual(authBuf, expBuf);
 
     if (!valid) {
-      return NextResponse.json(
+      return cronResponse(
         {
           success: false,
           code: 'UNAUTHORIZED',
           error: 'غير مصرح باستدعاء مهمة الجدولة التلقائية.',
         },
-        { status: 401 },
+        401,
       );
     }
 
     if (!demoEnabled()) {
       const { createSupabaseAdmin } = await import('@/lib/supabase/admin');
       const adminClient = createSupabaseAdmin();
-      const { data: expiredCount, error: rpcErr } = await adminClient.rpc(
-        'expire_pending_appointments',
-      );
+      const controller = new AbortController();
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => {
+          controller.abort();
+          reject(new Error('RETENTION_TIMEOUT'));
+        }, 10_000);
+      });
+      let rpcResult;
+      try {
+        rpcResult = await Promise.race([
+          adminClient.rpc('run_retention_jobs').abortSignal(controller.signal),
+          timeoutPromise,
+        ]);
+      } finally {
+        if (timeout !== undefined) clearTimeout(timeout);
+      }
+      const { data: result, error: rpcErr } = rpcResult;
       if (rpcErr) {
-        throw new Error(rpcErr.message || 'Failed to expire pending appointments');
-      }
-      const now = new Date();
-      const max = new Date(now.getTime() + 24 * 3600000);
-      const { data: upcoming, error: upcomingErr } = await adminClient
-        .from('appointments')
-        .select('id, start_at')
-        .in('status', ['confirmed', 'pending'])
-        .gt('start_at', now.toISOString())
-        .lte('start_at', max.toISOString());
-
-      if (upcomingErr) {
-        throw new Error(upcomingErr.message || 'Failed to query upcoming appointments');
+        throw new Error('Retention jobs failed');
       }
 
-      return NextResponse.json({
+      return cronResponse({
         success: true,
-        timestamp: now.toISOString(),
-        data: {
-          checkedCount: upcoming?.length ?? 0,
-          upcomingCount: upcoming?.length ?? 0,
-          expiredCount: Number(expiredCount ?? 0),
-          candidatesForConfirmation: [],
-        },
+        timestamp: new Date().toISOString(),
+        data: jobCounts.parse(result),
       });
     }
 
     const { checkUpcomingAppointmentsRetention } =
       await import('../../../../../agent/schedules/appointment_retention');
-    const { audit } = await import('@/lib/demo-db');
+    const { audit, appointments, expirePending } = await import('@/lib/demo-db');
+
+    const expiredCount = appointments().filter(
+      (appointment) =>
+        appointment.status === 'pending' &&
+        appointment.expiresAt &&
+        new Date(appointment.expiresAt) <= new Date(),
+    ).length;
+    expirePending();
 
     const retentionResult = await checkUpcomingAppointmentsRetention(24);
 
@@ -95,20 +112,24 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({
+    return cronResponse({
       success: true,
       timestamp: new Date().toISOString(),
-      data: retentionResult,
+      data: {
+        checkedCount: retentionResult.checkedCount,
+        upcomingCount: retentionResult.upcomingCount,
+        expiredCount,
+      },
     });
   } catch (error) {
-    console.error('[Retention Cron Error]:', error);
-    return NextResponse.json(
+    console.error('[Retention Cron Error]:', error instanceof Error ? error.name : 'UnknownError');
+    return cronResponse(
       {
         success: false,
         code: 'INTERNAL_ERROR',
         error: 'حدث خطأ أثناء تنفيذ مهمة الجدولة الدائمة.',
       },
-      { status: 500 },
+      500,
     );
   }
 }

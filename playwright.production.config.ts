@@ -16,6 +16,7 @@ const runtimeEnv = {
   NEXT_PUBLIC_SUPABASE_ANON_KEY: 'local-production-test-anon-key',
   // Loopback fixture value only, never a real service-role credential.
   SUPABASE_SERVICE_ROLE_KEY: 'local-production-test-service-key',
+  CRON_SECRET: 'local-production-test-cron-secret-not-for-deployment',
   UPSTASH_REDIS_REST_URL: `${fixtureUrl}/redis`,
   UPSTASH_REDIS_REST_TOKEN: 'local-redis-fixture-token',
   RATE_LIMIT_KEY_SECRET: 'local-test-secret-not-for-deployment-32-characters',
