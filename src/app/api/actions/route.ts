@@ -225,20 +225,20 @@ export async function POST(request: Request) {
         throw new ActionError('تم إنشاء المركز مسبقاً.', 409);
       }
 
-      // Check email uniqueness excluding current user
-      const currentUserId = user?.id;
+      // The owner identity comes only from the authenticated session.
       const existingUserWithEmail = all<User>('user').find(
         (u) => u.email?.toLowerCase() === b.email.toLowerCase(),
       );
-      if (existingUserWithEmail && currentUserId && existingUserWithEmail.id !== currentUserId) {
-        throw new ActionError('هذا البريد مستخدم بالفعل.');
+      if (existingUserWithEmail && existingUserWithEmail.id !== user.id) {
+        throw new ActionError('هذا البريد مستخدم بالفعل.', 409);
       }
-      if (existingUserWithEmail && !currentUserId && existingUserWithEmail.organizationId) {
-        throw new ActionError('هذا البريد مستخدم بالفعل ومسجل لمركز آخر.');
+      // currentUser() is an HTTP-safe projection. Never persist it over the
+      // complete stored account, which also contains its password credentials.
+      const ownerUser = get<User & { passwordHash?: string }>('user', user.id);
+      if (!ownerUser) {
+        throw new ActionError('يرجى تسجيل الدخول أولاً.', 401);
       }
-
-      const ownerUser = user || existingUserWithEmail;
-      const ownerId = ownerUser?.id ?? randomUUID();
+      const ownerId = user.id;
       const ownerName = ownerUser?.name || b.name; // Keep manager's name, not doctor's name!
 
       const id = randomUUID(),

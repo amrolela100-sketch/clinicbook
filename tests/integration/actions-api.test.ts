@@ -173,9 +173,7 @@ describe('Integration: Actions API Route (/api/actions)', () => {
       role: 'patient',
       passwordHash: 'sentinel-password-hash',
     });
-    expect(
-      get<{ organizationId?: string }>('user', victimId)?.organizationId,
-    ).toBeUndefined();
+    expect(get<{ organizationId?: string }>('user', victimId)?.organizationId).toBeUndefined();
   });
 
   it('rejects quick role preview with 403 when Supabase is forced', async () => {
@@ -298,7 +296,7 @@ describe('Integration: Actions API Route (/api/actions)', () => {
     expect(loginJson.data.email).toBe(testEmail);
   });
 
-  it('completes onboarding for logged-in clinic owner in demo mode without email rejection, preserving manager name', async () => {
+  it('completes authenticated demo onboarding while preserving the manager name and persisted credentials', async () => {
     delete process.env.FORCE_SUPABASE;
     const managerId = `manager-${Date.now()}`;
     const managerEmail = `${managerId}@clinic.demo`;
@@ -309,6 +307,7 @@ describe('Integration: Actions API Route (/api/actions)', () => {
       name: managerName,
       email: managerEmail,
       role: 'clinic_owner',
+      passwordHash: 'existing-credential-hash',
     });
     await createSession(managerId);
 
@@ -337,14 +336,19 @@ describe('Integration: Actions API Route (/api/actions)', () => {
     expect(json.data.id).toBeDefined();
 
     // Verify manager's user record: name should NOT have been replaced by doctorName!
-    const updatedManager = get<{ id: string; name: string; role: string; organizationId: string }>(
-      'user',
-      managerId,
-    );
+    const updatedManager = get<{
+      id: string;
+      name: string;
+      role: string;
+      organizationId: string;
+      passwordHash?: string;
+    }>('user', managerId);
     expect(updatedManager).toBeDefined();
     expect(updatedManager!.name).toBe(managerName);
     expect(updatedManager!.role).toBe('clinic_owner');
     expect(updatedManager!.organizationId).toBe(json.data.id);
+    expect(updatedManager!.passwordHash).toBe('existing-credential-hash');
+    expect(JSON.stringify(json)).not.toContain('existing-credential-hash');
 
     // Verify doctor record has clean doctorName
     const doctorRecord =

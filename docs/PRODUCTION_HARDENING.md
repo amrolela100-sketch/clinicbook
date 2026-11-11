@@ -15,6 +15,7 @@ No migrations have been applied to a remote database.
 | #4 | Tenant membership no longer grants owner permissions in another tenant. | Actual PostgreSQL policies and schedule RPC |
 | #5 | Clients cannot insert audit events. Mutation triggers record committed changes without copying private values. Billing requests have independent, authoritative state. | Actual PostgreSQL transactions and billing RPCs |
 | #8 | Privileged Auth provisioning is service-role-only, refuses unrelated/claimed identities, checks scoped unused invitations and uses fixed Starter onboarding entitlements. | Actual PostgreSQL roles, invitation state, cleanup and concurrent provisioning |
+| #13 | Demo onboarding updates the complete stored account and retains its password hash; safe HTTP projections remain unchanged. | Authenticated `POST /api/actions` and persisted account checks |
 
 The audit's claim that direct availability writes were open at the base commit was
 too broad: `20261110000001` already revoked direct DML. The vulnerable schedule RPC,
@@ -75,7 +76,6 @@ reproduced and fixed.
 
 - #7: verify CSP nonces in a production build and browser, not just header tests.
 - #9: distributed rate limiting and a trusted-proxy contract for the deployment.
-- #13: preserve persisted credentials during demo onboarding.
 - #6 and #10.3: medical-record retention and atomic encounter completion.
 - Production-like E2E, migration upgrade testing, backups/restore testing,
   monitoring, credential configuration and deployment-specific checks.
