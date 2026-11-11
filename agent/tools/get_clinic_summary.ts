@@ -165,7 +165,7 @@ export default defineTool({
 
     // تصفية المواعيد لليوم المطلوب وللمنظمة المحددة أو منظمة الموظف المسجل
     const dayAppts = allAppts.filter((a) => {
-      const apptDate = a.start.slice(0, 10);
+      const apptDate = formatInTimeZone(new Date(a.start), 'Asia/Damascus', 'yyyy-MM-dd');
       const orgMatch = effectiveOrgId ? a.organizationId === effectiveOrgId : true;
       return apptDate === targetDate && orgMatch;
     });

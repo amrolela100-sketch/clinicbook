@@ -3,7 +3,7 @@ import findSlotsTool from '../../agent/tools/find_available_slots';
 import bookAppointmentTool from '../../agent/tools/book_appointment';
 import handlePatientResponseTool from '../../agent/tools/handle_patient_response';
 import { checkUpcomingAppointmentsRetention } from '../../agent/schedules/appointment_retention';
-import { all, appointments, saveAppointment } from '../../src/lib/demo-db';
+import { all, appointments, saveAppointment, db } from '../../src/lib/demo-db';
 import type { Doctor, Appointment } from '../../src/lib/types';
 
 describe('ClinicBook Eve AI Agent Tools & Schedules', () => {
@@ -76,5 +76,34 @@ describe('ClinicBook Eve AI Agent Tools & Schedules', () => {
     expect(result.summary).toHaveProperty('totalAppointments');
     expect(result.summary).toHaveProperty('totalEstimatedRevenue');
     expect(Array.isArray(result.summary.doctorLoad)).toBe(true);
+  });
+
+  it('assigns a late UTC appointment to the following Damascus day in demo summaries', async () => {
+    const template = appointments()[0];
+    const id = 'timezone-summary-midnight-fixture';
+    saveAppointment({
+      ...template,
+      id,
+      start: '2030-01-01T23:30:00.000Z',
+      end: '2030-01-02T00:00:00.000Z',
+      status: 'confirmed',
+      fee: 42,
+    });
+    try {
+      const { default: summaryTool } = await import('../../agent/tools/get_clinic_summary');
+      const nextDay = await summaryTool.execute({
+        date: '2030-01-02',
+        organizationId: template.organizationId,
+      });
+      expect(nextDay.summary.totalAppointments).toBe(1);
+      expect(nextDay.summary.totalEstimatedRevenue).toBe(42);
+      const utcDay = await summaryTool.execute({
+        date: '2030-01-01',
+        organizationId: template.organizationId,
+      });
+      expect(utcDay.summary.totalAppointments).toBe(0);
+    } finally {
+      db.prepare('DELETE FROM appointments WHERE id=?').run(id);
+    }
   });
 });

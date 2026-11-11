@@ -30,6 +30,7 @@ No migrations have been applied to a remote database.
 | #15 | Focus outlines are visible immediately, without a low-contrast color transition; status badge text meets AA contrast and sampled axe scans include WCAG 2.2 AA tags. | Real browser computed contrast/keyboard focus, known-ratio unit checks and sampled axe scans |
 | #16 | Switch thumbs move with logical inline positioning and stay inside the track in both RTL and LTR, instead of using a direction-specific translation. | Actual browser off/on/off thumb geometry in both directions |
 | #10.1 | Organization settings are owner-only in demo as well as production; doctor/platform-admin attempts do not mutate persisted settings. | Authenticated action HTTP tests and production role regression |
+| #10.2 | Both summary implementations assign appointments to the Damascus calendar date instead of slicing a UTC timestamp in demo. | A worked late-UTC/next-local-day summary and revenue regression |
 
 The focus outline is **6.29:1 on white**, up from 1.82:1. The changed status badges
 now range from **4.82:1 to 5.09:1** on their respective backgrounds. Browser tests
