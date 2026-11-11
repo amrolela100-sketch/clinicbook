@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import type { AgentDoctorCard } from '@/lib/services/agent-service';
 import { useApp } from './app-provider';
+import { Modal } from './ui/dialog';
 
 interface ChatMessage {
   id: string;
@@ -68,6 +69,7 @@ export function AgentChatDrawer() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
+  const bookingTriggerRef = useRef<HTMLButtonElement>(null);
 
   // إخفاء التلميح الترحيبي تلقائياً بعد 9 ثوانٍ
   useEffect(() => {
@@ -87,13 +89,13 @@ export function AgentChatDrawer() {
   // إغلاق الدرج عند الضغط على Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
+      if (e.key === 'Escape' && isOpen && !bookingModal?.open && !e.defaultPrevented) {
         setIsOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen]);
+  }, [isOpen, bookingModal]);
 
   // التركيز على حقل الإدخال عند الفتح
   useEffect(() => {
@@ -112,7 +114,14 @@ export function AgentChatDrawer() {
     ]);
   };
 
-  const handleOpenBooking = (doctorId: string, doctorName: string, start: string, fee: number) => {
+  const handleOpenBooking = (
+    doctorId: string,
+    doctorName: string,
+    start: string,
+    fee: number,
+    trigger: HTMLButtonElement,
+  ) => {
+    bookingTriggerRef.current = trigger;
     setBookingModal({
       open: true,
       doctorId,
@@ -489,8 +498,14 @@ export function AgentChatDrawer() {
                               <button
                                 key={s.start}
                                 type="button"
-                                onClick={() =>
-                                  handleOpenBooking(doc.doctorId, doc.doctorName, s.start, doc.fee)
+                                onClick={(event) =>
+                                  handleOpenBooking(
+                                    doc.doctorId,
+                                    doc.doctorName,
+                                    s.start,
+                                    doc.fee,
+                                    event.currentTarget,
+                                  )
                                 }
                                 className="flex items-center gap-1 rounded-lg border border-teal-200 bg-teal-50/50 px-2.5 py-1 text-xs font-medium text-teal-800 transition hover:bg-teal-700 hover:text-white hover:border-teal-700 dark:border-teal-800 dark:bg-slate-900 dark:text-teal-300 dark:hover:bg-teal-600 dark:hover:text-white"
                               >
@@ -581,26 +596,15 @@ export function AgentChatDrawer() {
       </aside>
 
       {/* نافذة التأكيد السريع للموعد من داخل المحادثة */}
-      {bookingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-          <div
-            dir="rtl"
-            className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl dark:bg-slate-900"
-          >
-            <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="text-base font-bold text-slate-800 dark:text-white">
-                تأكيد حجز الموعد الطبي
-              </h3>
-              <button
-                type="button"
-                onClick={() => setBookingModal(null)}
-                aria-label="إلغاء وإغلاق النافذة"
-                className="text-slate-400 hover:text-slate-600 focus:outline-none"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
+      <Modal
+        open={bookingModal?.open ?? false}
+        onClose={() => setBookingModal(null)}
+        title="تأكيد حجز الموعد الطبي"
+        description="أدخل اسم المريض ورقم الهاتف لتأكيد حجز الموعد المختار."
+        returnFocusRef={bookingTriggerRef}
+      >
+        {bookingModal && (
+          <>
             <div className="mt-3.5 space-y-1.5 rounded-xl bg-teal-50/60 p-3 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200 border border-teal-100/80 dark:border-teal-900/40">
               <div>
                 <strong>الطبيب المعالج:</strong> د. {bookingModal.doctorName}
@@ -634,10 +638,14 @@ export function AgentChatDrawer() {
 
             <form onSubmit={handleConfirmSlotBooking} className="mt-4 space-y-3">
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                <label
+                  htmlFor="agent-booking-patient-name"
+                  className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300"
+                >
                   اسم المريض الكامل
                 </label>
                 <input
+                  id="agent-booking-patient-name"
                   type="text"
                   required
                   value={patientName}
@@ -648,10 +656,14 @@ export function AgentChatDrawer() {
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
+                <label
+                  htmlFor="agent-booking-patient-phone"
+                  className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300"
+                >
                   رقم الهاتف للتأكيد
                 </label>
                 <input
+                  id="agent-booking-patient-phone"
                   type="tel"
                   required
                   value={patientPhone}
@@ -678,9 +690,9 @@ export function AgentChatDrawer() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
     </>
   );
 }

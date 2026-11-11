@@ -1,7 +1,7 @@
 'use client';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 export function Modal({
   open,
   onClose,
@@ -9,6 +9,7 @@ export function Modal({
   description,
   children,
   wide = false,
+  returnFocusRef,
 }: {
   open: boolean;
   onClose: () => void;
@@ -16,12 +17,23 @@ export function Modal({
   description?: string;
   children: ReactNode;
   wide?: boolean;
+  returnFocusRef?: RefObject<HTMLElement | null>;
 }) {
   return (
     <Dialog.Root open={open} onOpenChange={(v) => !v && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="dialog-overlay" />
-        <Dialog.Content className={`dialog-content ${wide ? 'dialog-wide' : ''}`} dir="rtl">
+        <Dialog.Content
+          className={`dialog-content ${wide ? 'dialog-wide' : ''}`}
+          dir="rtl"
+          aria-modal="true"
+          onCloseAutoFocus={(event) => {
+            if (returnFocusRef?.current) {
+              event.preventDefault();
+              returnFocusRef.current.focus();
+            }
+          }}
+        >
           <div className="dialog-heading">
             <div>
               <Dialog.Title>{title}</Dialog.Title>
