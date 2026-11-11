@@ -63,12 +63,16 @@ multi-branch doctor membership.
 - `archive_medical_records()` is executable only by `service_role`, archives only
   records whose date has elapsed and which have no legal hold, and is idempotent.
   It never deletes rows. Archived clinical content is immutable.
-- A hard-delete trigger blocks application users and `service_role`. An emergency
+- Row-delete and statement-level `TRUNCATE` triggers block application users and
+  `service_role`. An emergency
   purge requires a direct database-owner session plus the explicit
   `clinicbook.allow_medical_purge=on` maintenance setting. This is reserved for a
   separately approved legal/operational procedure and is not used by application
   or cron code. The local PostgreSQL harness uses it only to tear down synthetic
   fixtures.
+- Archival metadata can be updated for a legacy record whose visit was later
+  cancelled, without reopening that visit. Identity remains immutable, and new
+  clinical content still requires a valid encounter state and the atomic RPC.
 - This policy does not yet calculate a different period for minors because the
   current schema has no authoritative date of birth. Legal hold must be used when
   a longer jurisdiction-specific period applies until that domain data is added.

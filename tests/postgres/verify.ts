@@ -429,6 +429,20 @@ async function main() {
     );
     console.log('PASS medical retention metadata, restrictive parents, and hard-delete guard');
 
+    const truncateProbe = await pool.connect();
+    try {
+      await truncateProbe.query('BEGIN');
+      await assert.rejects(
+        truncateProbe.query('TRUNCATE public.medical_records'),
+        (error: unknown) => (error as { code: string }).code === '42501',
+      );
+    } finally {
+      // The exploit probe never commits, including on an expected RED failure.
+      await truncateProbe.query('ROLLBACK');
+      truncateProbe.release();
+    }
+    console.log('PASS medical records cannot be removed by TRUNCATE');
+
     const retentionEligibleAppointment = randomUUID();
     const legalHoldAppointment = randomUUID();
     await pool.query(
@@ -518,6 +532,43 @@ async function main() {
       (error: unknown) => (error as { code: string }).code === '55000',
     );
     console.log('PASS archive-only medical retention is idempotent and honors legal holds');
+
+    const legacyCancelledEncounter = randomUUID();
+    await pool.query(
+      "INSERT INTO appointments(id,organization_id,clinic_id,doctor_id,patient_id,start_at,end_at,status) VALUES($1,$2,$3,$4,$5,now()-interval '14 days',now()-interval '14 days'+interval '30 min','confirmed')",
+      [legacyCancelledEncounter, orgA, clinicA, docA, patientA],
+    );
+    await pool.query(
+      "INSERT INTO medical_records(appointment_id,organization_id,doctor_id,patient_id,diagnosis) VALUES($1,$2,$3,$4,'legacy record fixture')",
+      [legacyCancelledEncounter, orgA, docA, patientA],
+    );
+    const legacyRetentionClient = await pool.connect();
+    try {
+      await legacyRetentionClient.query('BEGIN');
+      await legacyRetentionClient.query("SELECT set_config('request.jwt.claims',$1,true)", [
+        JSON.stringify({ role: 'service_role' }),
+      ]);
+      await legacyRetentionClient.query(
+        'UPDATE medical_records SET retention_until=current_date-1 WHERE appointment_id=$1',
+        [legacyCancelledEncounter],
+      );
+      await legacyRetentionClient.query('COMMIT');
+    } catch (error) {
+      await legacyRetentionClient.query('ROLLBACK');
+      throw error;
+    } finally {
+      legacyRetentionClient.release();
+    }
+    await pool.query("UPDATE appointments SET status='cancelled' WHERE id=$1", [
+      legacyCancelledEncounter,
+    ]);
+    const legacyArchive = await asService<{ archive_medical_records: string }>(
+      'SELECT archive_medical_records()',
+    );
+    assert.equal(Number(legacyArchive[0].archive_medical_records), 1);
+    console.log(
+      'PASS retention metadata can be archived without reopening a legacy cancelled encounter',
+    );
     await asUser(ownerA, 'SELECT transition_appointment($1,$2,$3)', [winner.id, 'confirmed', null]);
     await assert.rejects(
       asUser(recA, 'SELECT transition_appointment($1,$2,$3)', [winner.id, 'completed', null]),
