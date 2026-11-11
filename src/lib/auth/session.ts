@@ -14,11 +14,10 @@ export const demoEnabled = (): boolean => {
   if (process.env.FORCE_SUPABASE === 'true' || process.env.CLINICBOOK_MODE === 'production') {
     return false;
   }
-  if (
-    process.env.NODE_ENV === 'production' &&
-    process.env.CLINICBOOK_MODE !== 'production' &&
-    process.env.CLINICBOOK_MODE !== 'demo'
-  ) {
+  if (process.env.NODE_ENV === 'production') {
+    if (process.env.CLINICBOOK_MODE === 'demo') {
+      throw new Error('FATAL: demo mode is forbidden in production.');
+    }
     throw new Error(
       'FATAL: CLINICBOOK_MODE must be set to "production" in production environments. Refusing to boot with unconfigured mode.',
     );

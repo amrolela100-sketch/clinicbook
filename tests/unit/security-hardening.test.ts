@@ -259,6 +259,15 @@ describe('Security & Production Hardening Regression Suite', () => {
       expect(demoEnabled()).toBe(true);
     });
 
+    it('refuses demo mode in production even when an opt-in variable is present', () => {
+      delete process.env.FORCE_SUPABASE;
+      (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
+      process.env.CLINICBOOK_MODE = 'demo';
+      process.env.ALLOW_DEMO_IN_PRODUCTION = 'true';
+
+      expect(() => demoEnabled()).toThrow(/demo mode is forbidden in production/i);
+    });
+
     it('rejects POST /api/session quick role preview with 403 when NODE_ENV=production without demo mode', async () => {
       (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
       delete process.env.CLINICBOOK_MODE;
