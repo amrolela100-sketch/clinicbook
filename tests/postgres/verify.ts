@@ -378,6 +378,143 @@ async function main() {
       1,
     );
     console.log('PASS EMR treating doctor/patient only; reception and owner denied');
+
+    const retentionColumns = await pool.query<{ column_name: string }>(
+      `SELECT column_name
+       FROM information_schema.columns
+       WHERE table_schema='public' AND table_name='medical_records'
+         AND column_name = ANY($1::text[])
+       ORDER BY column_name`,
+      [['archive_reason', 'archived_at', 'archived_by', 'legal_hold', 'retention_until']],
+    );
+    assert.deepEqual(
+      retentionColumns.rows.map((row) => row.column_name),
+      ['archive_reason', 'archived_at', 'archived_by', 'legal_hold', 'retention_until'],
+    );
+    const medicalDeleteActions = await pool.query<{ column_name: string; delete_action: string }>(
+      `SELECT kcu.column_name, rc.delete_rule AS delete_action
+       FROM information_schema.referential_constraints rc
+       JOIN information_schema.key_column_usage kcu
+         ON kcu.constraint_schema=rc.constraint_schema
+        AND kcu.constraint_name=rc.constraint_name
+       WHERE rc.constraint_schema='public'
+         AND kcu.table_name='medical_records'
+         AND kcu.column_name IN ('appointment_id','organization_id')
+       ORDER BY kcu.column_name`,
+    );
+    assert.deepEqual(medicalDeleteActions.rows, [
+      { column_name: 'appointment_id', delete_action: 'RESTRICT' },
+      { column_name: 'organization_id', delete_action: 'RESTRICT' },
+    ]);
+    await assert.rejects(
+      pool.query('DELETE FROM appointments WHERE id=$1', [past]),
+      (error: unknown) => (error as { code: string }).code === '23503',
+    );
+    await assert.rejects(
+      pool.query('DELETE FROM medical_records WHERE appointment_id=$1', [past]),
+      (error: unknown) => (error as { code: string }).code === '42501',
+    );
+    assert.equal(
+      (
+        await pool.query<{ n: number }>(
+          'SELECT count(*)::int AS n FROM medical_records WHERE appointment_id=$1',
+          [past],
+        )
+      ).rows[0].n,
+      1,
+    );
+    console.log('PASS medical retention metadata, restrictive parents, and hard-delete guard');
+
+    const retentionEligibleAppointment = randomUUID();
+    const legalHoldAppointment = randomUUID();
+    await pool.query(
+      "INSERT INTO appointments(id,organization_id,clinic_id,doctor_id,patient_id,start_at,end_at,status) VALUES($1,$2,$3,$4,$5,now()-interval '4 days',now()-interval '4 days'+interval '30 min','completed')",
+      [retentionEligibleAppointment, orgA, clinicA, docA, patientA],
+    );
+    await pool.query(
+      "INSERT INTO medical_records(appointment_id,organization_id,doctor_id,patient_id,diagnosis) VALUES($1,$2,$3,$4,'retention eligible fixture')",
+      [retentionEligibleAppointment, orgA, docA, patientA],
+    );
+    await pool.query(
+      "INSERT INTO appointments(id,organization_id,clinic_id,doctor_id,patient_id,start_at,end_at,status) VALUES($1,$2,$3,$4,$5,now()-interval '3 days',now()-interval '3 days'+interval '30 min','completed')",
+      [legalHoldAppointment, orgA, clinicA, docA, patientA],
+    );
+    await pool.query(
+      "INSERT INTO medical_records(appointment_id,organization_id,doctor_id,patient_id,diagnosis) VALUES($1,$2,$3,$4,'legal hold fixture')",
+      [legalHoldAppointment, orgA, docA, patientA],
+    );
+    const retentionFixtureClient = await pool.connect();
+    try {
+      await retentionFixtureClient.query('BEGIN');
+      await retentionFixtureClient.query("SELECT set_config('request.jwt.claims',$1,true)", [
+        JSON.stringify({ role: 'service_role' }),
+      ]);
+      await retentionFixtureClient.query(
+        `UPDATE medical_records
+         SET retention_until=current_date-1,
+             legal_hold=(appointment_id=$2)
+         WHERE appointment_id IN ($1,$2)`,
+        [retentionEligibleAppointment, legalHoldAppointment],
+      );
+      await retentionFixtureClient.query('COMMIT');
+    } catch (error) {
+      await retentionFixtureClient.query('ROLLBACK');
+      throw error;
+    } finally {
+      retentionFixtureClient.release();
+    }
+
+    await assert.rejects(
+      asUser(docA, 'SELECT archive_medical_records()'),
+      (error: unknown) => (error as { code: string }).code === '42501',
+    );
+    const firstArchive = await asService<{ archive_medical_records: string }>(
+      'SELECT archive_medical_records()',
+    );
+    assert.equal(Number(firstArchive[0].archive_medical_records), 1);
+    const archivedStates = await pool.query<{
+      appointment_id: string;
+      archived: boolean;
+      legal_hold: boolean;
+      archive_reason: string | null;
+    }>(
+      `SELECT appointment_id, archived_at IS NOT NULL AS archived, legal_hold, archive_reason
+       FROM medical_records
+       WHERE appointment_id IN ($1,$2)
+       ORDER BY appointment_id`,
+      [retentionEligibleAppointment, legalHoldAppointment],
+    );
+    const eligibleState = archivedStates.rows.find(
+      (row) => row.appointment_id === retentionEligibleAppointment,
+    );
+    const legalHoldState = archivedStates.rows.find(
+      (row) => row.appointment_id === legalHoldAppointment,
+    );
+    assert.deepEqual(eligibleState, {
+      appointment_id: retentionEligibleAppointment,
+      archived: true,
+      legal_hold: false,
+      archive_reason: 'retention_period_elapsed',
+    });
+    assert.deepEqual(legalHoldState, {
+      appointment_id: legalHoldAppointment,
+      archived: false,
+      legal_hold: true,
+      archive_reason: null,
+    });
+    const retryArchive = await asService<{ archive_medical_records: string }>(
+      'SELECT archive_medical_records()',
+    );
+    assert.equal(Number(retryArchive[0].archive_medical_records), 0);
+    await assert.rejects(
+      asUser(
+        docA,
+        "UPDATE medical_records SET diagnosis='mutated after archive' WHERE appointment_id=$1",
+        [retentionEligibleAppointment],
+      ),
+      (error: unknown) => (error as { code: string }).code === '55000',
+    );
+    console.log('PASS archive-only medical retention is idempotent and honors legal holds');
     await asUser(ownerA, 'SELECT transition_appointment($1,$2,$3)', [winner.id, 'confirmed', null]);
     await assert.rejects(
       asUser(recA, 'SELECT transition_appointment($1,$2,$3)', [winner.id, 'completed', null]),
@@ -1325,6 +1462,9 @@ async function main() {
       await pool.query('DELETE FROM reviews WHERE doctor_id=ANY($1::uuid[])', [
         [docA, docB, docPending],
       ]);
+      // Local fixture teardown is the only hard-purge path. Production
+      // operations archive records and never set this database-owner override.
+      await pool.query("SELECT set_config('clinicbook.allow_medical_purge','on',false)");
       await pool.query('DELETE FROM medical_records WHERE organization_id=ANY($1::uuid[])', [
         allOrgs,
       ]);

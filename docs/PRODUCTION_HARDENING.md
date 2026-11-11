@@ -20,6 +20,7 @@ No migrations have been applied to a remote database.
 | #7 | Per-request nonces reach Next's renderer and JSON-LD, and client-supplied CSP headers are replaced. | Middleware and a real production build/browser |
 | #9 | Production write endpoints require shared Redis counters, HMAC identifiers, actor/account budgets and a trusted ingress IP contract; Redis failure returns 503 instead of falling back. | Two real production instances, spoofed headers and Redis outage/timeout |
 | #12 | Schedule writes require an explicit branch, replace only that doctor's rows in that branch, and require the doctor's active branch membership. | Actual PostgreSQL branch preservation/authorization and action validation |
+| #6 | Clinical records use restrictive parent references, ten-year retention metadata, legal holds and service-only idempotent archival. Application and service roles cannot hard-delete them. | Actual PostgreSQL constraints, roles, legal-hold/archive behavior and delete guard |
 
 The audit's claim that direct availability writes were open at the base commit was
 too broad: `20261110000001` already revoked direct DML. The vulnerable schedule RPC,
@@ -31,6 +32,26 @@ organization. The UI submits the selected doctor's branch. A stale schedule in
 another branch is preserved, not silently deleted. The existing membership model
 still assigns one branch per doctor per organization; this does not introduce
 multi-branch doctor membership.
+
+## Medical-record retention
+
+- `medical_records` now references its appointment and organization with
+  `ON DELETE RESTRICT`; deleting a parent cannot cascade away clinical history.
+- Every record has a retention date, archive metadata and a legal-hold flag. New
+  records retain at least ten years from creation, and clinical amendments extend
+  the window to at least ten years from the amendment date.
+- `archive_medical_records()` is executable only by `service_role`, archives only
+  records whose date has elapsed and which have no legal hold, and is idempotent.
+  It never deletes rows. Archived clinical content is immutable.
+- A hard-delete trigger blocks application users and `service_role`. An emergency
+  purge requires a direct database-owner session plus the explicit
+  `clinicbook.allow_medical_purge=on` maintenance setting. This is reserved for a
+  separately approved legal/operational procedure and is not used by application
+  or cron code. The local PostgreSQL harness uses it only to tear down synthetic
+  fixtures.
+- This policy does not yet calculate a different period for minors because the
+  current schema has no authoritative date of birth. Legal hold must be used when
+  a longer jurisdiction-specific period applies until that domain data is added.
 
 ## Audit and billing migration notes
 
@@ -135,7 +156,7 @@ The repository audit did not cover several advisories returned by `npm audit`:
 ## Remaining release blockers
 
 - #9: distributed rate limiting and a trusted-proxy contract for the deployment.
-- #6 and #10.3: medical-record retention and atomic encounter completion.
+- #10.3: atomic encounter completion.
 - Production-like E2E, migration upgrade testing, backups/restore testing,
   monitoring, credential configuration and deployment-specific checks.
 
