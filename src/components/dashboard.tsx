@@ -461,6 +461,7 @@ export function AppointmentsPage() {
         ].map((s) => (
           <button
             className={status === s.key ? 'selected' : ''}
+            aria-pressed={status === s.key}
             key={s.key}
             onClick={() => {
               setStatus(s.key);
@@ -483,7 +484,11 @@ export function AppointmentsPage() {
         <div className="list-toolbar">
           <div className="input-icon">
             <Search size={18} />
+            <label className="sr-only" htmlFor="appointment-search">
+              ابحث باسم المريض أو الهاتف
+            </label>
             <input
+              id="appointment-search"
               placeholder="ابحث باسم المريض أو الهاتف…"
               value={query}
               onChange={(e) => {

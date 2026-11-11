@@ -71,6 +71,7 @@ export function WorkspaceShell({ route, children }: { route: string; children: R
         key={n.href}
         onClick={() => setMenu(false)}
         className={`sidebar-link ${route === n.href ? 'active' : ''}`}
+        aria-current={route === n.href ? 'page' : undefined}
       >
         <n.icon size={20} strokeWidth={1.65} />
         <span>{n.label}</span>
@@ -321,7 +322,11 @@ export function WorkspaceShell({ route, children }: { route: string; children: R
       >
         <div className="input-icon">
           <Search size={18} />
+          <label className="sr-only" htmlFor="workspace-command-search">
+            ابحث عن مريض أو قسم
+          </label>
           <input
+            id="workspace-command-search"
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}

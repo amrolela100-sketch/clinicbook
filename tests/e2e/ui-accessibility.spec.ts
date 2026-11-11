@@ -33,6 +33,67 @@ function expectThumbInsideTrack(thumb: Awaited<ReturnType<typeof switchThumb>>) 
 test.describe('Focused UI accessibility regressions', () => {
   test.use({ reducedMotion: 'reduce' });
 
+  test('public search fields have labels and navigation announces the current page', async ({
+    page,
+  }) => {
+    await page.goto('/search');
+    await loaded(page);
+    await expect(
+      page.getByLabel('ابحث باسم الطبيب أو التخصص أو المركز', { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole('link', { name: 'اكتشف الأطباء', exact: true })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+  });
+
+  test('workspace search fields have labels and navigation announces the current page', async ({
+    page,
+  }) => {
+    expect(
+      (await page.request.post('/api/session', { data: { role: 'clinic_owner' } })).ok(),
+    ).toBeTruthy();
+    await page.goto('/workspace/appointments');
+    await loaded(page);
+    await expect(page.getByLabel('ابحث باسم المريض أو الهاتف', { exact: true })).toBeVisible();
+    await expect(page.locator('.sidebar-link[href="/workspace/appointments"]')).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    await page.keyboard.press('Control+k');
+    await expect(
+      page.getByRole('dialog').getByLabel('ابحث عن مريض أو قسم', { exact: true }),
+    ).toBeVisible();
+  });
+
+  test('chosen appointment day and slot expose their selected state', async ({ page }) => {
+    await page.goto('/doctors/doctor-1');
+    await loaded(page);
+    const days = page.locator('.days-carousel button');
+    const initialDate = await page.getByLabel('تاريخ الحجز').inputValue();
+    await expect(days.first()).toHaveAttribute('aria-pressed', 'true');
+    // Find an actually open working day; tomorrow may be a weekend.
+    for (let index = 1; index <= 7; index += 1) {
+      const day = new Date(`${initialDate}T12:00:00Z`);
+      day.setUTCDate(day.getUTCDate() + index);
+      const targetDate = day.toISOString().slice(0, 10);
+      const response = page.waitForResponse((value) => {
+        const url = new URL(value.url());
+        return url.pathname === '/api/slots' && url.searchParams.get('date') === targetDate;
+      });
+      await days.nth(index).click();
+      const result = await (await response).json();
+      await expect(days.nth(index)).toHaveAttribute('aria-pressed', 'true');
+      if (result.data?.length) break;
+    }
+    await expect(days.first()).toHaveAttribute('aria-pressed', 'false');
+    const slot = page.locator('.slot-grid button').first();
+    await expect(slot).toBeVisible();
+    await expect(slot).toHaveAttribute('aria-pressed', 'false');
+    await slot.click();
+    await expect(slot).toHaveAttribute('aria-pressed', 'true');
+  });
+
   for (const direction of ['rtl', 'ltr']) {
     test(`availability switch stays inside its track and moves toward inline end (${direction})`, async ({
       page,

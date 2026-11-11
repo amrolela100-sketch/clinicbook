@@ -1,6 +1,7 @@
 'use client';
 import Image from 'next/image';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { motion } from 'motion/react';
 import {
@@ -116,6 +117,7 @@ const specialties = [
   { name: 'طب العيون', icon: Eye },
 ];
 export function PublicShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const { data, login, logout } = useApp();
   const [menu, setMenu] = useState(false);
   return (
@@ -128,9 +130,16 @@ export function PublicShell({ children }: { children: ReactNode }) {
       <header className="public-header">
         <Logo />
         <nav onClick={() => setMenu(false)} className={menu ? 'mobile-open' : ''}>
-          <Link href="/search">اكتشف الأطباء</Link>
+          <Link href="/search" aria-current={pathname === '/search' ? 'page' : undefined}>
+            اكتشف الأطباء
+          </Link>
           <Link href="/#how-it-works">كيف نساعدك؟</Link>
-          <Link href="/register-clinic">للأطباء والمراكز</Link>
+          <Link
+            href="/register-clinic"
+            aria-current={pathname === '/register-clinic' ? 'page' : undefined}
+          >
+            للأطباء والمراكز
+          </Link>
           {data?.user?.role === 'patient' && <Link href="/my-appointments">مواعيدي</Link>}
           {data?.user && (
             <button
@@ -633,7 +642,11 @@ export function SearchPage() {
       <div className="search-toolbar">
         <div className="input-icon">
           <Search size={19} />
+          <label className="sr-only" htmlFor="doctor-search">
+            ابحث باسم الطبيب أو التخصص أو المركز
+          </label>
           <input
+            id="doctor-search"
             placeholder="ابحث باسم الطبيب، التخصص أو المركز…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -947,7 +960,13 @@ export function DoctorPage({ id }: { id: string }) {
           </div>
           <div className="days-carousel">
             {days.map((v, i) => (
-              <button key={v} className={v === date ? 'selected' : ''} onClick={() => setDate(v)}>
+              <button
+                key={v}
+                type="button"
+                aria-pressed={v === date}
+                className={v === date ? 'selected' : ''}
+                onClick={() => setDate(v)}
+              >
                 <span>
                   {i === 0
                     ? 'اليوم'
@@ -975,6 +994,8 @@ export function DoctorPage({ id }: { id: string }) {
               {slots.map((s) => (
                 <button
                   dir="ltr"
+                  type="button"
+                  aria-pressed={selected === s.start}
                   className={selected === s.start ? 'selected' : ''}
                   key={s.start}
                   onClick={() => setSelected(s.start)}
