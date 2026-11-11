@@ -16,14 +16,19 @@ const orgA = randomUUID(),
   clinicB = randomUUID(),
   city = randomUUID(),
   spec = randomUUID();
-async function asUser<T = Record<string, unknown>>(uid: string, sql: string, args: unknown[] = []) {
+async function asUser<T = Record<string, unknown>>(
+  uid: string,
+  sql: string,
+  args: unknown[] = [],
+  options: { rollback?: boolean } = {},
+) {
   const c = await pool.connect();
   try {
     await c.query('BEGIN');
     await c.query("SELECT set_config('request.jwt.claim.sub',$1,true)", [uid]);
     await c.query('SET LOCAL ROLE authenticated');
     const r = await c.query(sql, args);
-    await c.query('COMMIT');
+    await c.query(options.rollback ? 'ROLLBACK' : 'COMMIT');
     return r.rows as T[];
   } catch (e) {
     await c.query('ROLLBACK');
@@ -142,9 +147,7 @@ async function main() {
         asUser(ownerA, 'SELECT replace_availability_atomic($1,$2,$3::jsonb)', [
           docB,
           clinicB,
-          JSON.stringify([
-            { day: 1, start: '10:00', end: '12:00', duration: 30, active: true },
-          ]),
+          JSON.stringify([{ day: 1, start: '10:00', end: '12:00', duration: 30, active: true }]),
         ]),
         (e: unknown) => (e as { code: string }).code === '42501',
       );
@@ -179,7 +182,9 @@ async function main() {
         ownerA,
       ]);
     }
-    console.log('PASS tenant role isolation: foreign organization membership grants no owner writes');
+    console.log(
+      'PASS tenant role isolation: foreign organization membership grants no owner writes',
+    );
 
     const scheduleRpc = 'SELECT replace_availability_atomic($1,$2,$3::jsonb)';
     const replacementShifts = [
@@ -667,6 +672,79 @@ async function main() {
       ),
       (e: unknown) => (e as { code: string }).code === '42501',
     );
+    await assert.rejects(
+      asUser(
+        ownerA,
+        "INSERT INTO audit_logs(organization_id,actor_id,action,entity_type,entity_id) VALUES($1,$2,'subscription.activated','organization',$1)",
+        [orgA, ownerA],
+      ),
+      (e: unknown) => (e as { code: string }).code === '42501',
+    );
+    await assert.rejects(
+      asUser(
+        recA,
+        "INSERT INTO audit_logs(organization_id,actor_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'billing.requested','organization',$1,'{\"requested_tier\":\"enterprise\"}'::jsonb)",
+        [orgA, recA],
+      ),
+      (e: unknown) => (e as { code: string }).code === '42501',
+    );
+    await assert.rejects(
+      asUser(
+        ownerA,
+        "INSERT INTO audit_logs(organization_id,actor_id,action,entity_type,entity_id) VALUES($1,$2,'medical.saved','medical_record',$3)",
+        [orgA, ownerA, past],
+      ),
+      (e: unknown) => (e as { code: string }).code === '42501',
+    );
+    await assert.rejects(
+      asUser(
+        recA,
+        "INSERT INTO audit_logs(organization_id,actor_id,action,entity_type,entity_id) VALUES($1,$2,'doctor.fee_updated','doctor',$3)",
+        [orgA, recA, docA],
+      ),
+      (e: unknown) => (e as { code: string }).code === '42501',
+    );
+    await assert.rejects(
+      asUser(
+        recA,
+        "INSERT INTO audit_logs(organization_id,actor_id,action,entity_type,entity_id) VALUES($1,$2,'branch.created','clinic',$3)",
+        [orgA, recA, clinicA],
+      ),
+      (e: unknown) => (e as { code: string }).code === '42501',
+    );
+    await assert.rejects(
+      asUser(
+        recA,
+        "INSERT INTO audit_logs(organization_id,actor_id,action,entity_type,entity_id) VALUES($1,$2,'organization.updated','organization',$1)",
+        [orgA, recA],
+      ),
+      (e: unknown) => (e as { code: string }).code === '42501',
+    );
+    await assert.rejects(
+      asUser(
+        recA,
+        "INSERT INTO audit_logs(organization_id,actor_id,action,entity_type,entity_id) VALUES($1,$2,'exception.created','availability_exception',$3)",
+        [orgA, recA, randomUUID()],
+      ),
+      (e: unknown) => (e as { code: string }).code === '42501',
+    );
+    await assert.rejects(
+      asUser(
+        recA,
+        "INSERT INTO audit_logs(organization_id,actor_id,action,entity_type,entity_id) VALUES($1,$2,'payment.cash','appointment',$3)",
+        [orgA, recA, randomUUID()],
+      ),
+      (e: unknown) => (e as { code: string }).code === '42501',
+    );
+    await assert.rejects(
+      asUser(
+        ownerA,
+        "INSERT INTO audit_logs(organization_id,actor_id,action,entity_type,entity_id) VALUES($1,$2,'organization.updated','organization',$1)",
+        [orgA, ownerA],
+      ),
+      (e: unknown) => (e as { code: string }).code === '42501',
+      'Even an owner cannot claim a mutation happened by writing an audit row directly',
+    );
     // Under PostgreSQL RLS, non-owner UPDATE on granted column (name) filters out rows via USING (0 rows updated), while non-granted columns throw 42501.
     const hijackRows = await asUser<{ id: string }>(
       docA,
@@ -681,6 +759,75 @@ async function main() {
     const orgRow = (await pool.query('SELECT name FROM organizations WHERE id=$1', [orgA]))
       .rows[0] as { name: string };
     assert.equal(orgRow.name, 'org-' + orgA);
+
+    await asUser(ownerA, 'UPDATE doctors SET consultation_fee=26 WHERE id=$1', [docA]);
+    const feeAudit = await asUser<{
+      actor_id: string;
+      metadata: { operation: string; changed_fields: string[] };
+    }>(
+      ownerA,
+      "SELECT actor_id, metadata FROM audit_logs WHERE organization_id=$1 AND entity_id=$2 AND action='doctor.fee_updated' ORDER BY created_at DESC LIMIT 1",
+      [orgA, docA],
+    );
+    assert.equal(feeAudit.length, 1, 'A committed fee mutation must create its audit event');
+    assert.equal(feeAudit[0].actor_id, ownerA);
+    assert.deepEqual(feeAudit[0].metadata, {
+      operation: 'UPDATE',
+      changed_fields: ['consultation_fee'],
+    });
+
+    await asUser(ownerA, "UPDATE clinics SET phone='private-phone-sentinel' WHERE id=$1", [
+      clinicA,
+    ]);
+    await asUser(recA, "UPDATE appointments SET payment_status='paid_cash' WHERE id=$1", [
+      winner.id,
+    ]);
+    await asUser(
+      docA,
+      "UPDATE medical_records SET doctor_notes='private-clinical-sentinel' WHERE appointment_id=$1",
+      [past],
+    );
+    const committedAudit = await asUser<{ action: string; actor_id: string; metadata: unknown }>(
+      ownerA,
+      "SELECT action, actor_id, metadata FROM audit_logs WHERE organization_id=$1 AND source='database'",
+      [orgA],
+    );
+    assert.ok(committedAudit.some((r) => r.action === 'clinic.updated' && r.actor_id === ownerA));
+    assert.ok(committedAudit.some((r) => r.action === 'payment.cash' && r.actor_id === recA));
+    assert.ok(committedAudit.some((r) => r.action === 'medical.saved' && r.actor_id === docA));
+    for (const action of [
+      'organization.created',
+      'subscription.activated',
+      'team.member_added',
+      'availability.insert',
+      'exception.created',
+      'review.created',
+    ]) {
+      assert.ok(
+        committedAudit.some((r) => r.action === action),
+        `Missing database audit: ${action}`,
+      );
+    }
+    assert.ok(!JSON.stringify(committedAudit).includes('private-phone-sentinel'));
+    assert.ok(!JSON.stringify(committedAudit).includes('private-clinical-sentinel'));
+    const auditCountBeforeRollback = committedAudit.length;
+    await asUser(ownerA, "UPDATE clinics SET phone='rolled-back-value' WHERE id=$1", [clinicA], {
+      rollback: true,
+    });
+    assert.equal(
+      (
+        await asUser(
+          ownerA,
+          "SELECT id FROM audit_logs WHERE organization_id=$1 AND source='database'",
+          [orgA],
+        )
+      ).length,
+      auditCountBeforeRollback,
+      'Rolled-back mutations cannot leave committed audit evidence',
+    );
+    console.log(
+      'PASS database audit: committed mutations are recorded without copying private values',
+    );
     console.log(
       'PASS P1-1: direct appointment status mutation, non-doctor EMR insert, null-org audit spoof, and non-owner org rename denied',
     );
@@ -801,10 +948,24 @@ async function main() {
     assert.equal(provRows[0].provision_team_member_atomic, provisionedMemberId);
 
     // 5. tenant_billing_requests tracks pending -> approved lifecycle
-    await asUser(
-      ownerA,
-      "INSERT INTO audit_logs(organization_id,actor_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'billing.requested','organization',$1,'{\"requested_tier\":\"enterprise\"}'::jsonb)",
-      [orgA, ownerA],
+    for (const actor of [recA, ownerB]) {
+      await assert.rejects(
+        asUser(actor, 'SELECT request_billing_upgrade($1,$2)', [orgA, 'enterprise']),
+        (e: unknown) => (e as { code: string }).code === '42501',
+      );
+    }
+    await asUser(ownerA, 'SELECT request_billing_upgrade($1,$2)', [orgA, 'enterprise']);
+    await assert.rejects(
+      asUser(ownerA, 'SELECT request_billing_upgrade($1,$2)', [orgA, 'enterprise']),
+      (e: unknown) => (e as { code: string }).code === '23505',
+    );
+    await assert.rejects(
+      asUser(
+        ownerA,
+        "UPDATE billing_requests SET status='approved', resolved_at=now() WHERE organization_id=$1",
+        [orgA],
+      ),
+      (e: unknown) => (e as { code: string }).code === '42501',
     );
     const billingReqs = await asUser<{ tier: string; status: string }>(
       ownerA,
@@ -812,6 +973,31 @@ async function main() {
       [orgA],
     );
     assert.ok(billingReqs.some((r) => r.tier === 'enterprise' && r.status === 'pending'));
+
+    await pool.query(
+      "INSERT INTO audit_logs(organization_id,actor_id,action,entity_type,entity_id) VALUES($1,$2,'subscription.activated','organization',$1)",
+      [orgA, ownerA],
+    );
+    const afterLegacyEvent = await asUser<{ tier: string; status: string }>(
+      ownerA,
+      'SELECT * FROM tenant_billing_requests($1)',
+      [orgA],
+    );
+    assert.ok(afterLegacyEvent.some((r) => r.tier === 'enterprise' && r.status === 'pending'));
+
+    await pool.query(
+      "UPDATE subscriptions SET tier='enterprise', status='active', max_doctors=100, max_clinics=100, current_period_end=now()+interval '30 days' WHERE organization_id=$1",
+      [orgA],
+    );
+    const approvedBilling = await asUser<{ tier: string; status: string }>(
+      ownerA,
+      'SELECT * FROM tenant_billing_requests($1)',
+      [orgA],
+    );
+    assert.ok(
+      approvedBilling.some((r) => r.tier === 'enterprise' && r.status === 'approved'),
+      'Only a real active subscription to the requested tier approves a billing request',
+    );
 
     // 6. Verify 100% of public SECURITY DEFINER functions enforce pg_temp in search_path
     const unsafeDefiners = await pool.query<{ proname: string }>(

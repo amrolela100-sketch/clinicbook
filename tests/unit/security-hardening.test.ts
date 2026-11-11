@@ -690,7 +690,7 @@ describe('Security & Production Hardening Regression Suite', () => {
       expect(fromCalls.some((c) => c.table === 'medical_records')).toBe(false);
     });
 
-    it('executes operational actions without admin client, resolves doctor branch clinic_id, enforces owner-only settings, and audits review with organization_id', async () => {
+    it('executes operational actions without admin client, resolves doctor branch clinic_id, and leaves auditing to database triggers', async () => {
       const doctorUser: User = {
         id: 'doc-1',
         name: 'د. سمير',
@@ -769,7 +769,7 @@ describe('Security & Production Hardening Regression Suite', () => {
       expect((atomicScheduleCall?.args as { p_clinic_id: string }).p_clinic_id).toBe('clinic-2');
       expect(fromCalls.some((call) => call.table === 'availability')).toBe(false);
 
-      // Patient review writes organization_id into audit_logs
+      // The database records the patient review; the client cannot insert raw audit events.
       mockTableResponses['appointments'] = {
         id: 'appt-rev-1',
         organization_id: 'org-1',
@@ -778,18 +778,13 @@ describe('Security & Production Hardening Regression Suite', () => {
         status: 'completed',
       };
       mockTableResponses['reviews'] = null;
-      await executeSupabaseAction(patientActor, 'review', {
+      const reviewResult = await executeSupabaseAction(patientActor, 'review', {
         appointmentId: 'appt-rev-1',
         rating: 5,
         comment: 'ممتاز',
       });
-      const reviewAudit = writePayloads.find(
-        (w) =>
-          w.table === 'audit_logs' &&
-          w.op === 'insert' &&
-          (w.data as { action?: string }).action === 'review.created',
-      );
-      expect((reviewAudit?.data as { organization_id?: string }).organization_id).toBe('org-1');
+      expect(reviewResult.success).toBe(true);
+      expect(writePayloads.some((w) => w.table === 'audit_logs' && w.op === 'insert')).toBe(false);
 
       expect(adminCalls).toHaveLength(0);
     });

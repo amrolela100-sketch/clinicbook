@@ -791,10 +791,18 @@ describe('Supabase Actions Service Security & Validation', () => {
   });
 
   it('executes billingRequest successfully by clinic owner', async () => {
+    mockServerRpcResponses['request_billing_upgrade'] = {
+      data: 'billing-request-id',
+      error: null,
+    };
     const res = await executeSupabaseAction(ownerUser, 'billingRequest', { tier: 'enterprise' });
     expect(res.success).toBe(true);
     if (res.success) {
-      expect(res.data).toEqual({ organizationId: 'org-1', tier: 'enterprise' });
+      expect(res.data).toEqual({
+        id: 'billing-request-id',
+        organizationId: 'org-1',
+        tier: 'enterprise',
+      });
     }
   });
 

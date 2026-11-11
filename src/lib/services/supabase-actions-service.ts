@@ -277,17 +277,6 @@ export async function executeSupabaseAction(
         throw new SupabaseActionError('غير مصرح لك بتسجيل الدفع لهذا الموعد.', 403, 'FORBIDDEN');
       }
 
-      const { error: auditErr } = await serverClient.from('audit_logs').insert({
-        organization_id: appt.organization_id,
-        actor_id: user.id,
-        action: 'payment.cash',
-        entity_type: 'appointment',
-        entity_id: b.id,
-      });
-      if (auditErr) {
-        console.error('[Payment Audit Error]:', auditErr);
-      }
-
       return { success: true, data: { id: b.id, payment: 'paid_cash' } };
     }
 
@@ -398,17 +387,6 @@ export async function executeSupabaseAction(
             transRes.code || 'ACTION_ERROR',
           );
         }
-      }
-
-      const { error: auditErr } = await serverClient.from('audit_logs').insert({
-        organization_id: appt.organization_id,
-        actor_id: user.id,
-        action: 'medical.saved',
-        entity_type: 'medical_record',
-        entity_id: b.appointmentId,
-      });
-      if (auditErr) {
-        console.error('[Medical Audit Error]:', auditErr);
       }
 
       return { success: true, data: { appointmentId: b.appointmentId } };
@@ -671,19 +649,6 @@ export async function executeSupabaseAction(
 
       if (insErr) {
         throw new SupabaseActionError(insErr.message || 'تعذر تسجيل الإجازة.', 500, 'DB_ERROR');
-      }
-
-      if (exceptionOrgId) {
-        const { error: auditErr } = await serverClient.from('audit_logs').insert({
-          organization_id: exceptionOrgId,
-          actor_id: user.id,
-          action: 'exception.created',
-          entity_type: 'availability_exception',
-          entity_id: exId,
-        });
-        if (auditErr) {
-          console.error('[Exception Audit Error]:', auditErr);
-        }
       }
 
       return { success: true, data: { id: exId, affected } };
@@ -1064,17 +1029,6 @@ export async function executeSupabaseAction(
         );
       }
 
-      const { error: auditErr } = await serverClient.from('audit_logs').insert({
-        organization_id: user.organizationId,
-        actor_id: user.id,
-        action: 'branch.created',
-        entity_type: 'clinic',
-        entity_id: branchId,
-      });
-      if (auditErr) {
-        console.error('[Branch Audit Error]:', auditErr);
-      }
-
       return { success: true, data: { id: branchId } };
     }
 
@@ -1120,17 +1074,6 @@ export async function executeSupabaseAction(
       }
       if (!updatedDocs || updatedDocs.length === 0) {
         throw new SupabaseActionError('غير مصرح لك بتعديل رسوم هذا الطبيب.', 403, 'FORBIDDEN');
-      }
-
-      const { error: auditErr } = await serverClient.from('audit_logs').insert({
-        organization_id: user.organizationId,
-        actor_id: user.id,
-        action: 'doctor.fee_updated',
-        entity_type: 'doctor',
-        entity_id: b.id,
-      });
-      if (auditErr) {
-        console.error('[DoctorFee Audit Error]:', auditErr);
       }
 
       return { success: true, data: { id: b.id, fee: b.fee, followUpFee: b.followUpFee } };
@@ -1194,17 +1137,6 @@ export async function executeSupabaseAction(
           404,
           'NOT_FOUND',
         );
-      }
-
-      const { error: auditErr } = await serverClient.from('audit_logs').insert({
-        organization_id: user.organizationId,
-        actor_id: user.id,
-        action: 'organization.updated',
-        entity_type: 'organization',
-        entity_id: user.organizationId,
-      });
-      if (auditErr) {
-        console.error('[Settings Audit Error]:', auditErr);
       }
 
       return { success: true, data: { organizationId: user.organizationId } };
@@ -1289,18 +1221,7 @@ export async function executeSupabaseAction(
         );
       }
 
-      // Rating aggregate on doctors is automatically updated via PostgreSQL trigger `aggregate_reviews`.
-      const { error: auditErr } = await serverClient.from('audit_logs').insert({
-        organization_id: appt.organization_id,
-        actor_id: user.id,
-        action: 'review.created',
-        entity_type: 'review',
-        entity_id: reviewId,
-      });
-      if (auditErr) {
-        console.error('[Review Audit Error]:', auditErr);
-      }
-
+      // Rating aggregates and audit events are written by PostgreSQL triggers.
       return { success: true, data: { id: reviewId } };
     }
 
@@ -1332,20 +1253,36 @@ export async function executeSupabaseAction(
         .object({ tier: z.enum(['solo_starter', 'clinic_pro', 'enterprise']) })
         .parse(payload);
 
-      const { error: auditErr } = await serverClient.from('audit_logs').insert({
-        organization_id: user.organizationId,
-        actor_id: user.id,
-        action: 'billing.requested',
-        entity_type: 'organization',
-        entity_id: user.organizationId,
-        metadata: { requested_tier: b.tier },
-      });
-
-      if (auditErr) {
-        throw new SupabaseActionError(auditErr.message || 'تعذر تسجيل الطلب.', 500, 'DB_ERROR');
+      const { data: requestId, error: requestErr } = await serverClient.rpc(
+        'request_billing_upgrade',
+        {
+          p_org: user.organizationId,
+          p_tier: b.tier,
+        },
+      );
+      if (requestErr) {
+        if (requestErr.code === '23505') {
+          throw new SupabaseActionError(
+            'لديك طلب تفعيل قيد المراجعة بالفعل.',
+            409,
+            'ALREADY_PENDING',
+          );
+        }
+        if (requestErr.code === '42501') {
+          throw new SupabaseActionError('غير مصرح لك بطلب ترقية الباقة.', 403, 'FORBIDDEN');
+        }
+        if (requestErr.code === 'PGRST202') {
+          throw new SupabaseActionError('ترحيل طلبات الفوترة غير مطبق.', 500, 'MIGRATION_REQUIRED');
+        }
+        throw new SupabaseActionError(requestErr.message || 'تعذر تسجيل الطلب.', 500, 'DB_ERROR');
       }
-
-      return { success: true, data: { organizationId: user.organizationId, tier: b.tier } };
+      if (typeof requestId !== 'string' || !requestId) {
+        throw new SupabaseActionError('لم تُرجع عملية الفوترة معرّفاً صالحاً.', 500, 'DB_ERROR');
+      }
+      return {
+        success: true,
+        data: { id: requestId, organizationId: user.organizationId, tier: b.tier },
+      };
     }
 
     case 'verify': {
@@ -1423,6 +1360,7 @@ export async function executeSupabaseAction(
       const { error: auditErr } = await adminClient.from('audit_logs').insert({
         actor_id: user.id,
         action: `verification.${b.status}`,
+        source: 'server',
         entity_type: org ? 'organization' : 'doctor',
         entity_id: b.id,
         metadata: { reason: b.reason },
@@ -1482,6 +1420,7 @@ export async function executeSupabaseAction(
         organization_id: b.id,
         actor_id: user.id,
         action: 'subscription.activated',
+        source: 'server',
         entity_type: 'organization',
         entity_id: b.id,
         metadata: { tier: b.tier },
@@ -1540,6 +1479,7 @@ export async function executeSupabaseAction(
       const { error: auditErr } = await adminClient.from('audit_logs').insert({
         actor_id: user.id,
         action: 'reference.created',
+        source: 'server',
         entity_type: b.type,
         entity_id: refId,
       });
