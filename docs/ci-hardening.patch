@@ -1,0 +1,47 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 9168477..421b7a3 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -45,29 +45,32 @@ jobs:
+       - name: Gate 3 - Unit & Integration Tests (Vitest)
+         run: npm run test:unit
+ 
+-      # Gate 4: Production Artifact & Route Build Contract
+-      - name: Gate 4 - Production Next.js Build
+-        run: npm run build
+-        env:
+-          NEXT_TELEMETRY_DISABLED: '1'
++      - name: Gate 3.5 - Dependency Security Audit
++        run: npm run audit
+ 
+-      # Gate 5: End-to-End & WCAG AA Accessibility Contract
+       - name: Install Playwright Chromium
+         run: npx playwright install --with-deps chromium
+ 
++      # The fixture config builds AND starts a real production-mode application.
++      - name: Gate 4 - Production Build, CSP and HTTP Smoke Tests
++        run: npm run test:production
++
++      # Demo runs only under development, with isolated data and no live credentials.
++
+       - name: Gate 5 - Playwright E2E & WCAG AA Accessibility
+         run: npx playwright test
+         env:
+           CI: '1'
+-          CLINICBOOK_MODE: demo
+-          COOKIE_SECURE: 'false'
+ 
+       - name: Upload Diagnostic Report on Failure
+         if: failure()
+         uses: actions/upload-artifact@v4
+         with:
+-          name: playwright-report
+-          path: playwright-report/
++          name: verification-reports
++          path: |
++            playwright-report/
++            test-results/production/
++            test-results/demo/
+           retention-days: 7
+ 
+   postgres-verify:
