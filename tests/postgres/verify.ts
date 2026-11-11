@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { verifyHealth } from './health.verify';
 import { verifyCron } from './cron.verify';
+import { verifyIndexes } from './indexes.verify';
 const pool = new pg.Pool({
   connectionString:
     process.env.TEST_DATABASE_URL ??
@@ -80,6 +81,7 @@ async function main() {
   const extraOrgs: string[] = [];
   const extraUsers: string[] = [];
   try {
+    await verifyIndexes(pool);
     for (let i = 0; i < ids.length; i++)
       await pool.query('INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES($1,$2,$3)', [
         ids[i],

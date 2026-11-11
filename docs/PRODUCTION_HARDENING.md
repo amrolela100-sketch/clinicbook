@@ -26,10 +26,15 @@ No migrations have been applied to a remote database.
 | #27 | Readiness executes a service-only database/schema RPC with an abortable two-second deadline; failures return 503 without environment or AI details. | Actual PostgreSQL execute grants/schema readiness, HTTP unit tests and a real production transport outage/timeout |
 | #28 | Cron requires an explicit secret in every environment and executes atomic, idempotent expiry/no-show/reminder/subscription/archive jobs. The scheduler is configured and HTTP responses contain counts only. | Actual PostgreSQL jobs, concurrent retries/legal holds, HTTP authorization and real production database failures/deadlines |
 | #17 | Public doctor portraits use responsive Next images with reserved dimensions; four oversized originals map to new WebP assets, retaining the original files. | Actual desktop/mobile browser image responses, layout/candidate selection and byte budgets |
+| #11 | Narrow hot-path indexes cover branch schedules, patient/doctor record recency, tenant/global audit recency and global pending expiry; existing doctor-specific expiry indexing remains. | Actual PostgreSQL catalogue keys/predicates and ordered index-path capability |
 
 The four optimized portraits total **203,810 bytes**, down from **2,630,953 bytes**
 for their originals (about 92% less). This is an image-path improvement, not a
 Lighthouse or complete application performance claim.
+
+The new indexes use transactional `CREATE INDEX`, which holds write-blocking locks
+until commit. Measure creation time with representative staging data and apply in
+an agreed maintenance window; the tiny local fixture is not a production benchmark.
 
 The audit's claim that direct availability writes were open at the base commit was
 too broad: `20261110000001` already revoked direct DML. The vulnerable schedule RPC,
