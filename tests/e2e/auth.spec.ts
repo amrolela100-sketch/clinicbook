@@ -103,11 +103,11 @@ test.describe('Auth Flow, Role Grid, Password Toggles & Navigation Redirection',
     await page.getByLabel('هاتف المركز').fill('+963 11 223 3445');
     await page.getByRole('button', { name: 'الخطوة التالية' }).click();
 
-    // Step 2 shows manager email prefilled from authenticated session and locked
-    const adminEmailField = page.getByLabel('البريد الإلكتروني للمدير');
+    // The first doctor email defaults to the owner email, but supports a separate invitation.
+    const adminEmailField = page.getByLabel('البريد الإلكتروني للطبيب الأول');
     await expect(adminEmailField).toBeVisible();
     await expect(adminEmailField).toHaveValue(ownerEmail);
-    await expect(adminEmailField).toHaveAttribute('readonly', '');
+    await expect(adminEmailField).toBeEditable();
   });
 
   test('2. Rejects invalid credentials and succeeds with valid credentials using next return parameter', async ({

@@ -14,6 +14,7 @@ No migrations have been applied to a remote database.
 | #3 | Anonymous access to the raw reviews table is revoked; the masked public RPC remains available. | Actual PostgreSQL roles and RPCs |
 | #4 | Tenant membership no longer grants owner permissions in another tenant. | Actual PostgreSQL policies and schedule RPC |
 | #5 | Clients cannot insert audit events. Mutation triggers record committed changes without copying private values. Billing requests have independent, authoritative state. | Actual PostgreSQL transactions and billing RPCs |
+| #8 | Privileged Auth provisioning is service-role-only, refuses unrelated/claimed identities, checks scoped unused invitations and uses fixed Starter onboarding entitlements. | Actual PostgreSQL roles, invitation state, cleanup and concurrent provisioning |
 
 The audit's claim that direct availability writes were open at the base commit was
 too broad: `20261110000001` already revoked direct DML. The vulnerable schedule RPC,
@@ -40,6 +41,28 @@ reproduced and fixed.
 - A matching, active, unexpired subscription mutation resolves a request. An audit
   row named `subscription.activated` cannot do so.
 
+## Provisioning and trial policy
+
+- Production onboarding starts a **14-day Starter trial** with one doctor and one
+  clinic. Pro requires an administrative activation after a billing request.
+  The server and database reject Pro as an initial entitlement; they do not
+  silently downgrade a user's selection. The registration UI explains this policy.
+- Tenant clients cannot execute the onboarding/team provisioning RPCs directly.
+  The trusted server supplies the actor ID from the verified session; the database
+  also checks the actor's active profile and actual ownership.
+- A separate first doctor or new team member must be an unused Auth invitation,
+  with a patient/active placeholder profile, no existing membership or doctor
+  record, and invitation metadata matching its inviter, purpose and organization.
+- User metadata is **not authorization by itself**: service-role execution,
+  the absence of a sign-in and the database profile/ownership checks are required.
+- Safe rollback only deletes an unclaimed, unsigned-in invitation belonging to
+  that operation. It refuses claimed members or established users, even when an
+  RPC response is lost. It never falls back to an unconditional Auth deletion.
+- Role/status changes are also recorded by database triggers. Doctor-limit tests
+  exercise concurrent provisioning against the locked subscription row.
+- A real Supabase staging invitation/acceptance/rollback test is still required:
+  local verification models the Auth columns but does not run GoTrue or SMTP.
+
 ## Verification so far
 
 - Vitest: **175/175** passing across 12 files.
@@ -50,8 +73,6 @@ reproduced and fixed.
 
 ## Remaining release blockers
 
-- #8: restrict privileged provisioning RPCs, protect existing identities and
-  enforce server-controlled onboarding entitlements.
 - #7: verify CSP nonces in a production build and browser, not just header tests.
 - #9: distributed rate limiting and a trusted-proxy contract for the deployment.
 - #13: preserve persisted credentials during demo onboarding.

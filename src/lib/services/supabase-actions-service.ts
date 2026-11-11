@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { User, ActionResult } from '../types';
 import { canAccess } from '../auth/guards';
 import { cleanDoctorName } from '../format';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 const text = z.string().trim().min(2).max(150);
 
@@ -24,6 +25,27 @@ function slugify(raw: string): string {
     .replace(/[\s\-_]+/g, '-')
     .replace(/[^\p{L}\p{N}\-]+/gu, '')
     .slice(0, 50);
+}
+
+async function discardPendingInvitation(
+  client: SupabaseClient,
+  args: {
+    p_user_id: string;
+    p_email: string;
+    p_actor_id: string;
+    p_purpose: 'clinic_onboarding' | 'team_member';
+    p_org: string | null;
+  },
+) {
+  if (typeof client.rpc !== 'function') return;
+  try {
+    const { error } = await client.rpc('discard_pending_invitation', args);
+    if (error) console.error('[Pending Invitation Cleanup Error]:', error.message);
+  } catch (error) {
+    // Preserve the original action error; never fall back to deleting an
+    // arbitrary Auth account when safe rollback cannot be verified.
+    console.error('[Pending Invitation Cleanup Error]:', error);
+  }
 }
 
 export async function executeSupabaseAction(
@@ -79,7 +101,7 @@ export async function executeSupabaseAction(
           doctorName: text,
           email: z.string().email(),
           license: text,
-          tier: z.enum(['solo_starter', 'clinic_pro']),
+          tier: z.literal('solo_starter'),
         })
         .parse(payload);
 
@@ -110,6 +132,17 @@ export async function executeSupabaseAction(
 
       let dedicatedDoctorId: string | null = null;
       if (isSeparateDoctorEmail) {
+        const { data: existingDoctorAccount, error: accountLookupErr } = await adminClient
+          .from('users')
+          .select('id')
+          .eq('email', b.email.trim().toLowerCase())
+          .maybeSingle();
+        if (accountLookupErr) {
+          throw new SupabaseActionError('تعذر التحقق من بريد الطبيب.', 500, 'DB_ERROR');
+        }
+        if (existingDoctorAccount) {
+          throw new SupabaseActionError('البريد الإلكتروني مستخدم مسبقاً.', 409, 'EMAIL_EXISTS');
+        }
         if (typeof adminAuth?.inviteUserByEmail !== 'function') {
           throw new SupabaseActionError(
             'خدمة دعوة الطبيب الأول غير متاحة في إعدادات المصادقة الحالية.',
@@ -120,9 +153,13 @@ export async function executeSupabaseAction(
 
         const redirectBase = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, '');
         const { data: invited, error: inviteErr } = await adminAuth.inviteUserByEmail(
-          b.email.trim(),
+          b.email.trim().toLowerCase(),
           {
-            data: { full_name: cleanedDoctorName },
+            data: {
+              full_name: cleanedDoctorName,
+              invited_by: user.id,
+              invitation_purpose: 'clinic_onboarding',
+            },
             ...(redirectBase ? { redirectTo: `${redirectBase}/auth/callback` } : {}),
           },
         );
@@ -141,11 +178,14 @@ export async function executeSupabaseAction(
       }
 
       const cleanupDedicatedDoctorAuth = async () => {
-        if (dedicatedDoctorId && typeof adminAuth?.deleteUser === 'function') {
-          const { error } = await adminAuth.deleteUser(dedicatedDoctorId);
-          if (error) {
-            console.error('[Onboard Dedicated Doctor Auth Rollback Error]:', error);
-          }
+        if (dedicatedDoctorId) {
+          await discardPendingInvitation(adminClient, {
+            p_user_id: dedicatedDoctorId,
+            p_email: b.email.trim().toLowerCase(),
+            p_actor_id: user.id,
+            p_purpose: 'clinic_onboarding',
+            p_org: null,
+          });
         }
       };
 
@@ -191,6 +231,13 @@ export async function executeSupabaseAction(
         }
         if (rpcErr.code === '42501') {
           throw new SupabaseActionError('غير مصرح بإنشاء المركز.', 403, 'FORBIDDEN');
+        }
+        if (rpcErr.code === 'P0008') {
+          throw new SupabaseActionError(
+            'تبدأ التجربة بباقة Starter؛ Pro يتطلب تفعيلًا إداريًا.',
+            422,
+            'TIER_REQUIRES_APPROVAL',
+          );
         }
         throw new SupabaseActionError(
           rpcErr.message || 'تعذر إنشاء المركز الطبي ذرياً.',
@@ -774,7 +821,7 @@ export async function executeSupabaseAction(
       const { data: existingUser, error: userLookupErr } = await adminClient
         .from('users')
         .select('id')
-        .eq('email', b.email)
+        .eq('email', b.email.trim().toLowerCase())
         .maybeSingle();
 
       if (userLookupErr) {
@@ -808,10 +855,18 @@ export async function executeSupabaseAction(
 
       if (typeof adminAuth.inviteUserByEmail === 'function') {
         const redirectBase = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, '');
-        const { data: invited, error: inviteErr } = await adminAuth.inviteUserByEmail(b.email, {
-          data: { full_name: b.name },
-          ...(redirectBase ? { redirectTo: `${redirectBase}/auth/callback` } : {}),
-        });
+        const { data: invited, error: inviteErr } = await adminAuth.inviteUserByEmail(
+          b.email.trim().toLowerCase(),
+          {
+            data: {
+              full_name: b.name,
+              invited_by: user.id,
+              invitation_purpose: 'team_member',
+              organization_id: user.organizationId,
+            },
+            ...(redirectBase ? { redirectTo: `${redirectBase}/auth/callback` } : {}),
+          },
+        );
         if (inviteErr || !invited?.user?.id) {
           console.error('[Team Invitation Error]:', inviteErr?.message || 'Missing invited user');
           throw new SupabaseActionError(
@@ -846,10 +901,13 @@ export async function executeSupabaseAction(
       }
 
       const rollbackNewMember = async () => {
-        const { error: authDelErr } = await adminAuth.deleteUser(newUserId!);
-        if (authDelErr) {
-          console.error('[Team Rollback Auth User Error]:', authDelErr);
-        }
+        await discardPendingInvitation(adminClient, {
+          p_user_id: newUserId!,
+          p_email: b.email.trim().toLowerCase(),
+          p_actor_id: user.id,
+          p_purpose: 'team_member',
+          p_org: user.organizationId!,
+        });
       };
 
       if (typeof (adminClient as { rpc?: unknown }).rpc !== 'function') {

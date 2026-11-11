@@ -367,7 +367,7 @@ describe('Full-Stack Audit Remediations Suite (REM-01 through REM-09)', () => {
       doctorName: 'د. حسام المالح',
       email: 'dr.hussam@almaleh.sy',
       license: 'SY-LIC-2026',
-      tier: 'clinic_pro',
+      tier: 'solo_starter',
     });
 
     expect(onboardRes.success).toBe(true);
@@ -397,7 +397,17 @@ describe('Full-Stack Audit Remediations Suite (REM-01 through REM-09)', () => {
         tier: 'solo_starter',
       }),
     ).rejects.toMatchObject({ status: 409, code: 'ALREADY_EXISTS' });
-    expect(mockDeleteAuthUser).toHaveBeenCalledWith('invited-user-1');
+    expect(adminCalls).toContainEqual({
+      fn: 'rpc.discard_pending_invitation',
+      args: {
+        p_user_id: 'invited-user-1',
+        p_email: 'dr2@almaleh.sy',
+        p_actor_id: 'owner-fresh',
+        p_purpose: 'clinic_onboarding',
+        p_org: null,
+      },
+    });
+    expect(mockDeleteAuthUser).not.toHaveBeenCalled();
 
     // Team invitation + atomic provisioning RPC
     const activeOwner: User = {

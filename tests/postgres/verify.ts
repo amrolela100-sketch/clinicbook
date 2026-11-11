@@ -53,6 +53,26 @@ async function asAnon<T = Record<string, unknown>>(sql: string, args: unknown[] 
     c.release();
   }
 }
+
+async function asService<T = Record<string, unknown>>(sql: string, args: unknown[] = []) {
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    await c.query("SELECT set_config('request.jwt.claim.sub','',true)");
+    await c.query("SELECT set_config('request.jwt.claims',$1,true)", [
+      JSON.stringify({ role: 'service_role' }),
+    ]);
+    await c.query('SET LOCAL ROLE service_role');
+    const r = await c.query(sql, args);
+    await c.query('COMMIT');
+    return r.rows as T[];
+  } catch (e) {
+    await c.query('ROLLBACK');
+    throw e;
+  } finally {
+    c.release();
+  }
+}
 async function main() {
   let inserted = false;
   const extraOrgs: string[] = [];
@@ -881,9 +901,84 @@ async function main() {
     assert.equal(adminSnap.appointments, undefined);
     assert.equal(adminSnap.medical_records, undefined);
 
+    await assert.rejects(
+      asUser(ownerA, 'SELECT provision_team_member_atomic($1,$2,$3,$4,$5,$6,$7)', [
+        ownerA,
+        orgA,
+        clinicA,
+        patientB,
+        `verify-${patientB}@example.test`,
+        'Overwritten account',
+        'receptionist',
+      ]),
+      (e: unknown) => (e as { code: string }).code === '42501',
+      'A tenant cannot call privileged provisioning directly with another account ID',
+    );
+    await assert.rejects(
+      asService('SELECT provision_team_member_atomic($1,$2,$3,$4,$5,$6,$7)', [
+        ownerA,
+        orgA,
+        clinicA,
+        patientB,
+        `verify-${patientB}@example.test`,
+        'Overwritten account',
+        'receptionist',
+      ]),
+      (e: unknown) => (e as { code: string }).code === '42501',
+      'Trusted provisioning also rejects an existing account that is not its own pending invitation',
+    );
+    await assert.rejects(
+      asService(
+        'SELECT * FROM onboard_organization_atomic($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
+        [
+          freshOwnerId,
+          `rem-${freshOwnerId}@example.test`,
+          'New owner',
+          'Invalid onboarding',
+          'city-' + city,
+          'District',
+          '011-4455667',
+          `INVALID-${freshOwnerId}`,
+          'solo_starter',
+          patientB,
+          `verify-${patientB}@example.test`,
+          'Overwritten patient',
+        ],
+      ),
+      (e: unknown) => (e as { code: string }).code === '42501',
+      'Onboarding must not turn an unrelated existing user into its initial doctor',
+    );
+
     // 3. onboard_organization_atomic creates org, clinic, owner role & separate doctor atomically
-    const onboardedRows = await asUser<{ organization_id: string; clinic_id: string }>(
-      freshOwnerId,
+    await pool.query(
+      'UPDATE auth.users SET invited_at=now(), raw_user_meta_data=raw_user_meta_data || $2::jsonb WHERE id=$1',
+      [
+        freshDoctorId,
+        JSON.stringify({ invited_by: freshOwnerId, invitation_purpose: 'clinic_onboarding' }),
+      ],
+    );
+    await assert.rejects(
+      asService(
+        'SELECT * FROM onboard_organization_atomic($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
+        [
+          freshOwnerId,
+          `rem-${freshOwnerId}@example.test`,
+          'New owner',
+          'Unapproved Pro trial',
+          'city-' + city,
+          'District',
+          '011-4455667',
+          `PRO-${freshOwnerId}`,
+          'clinic_pro',
+          freshDoctorId,
+          `rem-${freshDoctorId}@example.test`,
+          'New doctor',
+        ],
+      ),
+      (e: unknown) => (e as { code: string }).code === 'P0008',
+      'Onboarding entitlements are Starter-only even through the trusted RPC',
+    );
+    const onboardedRows = await asService<{ organization_id: string; clinic_id: string }>(
       'SELECT * FROM onboard_organization_atomic($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
       [
         freshOwnerId,
@@ -894,7 +989,7 @@ async function main() {
         'المزة',
         '011-4455667',
         `LIC-${freshOwnerId.slice(0, 8)}`,
-        'clinic_pro',
+        'solo_starter',
         freshDoctorId,
         `rem-${freshDoctorId}@example.test`,
         'سامر الحلبي',
@@ -904,11 +999,26 @@ async function main() {
     const newOrgId = onboardedRows[0].organization_id;
     const newClinicId = onboardedRows[0].clinic_id;
     extraOrgs.push(newOrgId);
+    const initialSubscription = await asUser<{
+      tier: string;
+      status: string;
+      max_doctors: number;
+      max_clinics: number;
+    }>(
+      freshOwnerId,
+      'SELECT tier,status,max_doctors,max_clinics FROM subscriptions WHERE organization_id=$1',
+      [newOrgId],
+    );
+    assert.deepEqual(initialSubscription[0], {
+      tier: 'solo_starter',
+      status: 'trialing',
+      max_doctors: 1,
+      max_clinics: 1,
+    });
 
     // Duplicate onboarding rejected with 23505
     await assert.rejects(
-      asUser(
-        freshOwnerId,
+      asService(
         'SELECT * FROM onboard_organization_atomic($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',
         [
           freshOwnerId,
@@ -929,8 +1039,50 @@ async function main() {
     );
 
     // 4. provision_team_member_atomic provisions staff & enforces solo_starter receptionist block
-    const provRows = await asUser<{ provision_team_member_atomic: string }>(
-      freshOwnerId,
+    await pool.query(
+      'UPDATE auth.users SET invited_at=now(), raw_user_meta_data=raw_user_meta_data || $2::jsonb WHERE id=$1',
+      [
+        provisionedMemberId,
+        JSON.stringify({
+          invited_by: freshOwnerId,
+          invitation_purpose: 'team_member',
+          organization_id: newOrgId,
+        }),
+      ],
+    );
+    await assert.rejects(
+      asService('SELECT provision_team_member_atomic($1,$2,$3,$4,$5,$6,$7)', [
+        freshOwnerId,
+        newOrgId,
+        newClinicId,
+        provisionedMemberId,
+        `rem-${provisionedMemberId}@example.test`,
+        'New receptionist',
+        'receptionist',
+      ]),
+      (e: unknown) => (e as { code: string }).code === 'P0008',
+    );
+    await assert.rejects(
+      asService('SELECT provision_team_member_atomic($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+        freshOwnerId,
+        newOrgId,
+        newClinicId,
+        provisionedMemberId,
+        `rem-${provisionedMemberId}@example.test`,
+        'Second Starter doctor',
+        'doctor',
+        'الطب العام',
+        35,
+        `LIMIT-${provisionedMemberId}`,
+      ]),
+      (e: unknown) => (e as { code: string }).code === 'P0009',
+    );
+    // Only an administrator can activate the tier needed to add more staff.
+    await pool.query(
+      "UPDATE subscriptions SET tier='clinic_pro', status='active', max_doctors=10, max_clinics=3, current_period_end=now()+interval '30 days' WHERE organization_id=$1",
+      [newOrgId],
+    );
+    const provRows = await asService<{ provision_team_member_atomic: string }>(
       'SELECT provision_team_member_atomic($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
       [
         freshOwnerId,
@@ -946,6 +1098,122 @@ async function main() {
       ],
     );
     assert.equal(provRows[0].provision_team_member_atomic, provisionedMemberId);
+    const roleAudit = await asUser<{ metadata: { changed_fields: string[] } }>(
+      superAdminId,
+      "SELECT metadata FROM audit_logs WHERE entity_id=$1 AND action='user.update' AND source='database'",
+      [provisionedMemberId],
+    );
+    assert.ok(roleAudit.some((r) => r.metadata.changed_fields.includes('role')));
+
+    const competingDoctors = [randomUUID(), randomUUID()];
+    extraUsers.push(...competingDoctors);
+    for (const id of competingDoctors) {
+      await pool.query(
+        'INSERT INTO auth.users(id,email,raw_user_meta_data,invited_at) VALUES($1,$2,$3,now())',
+        [
+          id,
+          `race-${id}@example.test`,
+          JSON.stringify({
+            invited_by: freshOwnerId,
+            invitation_purpose: 'team_member',
+            organization_id: newOrgId,
+          }),
+        ],
+      );
+    }
+    await pool.query('UPDATE subscriptions SET max_doctors=3 WHERE organization_id=$1', [newOrgId]);
+    const provisioningRace = await Promise.all(
+      competingDoctors.map((id) =>
+        asService('SELECT provision_team_member_atomic($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+          freshOwnerId,
+          newOrgId,
+          newClinicId,
+          id,
+          `race-${id}@example.test`,
+          'Concurrent doctor',
+          'doctor',
+          'الطب العام',
+          35,
+          `RACE-${id}`,
+        ])
+          .then(() => 'OK')
+          .catch((e: { code: string }) => e.code),
+      ),
+    );
+    assert.equal(provisioningRace.filter((code) => code === 'OK').length, 1);
+    assert.equal(provisioningRace.filter((code) => code === 'P0009').length, 1);
+    assert.equal(
+      (await asUser(freshOwnerId, 'SELECT id FROM doctors WHERE organization_id=$1', [newOrgId]))
+        .length,
+      3,
+      'Concurrent provisioning cannot exceed the actual subscription limit',
+    );
+
+    const claimedInvitationCleanup = await asService<{ discarded: boolean }>(
+      'SELECT discard_pending_invitation($1,$2,$3,$4,$5) AS discarded',
+      [
+        provisionedMemberId,
+        `rem-${provisionedMemberId}@example.test`,
+        freshOwnerId,
+        'team_member',
+        newOrgId,
+      ],
+    );
+    assert.equal(claimedInvitationCleanup[0].discarded, false);
+    assert.equal(
+      (await asUser(provisionedMemberId, 'SELECT id FROM users WHERE id=$1', [provisionedMemberId]))
+        .length,
+      1,
+      'Rollback cannot delete an invitation that has already become a real team member',
+    );
+    const unusedInvitationId = randomUUID();
+    const signedInInvitationId = randomUUID();
+    extraUsers.push(unusedInvitationId, signedInInvitationId);
+    for (const id of [unusedInvitationId, signedInInvitationId]) {
+      await pool.query(
+        'INSERT INTO auth.users(id,email,raw_user_meta_data,invited_at,last_sign_in_at) VALUES($1,$2,$3,now(),$4)',
+        [
+          id,
+          `invite-${id}@example.test`,
+          JSON.stringify({
+            invited_by: freshOwnerId,
+            invitation_purpose: 'team_member',
+            organization_id: newOrgId,
+          }),
+          id === signedInInvitationId ? new Date() : null,
+        ],
+      );
+    }
+    const cleanupAfterSignIn = await asService<{ discarded: boolean }>(
+      'SELECT discard_pending_invitation($1,$2,$3,$4,$5) AS discarded',
+      [
+        signedInInvitationId,
+        `invite-${signedInInvitationId}@example.test`,
+        freshOwnerId,
+        'team_member',
+        newOrgId,
+      ],
+    );
+    assert.equal(cleanupAfterSignIn[0].discarded, false);
+    const cleanupPending = await asService<{ discarded: boolean }>(
+      'SELECT discard_pending_invitation($1,$2,$3,$4,$5) AS discarded',
+      [
+        unusedInvitationId,
+        `invite-${unusedInvitationId}@example.test`,
+        freshOwnerId,
+        'team_member',
+        newOrgId,
+      ],
+    );
+    assert.equal(cleanupPending[0].discarded, true);
+    assert.equal(
+      (await asUser(unusedInvitationId, 'SELECT id FROM users WHERE id=$1', [unusedInvitationId]))
+        .length,
+      0,
+    );
+    console.log(
+      'PASS provisioning: only scoped unused invitations can be claimed or safely discarded',
+    );
 
     // 5. tenant_billing_requests tracks pending -> approved lifecycle
     for (const actor of [recA, ownerB]) {
@@ -1022,8 +1290,16 @@ async function main() {
     );
   } finally {
     if (inserted) {
-      const allOrgs = [orgA, orgB, ...extraOrgs];
       const allUsers = [...ids, ...extraUsers];
+      // A deliberately failing exploit may have created an organization before
+      // an assertion rejects it. Cleanup remains scoped to these test identities.
+      const ownedTestOrgs = await pool.query<{ id: string }>(
+        'SELECT id FROM organizations WHERE owner_id=ANY($1::uuid[])',
+        [allUsers],
+      );
+      const allOrgs = [
+        ...new Set([orgA, orgB, ...extraOrgs, ...ownedTestOrgs.rows.map((r) => r.id)]),
+      ];
       await pool.query('DELETE FROM reviews WHERE doctor_id=ANY($1::uuid[])', [
         [docA, docB, docPending],
       ]);

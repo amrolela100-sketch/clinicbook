@@ -351,7 +351,17 @@ describe('Supabase Actions Service Security & Validation', () => {
       ),
     ).rejects.toMatchObject({ status: 500, code: 'MIGRATION_REQUIRED' });
 
-    expect(mockDeleteUser).toHaveBeenCalledWith('new-user-id');
+    expect(adminRpcCalls).toContainEqual({
+      fn: 'discard_pending_invitation',
+      args: {
+        p_user_id: 'new-user-id',
+        p_email: 'doctor-new@example.com',
+        p_actor_id: 'owner-new',
+        p_purpose: 'clinic_onboarding',
+        p_org: null,
+      },
+    });
+    expect(mockDeleteUser).not.toHaveBeenCalled();
   });
 
   it('throws for unknown action types', async () => {
@@ -446,7 +456,7 @@ describe('Supabase Actions Service Security & Validation', () => {
       doctorName: 'د. فادي',
       email: 'fadi@example.com',
       license: 'SY-DOC-9988',
-      tier: 'clinic_pro',
+      tier: 'solo_starter',
     });
 
     expect(res.success).toBe(true);
@@ -745,7 +755,17 @@ describe('Supabase Actions Service Security & Validation', () => {
       }),
     ).rejects.toMatchObject({ status: 409, code: 'CONFLICT' });
 
-    expect(mockDeleteUser).toHaveBeenCalledWith('new-user-id');
+    expect(adminRpcCalls).toContainEqual({
+      fn: 'discard_pending_invitation',
+      args: {
+        p_user_id: 'new-user-id',
+        p_email: 'rollback@example.com',
+        p_actor_id: 'owner-1',
+        p_purpose: 'team_member',
+        p_org: 'org-1',
+      },
+    });
+    expect(mockDeleteUser).not.toHaveBeenCalled();
   });
 
   it('requires the atomic team migration instead of falling back to partial writes', async () => {
@@ -767,7 +787,8 @@ describe('Supabase Actions Service Security & Validation', () => {
       }),
     ).rejects.toMatchObject({ status: 500, code: 'MIGRATION_REQUIRED' });
 
-    expect(mockDeleteUser).toHaveBeenCalledWith('new-user-id');
+    expect(adminRpcCalls.some((call) => call.fn === 'discard_pending_invitation')).toBe(true);
+    expect(mockDeleteUser).not.toHaveBeenCalled();
     expect(adminRpcCalls.some((call) => call.fn === 'provision_team_member_atomic')).toBe(true);
   });
 

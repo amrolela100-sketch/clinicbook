@@ -400,7 +400,7 @@ export function Onboarding() {
     doctorName: '',
     email: authUser?.email ?? '',
     license: '',
-    tier: 'clinic_pro',
+    tier: 'solo_starter',
   });
   useEffect(() => {
     if (authUser) {
@@ -494,7 +494,7 @@ export function Onboarding() {
                 ? 'أخبرنا عن المكان الذي تصنع فيه الفرق.'
                 : step === 2
                   ? 'بيانات الطبيب الأول والترخيص الطبي.'
-                  : 'يمكنك طلب تغيير الباقة لاحقًا من مساحة العمل.'}
+                  : 'تبدأ التجربة بباقة Starter. يمكنك طلب تفعيل Pro لاحقًا من صفحة الفوترة.'}
             </p>
             <form onSubmit={submit}>
               {step === 1 ? (
@@ -548,19 +548,13 @@ export function Onboarding() {
                       onChange={(e) => change('doctorName', e.target.value)}
                     />
                   </Field>
-                  <Field label="البريد الإلكتروني للمدير">
+                  <Field label="البريد الإلكتروني للطبيب الأول">
                     <input
                       required
                       type="email"
                       dir="ltr"
                       value={form.email}
                       onChange={(e) => change('email', e.target.value)}
-                      readOnly={Boolean(authUser?.email && form.email)}
-                      style={
-                        authUser?.email && form.email
-                          ? { opacity: 0.7, cursor: 'not-allowed' }
-                          : undefined
-                      }
                     />
                   </Field>
                   <Field label="رقم الترخيص الطبي">
@@ -573,7 +567,8 @@ export function Onboarding() {
                     />
                   </Field>
                   <div className="info-note">
-                    يُنشأ حساب مستقل للمدير. تتطلب بيانات الطبيب الاعتماد قبل إتاحة الحجز.
+                    استخدم بريدًا مختلفًا عن المدير لتسجيل الدخول بحساب طبيب معالج مستقل. تتطلب
+                    بيانات الطبيب الاعتماد قبل إتاحة الحجز.
                   </div>
                 </>
               ) : (
@@ -598,11 +593,15 @@ export function Onboarding() {
                       <label key={p.key} className={form.tier === p.key ? 'selected' : ''}>
                         <input
                           type="radio"
+                          name="onboarding-tier"
                           checked={form.tier === p.key}
+                          disabled={p.key !== 'solo_starter'}
                           onChange={() => change('tier', p.key)}
                         />
                         <div>
-                          <span>{p.subtitle}</span>
+                          <span>
+                            {p.key === 'clinic_pro' ? 'بطلب تفعيل بعد التسجيل' : p.subtitle}
+                          </span>
                           <h3 dir="ltr">{p.name}</h3>
                           <p>{p.text}</p>
                         </div>
@@ -614,8 +613,8 @@ export function Onboarding() {
                     ))}
                   </div>
                   <div className="info-note">
-                    فترة تجربة مجانية لمدة 14 يومًا بدون الحاجة لبطاقة ائتمانية. تحكم كامل بالباقات
-                    وإدارتها في أي وقت.
+                    تجربة Starter لمدة 14 يومًا: طبيب واحد وفرع واحد. Pro لا يتفعّل باختيار الباقة
+                    هنا؛ يُطلب لاحقًا من صفحة الفوترة ويحتاج موافقة الإدارة.
                   </div>
                 </>
               )}
