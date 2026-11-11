@@ -545,6 +545,10 @@ async function main() {
       asAnon('SELECT id, email FROM public.users LIMIT 1'),
       (e: unknown) => (e as { code: string }).code === '42501',
     );
+    await assert.rejects(
+      asAnon('SELECT patient_id FROM public.reviews LIMIT 1'),
+      (e: unknown) => (e as { code: string }).code === '42501',
+    );
 
     // Cross-doctor email isolation & team_directory scoping
     assert.equal(
