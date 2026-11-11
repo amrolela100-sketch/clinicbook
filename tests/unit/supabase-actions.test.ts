@@ -510,6 +510,54 @@ describe('Supabase Actions Service Security & Validation', () => {
     if (res.success) {
       expect(res.data).toEqual({ appointmentId: 'appt-1' });
     }
+    expect(serverRpcCalls).toEqual([
+      {
+        fn: 'save_medical_record_and_complete',
+        args: {
+          p_appointment_id: 'appt-1',
+          p_diagnosis: 'نزلة برد حادة',
+          p_complaint: 'سعال وحرارة',
+          p_notes: 'راحة تامة لمدة ثلاثة أيام',
+          p_prescription: [
+            { name: 'باراسيتامول', dose: '500mg', frequency: '3 مرات', duration: '5 أيام' },
+          ],
+          p_follow_up: '2026-11-15',
+          p_visible: true,
+        },
+      },
+    ]);
+    expect(serverFromTables).not.toContain('medical_records');
+  });
+
+  it.each([
+    ['42501', 403, 'FORBIDDEN'],
+    ['P0002', 404, 'NOT_FOUND'],
+    ['22023', 422, 'INVALID_STATE'],
+    ['23514', 422, 'INVALID_STATE'],
+    ['55000', 422, 'INVALID_STATE'],
+    ['PGRST202', 500, 'MIGRATION_REQUIRED'],
+  ])('fails closed on encounter RPC error %s', async (databaseCode, status, code) => {
+    mockTableData['appointments'] = {
+      id: 'appt-1',
+      organization_id: 'org-1',
+      clinic_id: 'clinic-1',
+      doctor_id: doctorUser.id,
+      patient_id: patientUser.id,
+      status: 'confirmed',
+    };
+    mockServerRpcResponses['save_medical_record_and_complete'] = {
+      data: null,
+      error: { code: databaseCode, message: 'private-diagnosis-or-dsn' },
+    };
+
+    await expect(
+      executeSupabaseAction(doctorUser, 'medical', {
+        appointmentId: 'appt-1',
+        diagnosis: 'synthetic',
+      }),
+    ).rejects.toMatchObject({ status, code });
+    expect(serverFromTables).not.toContain('medical_records');
+    expect(serverRpcCalls).toHaveLength(1);
   });
 
   it('requires an explicit branch even for a doctor editing their own schedule', async () => {

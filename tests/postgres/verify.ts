@@ -507,8 +507,7 @@ async function main() {
     );
     assert.equal(Number(retryArchive[0].archive_medical_records), 0);
     await assert.rejects(
-      asUser(
-        docA,
+      pool.query(
         "UPDATE medical_records SET diagnosis='mutated after archive' WHERE appointment_id=$1",
         [retentionEligibleAppointment],
       ),
@@ -538,6 +537,137 @@ async function main() {
       null,
     ]);
     console.log('PASS lifecycle parity: owner confirms, only treating doctor completes');
+
+    const encounterRpc =
+      'SELECT save_medical_record_and_complete($1,$2,$3,$4,$5::jsonb,$6::date,$7)';
+    const atomicEncounter = randomUUID();
+    await pool.query(
+      "INSERT INTO appointments(id,organization_id,clinic_id,doctor_id,patient_id,start_at,end_at,status) VALUES($1,$2,$3,$4,$5,now()-interval '5 days',now()-interval '5 days'+interval '30 min','confirmed')",
+      [atomicEncounter, orgA, clinicA, docA, patientA],
+    );
+    await asUser(docA, encounterRpc, [
+      atomicEncounter,
+      'atomic encounter diagnosis',
+      'synthetic complaint',
+      'synthetic note',
+      JSON.stringify([{ name: 'medicine', dose: '5mg', frequency: 'daily', duration: '3 days' }]),
+      '2026-11-20',
+      true,
+    ]);
+    const committedEncounter = await asUser<{
+      status: string;
+      diagnosis: string;
+      doctor_notes: string;
+      completed: boolean;
+    }>(
+      docA,
+      `SELECT a.status,m.diagnosis,m.doctor_notes,a.completed_at IS NOT NULL AS completed
+       FROM appointments a JOIN medical_records m ON m.appointment_id=a.id
+       WHERE a.id=$1`,
+      [atomicEncounter],
+    );
+    assert.deepEqual(committedEncounter, [
+      {
+        status: 'completed',
+        diagnosis: 'atomic encounter diagnosis',
+        doctor_notes: 'synthetic note',
+        completed: true,
+      },
+    ]);
+    console.log('PASS atomic encounter save and completion commit together');
+
+    const rollbackEncounter = randomUUID();
+    await pool.query(
+      "INSERT INTO appointments(id,organization_id,clinic_id,doctor_id,patient_id,start_at,end_at,status) VALUES($1,$2,$3,$4,$5,now()-interval '6 days',now()-interval '6 days'+interval '30 min','confirmed')",
+      [rollbackEncounter, orgA, clinicA, docA, patientA],
+    );
+    // Fail the INSERT after transition_appointment has run inside the RPC.
+    // This proves transaction rollback, rather than just preflight rejection.
+    await pool.query(
+      "ALTER TABLE medical_records ADD CONSTRAINT verify_encounter_rollback CHECK(diagnosis <> 'transaction-rollback-sentinel') NOT VALID",
+    );
+    try {
+      await assert.rejects(
+        asUser(docA, encounterRpc, [
+          rollbackEncounter,
+          'transaction-rollback-sentinel',
+          '',
+          '',
+          '[]',
+          null,
+          true,
+        ]),
+        (error: unknown) => (error as { code: string }).code === '23514',
+      );
+      const rolledBack = await pool.query<{ status: string; completed_at: Date | null }>(
+        'SELECT status,completed_at FROM appointments WHERE id=$1',
+        [rollbackEncounter],
+      );
+      assert.deepEqual(rolledBack.rows, [{ status: 'confirmed', completed_at: null }]);
+      assert.equal(
+        (
+          await pool.query('SELECT id FROM medical_records WHERE appointment_id=$1', [
+            rollbackEncounter,
+          ])
+        ).rowCount,
+        0,
+      );
+      assert.equal(
+        (
+          await pool.query(
+            "SELECT id FROM audit_logs WHERE entity_id=$1 AND action='appointment.completed'",
+            [rollbackEncounter],
+          )
+        ).rowCount,
+        0,
+      );
+    } finally {
+      await pool.query('ALTER TABLE medical_records DROP CONSTRAINT verify_encounter_rollback');
+    }
+
+    for (const actor of [ownerA, recA, patientA, docB]) {
+      await assert.rejects(
+        asUser(actor, encounterRpc, [
+          rollbackEncounter,
+          'unauthorized encounter',
+          '',
+          '',
+          '[]',
+          null,
+          true,
+        ]),
+        (error: unknown) => (error as { code: string }).code === '42501',
+      );
+    }
+    await assert.rejects(
+      asUser(
+        docA,
+        "INSERT INTO medical_records(appointment_id,organization_id,doctor_id,patient_id,diagnosis) VALUES($1,$2,$3,$4,'bypass')",
+        [rollbackEncounter, orgA, docA, patientA],
+      ),
+      (error: unknown) => (error as { code: string }).code === '42501',
+    );
+
+    const raceEncounter = randomUUID();
+    await pool.query(
+      "INSERT INTO appointments(id,organization_id,clinic_id,doctor_id,patient_id,start_at,end_at,status) VALUES($1,$2,$3,$4,$5,now()-interval '7 days',now()-interval '7 days'+interval '30 min','confirmed')",
+      [raceEncounter, orgA, clinicA, docA, patientA],
+    );
+    await Promise.all(
+      ['concurrent diagnosis one', 'concurrent diagnosis two'].map((diagnosis) =>
+        asUser(docA, encounterRpc, [raceEncounter, diagnosis, '', '', '[]', null, true]),
+      ),
+    );
+    const concurrentEncounter = await pool.query<{ status: string; n: number }>(
+      `SELECT a.status,count(m.id)::int AS n FROM appointments a
+       LEFT JOIN medical_records m ON m.appointment_id=a.id
+       WHERE a.id=$1 GROUP BY a.status`,
+      [raceEncounter],
+    );
+    assert.deepEqual(concurrentEncounter.rows, [{ status: 'completed', n: 1 }]);
+    console.log(
+      'PASS encounter rollback, actor authorization, direct-write denial, and concurrent saves',
+    );
     const review = await asUser(
       patientA,
       'INSERT INTO reviews(appointment_id,doctor_id,patient_id,rating) VALUES($1,$2,$3,5) RETURNING id',
@@ -961,11 +1091,15 @@ async function main() {
     await asUser(recA, "UPDATE appointments SET payment_status='paid_cash' WHERE id=$1", [
       winner.id,
     ]);
-    await asUser(
-      docA,
-      "UPDATE medical_records SET doctor_notes='private-clinical-sentinel' WHERE appointment_id=$1",
-      [past],
-    );
+    await asUser(docA, encounterRpc, [
+      past,
+      'synthetic',
+      '',
+      'private-clinical-sentinel',
+      '[]',
+      null,
+      true,
+    ]);
     const committedAudit = await asUser<{ action: string; actor_id: string; metadata: unknown }>(
       ownerA,
       "SELECT action, actor_id, metadata FROM audit_logs WHERE organization_id=$1 AND source='database'",

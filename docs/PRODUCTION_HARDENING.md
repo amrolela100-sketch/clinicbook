@@ -21,6 +21,7 @@ No migrations have been applied to a remote database.
 | #9 | Production write endpoints require shared Redis counters, HMAC identifiers, actor/account budgets and a trusted ingress IP contract; Redis failure returns 503 instead of falling back. | Two real production instances, spoofed headers and Redis outage/timeout |
 | #12 | Schedule writes require an explicit branch, replace only that doctor's rows in that branch, and require the doctor's active branch membership. | Actual PostgreSQL branch preservation/authorization and action validation |
 | #6 | Clinical records use restrictive parent references, ten-year retention metadata, legal holds and service-only idempotent archival. Application and service roles cannot hard-delete them. | Actual PostgreSQL constraints, roles, legal-hold/archive behavior and delete guard |
+| #10.3 | One treating-doctor RPC locks the visit, preserves lifecycle validation and commits record save plus visit completion atomically. Direct client record writes are revoked. | Actual PostgreSQL rollback after a forced insert failure, actor isolation/concurrency, and service error mapping |
 
 The audit's claim that direct availability writes were open at the base commit was
 too broad: `20261110000001` already revoked direct DML. The vulnerable schedule RPC,
@@ -52,6 +53,20 @@ multi-branch doctor membership.
 - This policy does not yet calculate a different period for minors because the
   current schema has no authoritative date of birth. Legal hold must be used when
   a longer jurisdiction-specific period applies until that domain data is added.
+
+## Atomic encounter completion
+
+- Production uses `save_medical_record_and_complete()` instead of a medical-record
+  upsert followed by a separate appointment transition.
+- The RPC locks the appointment, checks the active treating doctor and valid
+  visit/time state, then uses the existing lifecycle RPC in the same transaction.
+  Invalid input, archived records or an insert failure rolls back both mutations
+  and their database audit events.
+- Concurrent saves serialize on the appointment; they cannot create duplicate
+  records. An already-completed encounter can be amended by its treating doctor
+  until archival; this is an amendment, not a second completion.
+- Missing migration errors fail closed with `MIGRATION_REQUIRED`; the application
+  never falls back to separate writes.
 
 ## Audit and billing migration notes
 
@@ -156,7 +171,6 @@ The repository audit did not cover several advisories returned by `npm audit`:
 ## Remaining release blockers
 
 - #9: distributed rate limiting and a trusted-proxy contract for the deployment.
-- #10.3: atomic encounter completion.
 - Production-like E2E, migration upgrade testing, backups/restore testing,
   monitoring, credential configuration and deployment-specific checks.
 

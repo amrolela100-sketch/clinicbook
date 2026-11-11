@@ -393,47 +393,41 @@ export async function executeSupabaseAction(
           ? b.followUp.slice(0, 10)
           : null;
 
-      const { error: medErr } = await serverClient.from('medical_records').upsert(
-        {
-          appointment_id: b.appointmentId,
-          organization_id: appt.organization_id,
-          doctor_id: appt.doctor_id,
-          patient_id: appt.patient_id,
-          chief_complaint: b.complaint,
-          diagnosis: b.diagnosis,
-          prescription_items: b.medications,
-          doctor_notes: b.notes,
-          follow_up_recommended_date: followUpDate,
-          is_visible_to_patient: b.visible,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'appointment_id' },
-      );
+      // The RPC locks the visit and commits both mutations in one transaction.
+      // A preflight read cannot make separate PostgREST writes atomic.
+      const { error: medErr } = await serverClient.rpc('save_medical_record_and_complete', {
+        p_appointment_id: b.appointmentId,
+        p_diagnosis: b.diagnosis,
+        p_complaint: b.complaint,
+        p_notes: b.notes,
+        p_prescription: b.medications,
+        p_follow_up: followUpDate,
+        p_visible: b.visible,
+      });
 
       if (medErr) {
-        throw new SupabaseActionError(
-          medErr.message || 'تعذر حفظ السجل الطبي.',
-          medErr.code === '42501' ? 403 : 500,
-          medErr.code === '42501' ? 'FORBIDDEN' : 'DB_ERROR',
-        );
-      }
-
-      if (appt.status !== 'completed') {
-        const { transitionSupabaseAppointment } = await import('./supabase-booking-service');
-        const transRes = await transitionSupabaseAppointment(b.appointmentId, 'completed');
-        if (!transRes.success) {
+        if (medErr.code === '42501') {
+          throw new SupabaseActionError('غير مصرح لك بتسجيل هذه الزيارة.', 403, 'FORBIDDEN');
+        }
+        if (medErr.code === 'P0002') {
+          throw new SupabaseActionError('الموعد غير موجود.', 404, 'NOT_FOUND');
+        }
+        if (['22023', '22007', '23514', '55000'].includes(medErr.code ?? '')) {
           throw new SupabaseActionError(
-            transRes.error || 'تعذر إتمام حالة الموعد.',
-            transRes.code === 'FORBIDDEN'
-              ? 403
-              : transRes.code === 'UNAUTHORIZED'
-                ? 401
-                : transRes.code === 'NOT_FOUND'
-                  ? 404
-                  : 422,
-            transRes.code || 'ACTION_ERROR',
+            'لا يمكن حفظ الاستشارة وإكمال الزيارة في حالتها الحالية.',
+            422,
+            'INVALID_STATE',
           );
         }
+        if (medErr.code === 'PGRST202') {
+          throw new SupabaseActionError(
+            'ترحيل حفظ الاستشارة الذري غير مطبق على قاعدة البيانات.',
+            500,
+            'MIGRATION_REQUIRED',
+          );
+        }
+        console.error('[Atomic Encounter RPC Error]:', { code: medErr.code });
+        throw new SupabaseActionError('تعذر حفظ السجل الطبي وإكمال الزيارة.', 500, 'DB_ERROR');
       }
 
       return { success: true, data: { appointmentId: b.appointmentId } };
