@@ -19,7 +19,10 @@
     0 10px 25px -4px rgba(27, 94, 75, 0.4),
     0 4px 6px -2px rgba(0, 0, 0, 0.05);
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Never interpolate the focus outline through low-contrast colors. */
+  transition:
+    transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 600;
@@ -34,7 +37,7 @@
 }
 
 .agent-fab:focus-visible {
-  outline: 3px solid #82c4a3;
+  outline: 3px solid #2f6b4f;
   outline-offset: 3px;
 }
 

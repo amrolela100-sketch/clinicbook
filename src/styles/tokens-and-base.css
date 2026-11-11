@@ -115,7 +115,9 @@
   input:focus-visible,
   select:focus-visible,
   textarea:focus-visible {
-    outline: 3px solid #a5c9a9;
+    /* WCAG 2.2 SC 1.4.11 / 2.4.13: #2f6b4f is 6.29:1 on white
+       and 5.89:1 on the #f6f8f5 page background (was #a5c9a9 at 1.82:1). */
+    outline: 3px solid #2f6b4f;
     outline-offset: 3px;
   }
   input,
@@ -541,16 +543,16 @@
 .badge-active,
 .badge-paid_cash {
   background: #eaf5ed;
-  color: #4d7960;
+  color: #486f58;
 }
 .badge-checked_in {
   background: #eef1f9;
-  color: #5d708d;
+  color: #566985;
 }
 .badge-pending,
 .badge-trialing {
   background: #fbf3e2;
-  color: #876c3a;
+  color: #7f6535;
 }
 .badge-completed {
   background: #eff3e9;
@@ -560,7 +562,7 @@
 .badge-rejected,
 .badge-no_show {
   background: #fbefea;
-  color: #996455;
+  color: #925c4e;
 }
 .avatar {
   width: 38px;

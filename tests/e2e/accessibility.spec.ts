@@ -21,7 +21,7 @@ test.describe('ClinicBook Comprehensive Accessibility Audit (axe-core)', () => {
     await expect(page.locator('.hero')).toBeVisible();
 
     const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .analyze();
 
     expect(results.violations).toEqual([]);
@@ -33,7 +33,7 @@ test.describe('ClinicBook Comprehensive Accessibility Audit (axe-core)', () => {
     await expect(page.locator('.search-layout')).toBeVisible();
 
     const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .analyze();
 
     expect(results.violations).toEqual([]);
@@ -45,7 +45,7 @@ test.describe('ClinicBook Comprehensive Accessibility Audit (axe-core)', () => {
     await expect(page.locator('.profile-card')).toBeVisible();
 
     const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .analyze();
 
     expect(results.violations).toEqual([]);
@@ -57,7 +57,7 @@ test.describe('ClinicBook Comprehensive Accessibility Audit (axe-core)', () => {
     await expect(page.locator('.auth-form-wrap')).toBeVisible();
 
     const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .analyze();
 
     expect(results.violations).toEqual([]);
@@ -67,7 +67,7 @@ test.describe('ClinicBook Comprehensive Accessibility Audit (axe-core)', () => {
     await expect(page.getByLabel('الاسم الكامل')).toBeVisible();
 
     const signUpResults = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .analyze();
 
     expect(signUpResults.violations).toEqual([]);
@@ -79,7 +79,7 @@ test.describe('ClinicBook Comprehensive Accessibility Audit (axe-core)', () => {
     await expect(page.locator('.onboarding-page')).toBeVisible();
 
     const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .analyze();
 
     expect(results.violations).toEqual([]);
@@ -91,7 +91,7 @@ test.describe('ClinicBook Comprehensive Accessibility Audit (axe-core)', () => {
     await loaded(page);
 
     const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .analyze();
 
     expect(results.violations).toEqual([]);
@@ -104,7 +104,7 @@ test.describe('ClinicBook Comprehensive Accessibility Audit (axe-core)', () => {
     await expect(page.locator('.stat-card').first()).toBeVisible();
 
     const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .analyze();
 
     expect(results.violations).toEqual([]);
@@ -119,7 +119,7 @@ test.describe('ClinicBook Comprehensive Accessibility Audit (axe-core)', () => {
     await expect(page.locator('.page-heading h1')).toBeVisible();
 
     const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .analyze();
 
     expect(results.violations).toEqual([]);
@@ -132,7 +132,7 @@ test.describe('ClinicBook Comprehensive Accessibility Audit (axe-core)', () => {
     await expect(page.locator('.schedule-week')).toBeVisible();
 
     const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .analyze();
 
     expect(results.violations).toEqual([]);
@@ -145,7 +145,7 @@ test.describe('ClinicBook Comprehensive Accessibility Audit (axe-core)', () => {
     await expect(page.locator('.page-heading h1')).toBeVisible();
 
     const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .analyze();
 
     expect(results.violations).toEqual([]);
@@ -167,7 +167,7 @@ test.describe('ClinicBook Comprehensive Accessibility Audit (axe-core)', () => {
 
     const results = await new AxeBuilder({ page })
       .include('aside[aria-label="المساعد الطبي الذكي"]')
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .analyze();
 
     expect(results.violations).toEqual([]);

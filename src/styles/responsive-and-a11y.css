@@ -2377,6 +2377,12 @@
   color: #6b5e38;
 }
 
+/* Keep keyboard focus visible when component styles suppress the base outline. */
+.hero-search select:focus-visible {
+  outline: 3px solid #2f6b4f;
+  outline-offset: 3px;
+}
+
 /* Modern Web Guidance: Rendering & Containment Optimization */
 .how-section,
 .clinic-cta {

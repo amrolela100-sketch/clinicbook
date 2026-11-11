@@ -27,6 +27,12 @@ No migrations have been applied to a remote database.
 | #28 | Cron requires an explicit secret in every environment and executes atomic, idempotent expiry/no-show/reminder/subscription/archive jobs. The scheduler is configured and HTTP responses contain counts only. | Actual PostgreSQL jobs, concurrent retries/legal holds, HTTP authorization and real production database failures/deadlines |
 | #17 | Public doctor portraits use responsive Next images with reserved dimensions; four oversized originals map to new WebP assets, retaining the original files. | Actual desktop/mobile browser image responses, layout/candidate selection and byte budgets |
 | #11 | Narrow hot-path indexes cover branch schedules, patient/doctor record recency, tenant/global audit recency and global pending expiry; existing doctor-specific expiry indexing remains. | Actual PostgreSQL catalogue keys/predicates and ordered index-path capability |
+| #15 | Focus outlines are visible immediately, without a low-contrast color transition; status badge text meets AA contrast and sampled axe scans include WCAG 2.2 AA tags. | Real browser computed contrast/keyboard focus, known-ratio unit checks and sampled axe scans |
+
+The focus outline is **6.29:1 on white**, up from 1.82:1. The changed status badges
+now range from **4.82:1 to 5.09:1** on their respective backgrounds. Browser tests
+also caught an animated outline passing through pale colors; limiting launcher
+transitions to transform/shadow fixes the immediate, not just settled, focus state.
 
 The four optimized portraits total **203,810 bytes**, down from **2,630,953 bytes**
 for their originals (about 92% less). This is an image-path improvement, not a
