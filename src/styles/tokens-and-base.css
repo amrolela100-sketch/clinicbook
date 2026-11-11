@@ -171,13 +171,13 @@
     inset-inline-start: 3px;
     border-radius: 50%;
     background: #fff;
-    transition: transform 0.2s;
+    transition: inset-inline-start 0.2s;
   }
   input[role='switch']:checked {
     background: var(--primary);
   }
   input[role='switch']:checked:after {
-    transform: translateX(-15px);
+    inset-inline-start: calc(100% - 16px - 3px);
   }
   input:read-only {
     background: #f7faf4;
