@@ -66,6 +66,21 @@ reproduced and fixed.
 - A real Supabase staging invitation/acceptance/rollback test is still required:
   local verification models the Auth columns but does not run GoTrue or SMTP.
 
+## Additional dependency findings
+
+The repository audit did not cover several advisories returned by `npm audit`:
+
+- Next.js was updated from 15.5.27 to the patched 15.5.28 range.
+- Next's PostCSS dependency is overridden to the patched 8.5.30 range.
+- Zod was migrated from 3.25 to the patched 4.6.7 range.
+- Vitest was upgraded to 5.1.0, removing the vulnerable mocker/worker-tool chain.
+  Its config is now `vitest.config.mts`; test-only automatic JSX transformation
+  prevents Vite from inheriting Next's `jsx: preserve` compiler behavior.
+- Node 22.12+ is required; CI remains on Node 22.
+- `npm run audit` and `npm run audit:production` report **0 known advisories** at
+  this verification point. CI now blocks on high/critical dependency advisories.
+  A clean registry audit is not proof that the application has no vulnerabilities.
+
 ## Verification so far
 
 - Vitest: **176/176** passing across 12 files.

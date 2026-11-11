@@ -1,7 +1,9 @@
 import { defineConfig } from 'vitest/config';
-import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 export default defineConfig({
-  resolve: { alias: { '@': path.resolve(__dirname, 'src') } },
+  resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+  // Next preserves JSX for SWC; Vite must compile it when importing TSX in tests.
+  oxc: { jsx: { runtime: 'automatic' } },
   test: {
     include: ['tests/**/*.test.ts'],
     environment: 'node',
