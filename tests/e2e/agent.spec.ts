@@ -97,6 +97,14 @@ test.describe('ClinicBook AI Medical Assistant E2E Verification', () => {
     const drawer = page.locator('aside[aria-label="المساعد الطبي الذكي"]');
     await expect(drawer).toBeVisible();
     await expect(drawer).toContainText('مساعد ClinicBook');
+    await expect(drawer).toContainText('تنبيهات تعتمد على قواعد لغوية');
+    await expect(drawer).toContainText('ليس تشخيصًا طبيًا');
+
+    const input = page.getByPlaceholder('اكتب استفسارك أو الأعراض التي تشعر بها...');
+    await input.fill('من انت');
+    await page.getByLabel('إرسال الرسالة').click();
+    await expect(drawer.locator('.whitespace-pre-wrap').last()).toContainText('قواعد لغوية');
+    await expect(drawer.locator('.whitespace-pre-wrap').last()).toContainText('ليس تشخيصًا طبيًا');
 
     // 4. Test quick action suggestion (Dentistry)
     const dentalAction = page.getByRole('button', { name: 'عندي ألم في الأسنان', exact: true });
@@ -109,18 +117,17 @@ test.describe('ClinicBook AI Medical Assistant E2E Verification', () => {
     await expect(slotButton).toBeVisible();
 
     // 6. Test direct chat input for emergency triage
-    const input = page.getByPlaceholder('اكتب استفسارك أو الأعراض التي تشعر بها...');
-    await input.fill('أشعر بألم حاد في الصدر وضيق تنفس');
+    await input.fill('عندي الم على الصدر');
     await page.getByLabel('إرسال الرسالة').click();
 
     // 7. Verify Emergency Triage protocol triggers
-    await expect(page.getByText('بروتوكول فرز الطوارئ الطبية')).toBeVisible();
+    await expect(page.getByText('تنبيه احترازي للطوارئ', { exact: true })).toBeVisible();
     await expect(page.getByRole('link', { name: /اتصال بالإسعاف/ })).toBeVisible();
 
     // 8. Test Reset Chat
     await page.getByLabel('بدء محادثة جديدة').click();
     await expect(page.locator('.whitespace-pre-wrap').first()).toContainText(
-      'مرحباً بك في المساعد الطبي الذكي',
+      'مرحباً بك في مساعد الحجز والإرشاد العام',
     );
 
     // 9. Close Drawer

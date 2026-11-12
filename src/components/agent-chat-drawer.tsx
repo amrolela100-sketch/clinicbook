@@ -33,7 +33,7 @@ interface ChatMessage {
 const INITIAL_WELCOME_MESSAGE: ChatMessage = {
   id: 'welcome',
   sender: 'agent',
-  text: 'مرحباً بك في المساعد الطبي الذكي لمنصة ClinicBook 🌿.\n\nأنا هنا لمساعدتك في استكشاف الأطباء، فرز الأعراض الطبية وتوجيهك للتخصص المناسب، أو حجز موعد مؤكد وفوري بكل سهولة.',
+  text: 'مرحباً بك في مساعد الحجز والإرشاد العام لمنصة ClinicBook 🌿.\n\nأساعدك في استكشاف الأطباء وحجز المواعيد، مع تنبيهات تعتمد على قواعد لغوية للأعراض المحتملة الخطورة. هذا التوجيه ليس تشخيصًا طبيًا ولا يغني عن تقييم الطبيب. وقد تُستخدم ردود مولّدة نصيًا عند تفعيلها.',
   time: 'الآن',
   suggestedActions: [
     'عندي ألم في الأسنان',
@@ -374,7 +374,7 @@ export function AgentChatDrawer() {
                   متاح 24/7
                 </span>
               </div>
-              <p className="text-xs text-teal-100">فرز الأعراض وحجز المواعيد الفورية</p>
+              <p className="text-xs text-teal-100">حجز المواعيد وتنبيهات احترازية بالقواعد</p>
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -419,7 +419,7 @@ export function AgentChatDrawer() {
                 {msg.emergency && (
                   <div className="mb-2.5 flex items-center gap-1.5 font-bold text-rose-800 dark:text-rose-300">
                     <ShieldAlert className="h-5 w-5 shrink-0" />
-                    <span>بروتوكول فرز الطوارئ الطبية 🚨</span>
+                    <span>تنبيه احترازي للطوارئ</span>
                   </div>
                 )}
                 <div className="whitespace-pre-wrap">{msg.text}</div>
@@ -560,7 +560,7 @@ export function AgentChatDrawer() {
           {isLoading && (
             <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 py-2">
               <Bot className="h-4 w-4 animate-bounce text-teal-700 dark:text-teal-300" />
-              <span>جاري فرز الأعراض والبحث في جدول الأطباء...</span>
+              <span>جارٍ البحث في جدول الأطباء وإعداد الرد...</span>
             </div>
           )}
           <div ref={messagesEndRef} />
