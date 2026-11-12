@@ -163,7 +163,7 @@ test.describe('ClinicBook Comprehensive Accessibility Audit (axe-core)', () => {
     const input = page.getByPlaceholder('اكتب استفسارك أو الأعراض التي تشعر بها...');
     await input.fill('انا عم موت شو سوي');
     await page.getByLabel('إرسال الرسالة').click();
-    await expect(page.getByText('بروتوكول فرز الطوارئ الطبية')).toBeVisible();
+    await expect(page.getByText('تنبيه احترازي للطوارئ', { exact: true })).toBeVisible();
 
     const results = await new AxeBuilder({ page })
       .include('aside[aria-label="المساعد الطبي الذكي"]')
