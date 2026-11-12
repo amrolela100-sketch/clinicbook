@@ -72,13 +72,13 @@
     font-size: 13px;
   }
   .hero-assurance {
-    font-size: 8px;
+    font-size: 11px;
   }
   .doctor-card-content {
     padding-inline: 12px;
   }
   .doctor-location {
-    font-size: 8px;
+    font-size: 11px;
   }
   .doctor-card h3 {
     font-size: 17px;
@@ -125,7 +125,7 @@
     font-size: 10px;
   }
   .stat-bottom {
-    font-size: 8px;
+    font-size: 11px;
   }
   .stat-middle > strong {
     font-size: 32px;
@@ -174,10 +174,10 @@
     font-size: 10px;
   }
   .daily-card .visit-type {
-    font-size: 8px;
+    font-size: 11px;
   }
   .daily-card .badge {
-    font-size: 8px;
+    font-size: 11px;
   }
   .team-doctor-row {
     padding-inline: 18px;
@@ -188,10 +188,10 @@
   }
   .team-card-bottom {
     padding-inline: 18px;
-    font-size: 8px;
+    font-size: 11px;
   }
   .small-count {
-    font-size: 8px;
+    font-size: 11px;
   }
   .donut-legend {
     padding-inline: 20px;
@@ -318,7 +318,7 @@
     font-size: 10px;
   }
   .hero-search label small {
-    font-size: 8px;
+    font-size: 11px;
   }
   .hero-search .btn {
     font-size: 10px;
@@ -332,7 +332,7 @@
     font-size: 25px;
   }
   .floating-rating > span {
-    font-size: 7px;
+    font-size: 11px;
   }
   .floating-booking {
     padding: 11px;
@@ -350,7 +350,7 @@
     height: 34px;
   }
   .hero-photo-tag {
-    font-size: 8px;
+    font-size: 11px;
     inset-inline-end: 24px;
   }
   .visual-scribble {
@@ -359,7 +359,7 @@
     top: 8px;
   }
   .hero-assurance {
-    font-size: 7px;
+    font-size: 11px;
   }
   .specialties-grid {
     gap: 10px;
@@ -387,7 +387,7 @@
     font-size: 9px;
   }
   .doctor-location {
-    font-size: 8px;
+    font-size: 11px;
   }
   .doctor-card-bottom {
     gap: 6px;
@@ -444,7 +444,7 @@
     font-size: 10px;
   }
   .clinic-switcher small {
-    font-size: 8px;
+    font-size: 11px;
   }
   .clinic-symbol {
     width: 30px;
@@ -513,7 +513,7 @@
     display: none;
   }
   .stat-bottom {
-    font-size: 8px;
+    font-size: 11px;
     white-space: normal;
   }
   .dashboard-chart-row {
@@ -546,7 +546,7 @@
     font-size: 9px;
   }
   .chart-key {
-    font-size: 8px;
+    font-size: 11px;
   }
   .distribution-card .card-heading p {
     font-size: 9px;
@@ -628,7 +628,7 @@
     font-size: 13px;
   }
   .usage-card .badge {
-    font-size: 8px;
+    font-size: 11px;
   }
   .team-table-top .input-icon {
     max-width: 210px;
@@ -779,7 +779,7 @@
     gap: 8px;
   }
   .public-announcement > span:last-child {
-    font-size: 8px;
+    font-size: 11px;
   }
   .public-container {
     width: calc(100% - 44px);
@@ -829,7 +829,7 @@
     padding-inline: 15px;
   }
   .hero-assurance {
-    font-size: 8px;
+    font-size: 11px;
     gap: 6px;
     margin-top: 15px;
   }
@@ -855,7 +855,7 @@
     font-size: 28px;
   }
   .floating-rating > span {
-    font-size: 8px;
+    font-size: 11px;
   }
   .floating-booking {
     inset-inline-start: 0;
@@ -876,7 +876,7 @@
   .hero-photo-tag {
     inset-inline-end: 45px;
     bottom: 21px;
-    font-size: 8px;
+    font-size: 11px;
   }
   .visual-scribble {
     inset-inline-start: 0;
@@ -1004,7 +1004,7 @@
     font-size: 13px;
   }
   .mini-window p {
-    font-size: 8px;
+    font-size: 11px;
   }
   .mini-window-top {
     height: 19px;
@@ -1607,11 +1607,11 @@
     font-size: 12px;
   }
   .hero-assurance {
-    font-size: 7px;
+    font-size: 11px;
     gap: 5px;
   }
   .hero-search label small {
-    font-size: 8px;
+    font-size: 11px;
   }
   .hero-visual {
     height: 400px;
@@ -1625,7 +1625,7 @@
     font-size: 26px;
   }
   .floating-rating > span {
-    font-size: 7px;
+    font-size: 11px;
   }
   .floating-rating .avatar {
     width: 25px;
@@ -1648,7 +1648,7 @@
   }
   .hero-photo-tag {
     inset-inline-end: 34px;
-    font-size: 7px;
+    font-size: 11px;
     padding: 7px 10px;
   }
   .section-heading h2 {
@@ -1691,10 +1691,10 @@
     font-size: 9px;
   }
   .doctor-location {
-    font-size: 8px;
+    font-size: 11px;
   }
   .doctor-verified {
-    font-size: 7px;
+    font-size: 11px;
     padding: 4px 5px;
     top: 8px;
     inset-inline-start: 8px;
@@ -1914,7 +1914,7 @@
     font-size: 9px;
   }
   .welcome-eyebrow {
-    font-size: 8px;
+    font-size: 11px;
   }
   .stats-grid {
     gap: 12px;
@@ -1939,7 +1939,7 @@
     width: 3px;
   }
   .stat-bottom {
-    font-size: 8px;
+    font-size: 11px;
   }
   .dashboard-chart-row {
     grid-template-columns: 1fr;
@@ -2027,7 +2027,7 @@
   }
   .workspace-footer {
     padding: 15px 16px;
-    font-size: 8px;
+    font-size: 11px;
     gap: 5px;
   }
   .appointment-page-stats > button {

@@ -28,7 +28,7 @@
   font-size: 25px;
 }
 .sidebar .logo b {
-  font-size: 7px;
+  font-size: 11px;
 }
 .sidebar .brandmark {
   width: 30px;
@@ -781,7 +781,7 @@ td > small {
 }
 .daily-card .patient-cell small,
 .daily-card td > small {
-  font-size: 8px;
+  font-size: 11px;
 }
 .daily-card .patient-cell .avatar {
   width: 30px;
@@ -868,7 +868,7 @@ td > small {
 }
 .doctor-appointment-count small {
   font-family: Plex;
-  font-size: 8px;
+  font-size: 11px;
 }
 .team-card-bottom {
   display: flex;

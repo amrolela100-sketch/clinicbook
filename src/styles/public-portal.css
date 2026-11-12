@@ -291,7 +291,7 @@
   color: #2b382c;
 }
 .floating-rating > span {
-  font-size: 8px;
+  font-size: 11px;
   color: #6a7160;
 }
 .avatar-stack {
@@ -431,7 +431,7 @@
   gap: 4px;
   background: #fffffff0;
   color: #647452;
-  font-size: 8px;
+  font-size: 11px;
   padding: 5px 7px;
   border-radius: 5px;
 }
@@ -473,7 +473,7 @@
   color: #667357;
 }
 .rating small {
-  font-size: 8px;
+  font-size: 11px;
   color: #69715e;
 }
 .doctor-card h3 {
@@ -505,7 +505,7 @@
   color: #61754d;
 }
 .doctor-card-bottom > span small {
-  font-size: 8px;
+  font-size: 11px;
   color: #677258;
 }
 .book-link {
