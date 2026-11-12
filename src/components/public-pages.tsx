@@ -1,7 +1,7 @@
 'use client';
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { motion } from 'motion/react';
 import {
@@ -51,7 +51,7 @@ import { Button } from './ui/button';
 import { Modal } from './ui/dialog';
 import type { Doctor, Appointment } from '@/lib/types';
 import { cleanDoctorName, formatDoctorName } from '@/lib/format';
-import { AgentChatDrawer } from './agent-chat-drawer';
+import { AgentChatLauncher } from './agent-chat-launcher';
 
 // Keep persisted portrait names unchanged; only these local originals have WebP copies.
 const optimizedDoctorImages = new Map([
@@ -234,7 +234,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
         </div>
       </header>
       <main>{children}</main>
-      <AgentChatDrawer />
+      <AgentChatLauncher />
       <footer className="public-footer">
         <div>
           <Logo />
@@ -265,7 +265,7 @@ export function Home() {
       <section className="hero public-container">
         <motion.div
           className="hero-copy"
-          initial={{ opacity: 0, y: 20 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
@@ -335,7 +335,7 @@ export function Home() {
         </motion.div>
         <motion.div
           className="hero-visual"
-          initial={{ opacity: 0, scale: 0.96 }}
+          initial={false}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8, delay: 0.1 }}
         >
@@ -580,19 +580,19 @@ export function DoctorCard({
 }
 export function SearchPage() {
   const { data } = useApp();
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState(''),
-    [city, setCity] = useState(''),
-    [specialty, setSpecialty] = useState(''),
+    [city, setCity] = useState(searchParams?.get('city') ?? ''),
+    [specialty, setSpecialty] = useState(searchParams?.get('specialty') ?? ''),
     [district, setDistrict] = useState(''),
     [sort, setSort] = useState('rating'),
     [todayOnly, setTodayOnly] = useState(false),
     [available, setAvailable] = useState<string[]>([]),
     [checking, setChecking] = useState(false);
   useEffect(() => {
-    const p = new URLSearchParams(window.location.search);
-    setCity(p.get('city') ?? '');
-    setSpecialty(p.get('specialty') ?? '');
-  }, []);
+    setCity(searchParams?.get('city') ?? '');
+    setSpecialty(searchParams?.get('specialty') ?? '');
+  }, [searchParams]);
   useEffect(() => {
     if (!todayOnly || !data) return;
     let active = true;

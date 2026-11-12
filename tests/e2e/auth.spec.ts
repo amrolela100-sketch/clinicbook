@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { db } from '../../src/lib/demo-db';
 
 async function loaded(page: Page) {
+  await expect(page.locator('[data-app-ready="true"]')).toBeAttached({ timeout: 15000 });
   await expect(page.locator('.loading-screen')).toHaveCount(0);
   await page.evaluate(() => document.fonts.ready);
 }
@@ -120,18 +121,31 @@ test.describe('Auth Flow, Role Grid, Password Toggles & Navigation Redirection',
     // Attempt sign in with wrong password for seed user
     await page.getByLabel('البريد الإلكتروني').fill('patient@clinicbook.demo');
     await page.locator('input[type="password"]').first().fill('completelyWrongPassword!');
+    const rejected = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/session' &&
+        response.request().method() === 'POST',
+    );
     await page.getByRole('button', { name: 'تسجيل الدخول' }).click();
+    expect((await rejected).status()).toBe(401);
 
     // Verify rejection toast
     await expect(page.getByText('البريد الإلكتروني أو كلمة المرور غير صحيحة')).toBeVisible();
 
     // Enter correct demo password
     await page.locator('input[type="password"]').first().fill('demo1234');
+    const accepted = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/session' &&
+        response.request().method() === 'POST',
+    );
     await page.getByRole('button', { name: 'تسجيل الدخول' }).click();
+    expect((await accepted).status()).toBe(200);
 
     // Should redirect to ?next destination (/search)
     await page.waitForURL(/\/search/);
     await expect(page).toHaveURL(/\/search/);
+    await loaded(page);
 
     // Verify patient header shows "مواعيدي" and logout button
     await expect(page.locator('.public-nav-actions').getByText('مواعيدي')).toBeVisible();
@@ -139,7 +153,13 @@ test.describe('Auth Flow, Role Grid, Password Toggles & Navigation Redirection',
     await expect(logoutBtn).toBeVisible();
 
     // Click logout
+    const loggedOut = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/session' &&
+        response.request().method() === 'DELETE',
+    );
     await logoutBtn.click();
+    expect((await loggedOut).ok()).toBeTruthy();
     await page.waitForURL('http://localhost:3000/');
     await expect(page.locator('.public-nav-actions').getByText('تسجيل الدخول')).toBeVisible();
   });

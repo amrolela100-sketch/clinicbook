@@ -14,7 +14,7 @@ import {
   AlertCircle,
   FileDown,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { cloneElement, isValidElement, useId, type ReactNode } from 'react';
 import type { Status } from '@/lib/types';
 import { Button } from './ui/button';
 export function Logo({ light = false }: { light?: boolean }) {
@@ -209,10 +209,17 @@ export function Field({
   children: ReactNode;
   hint?: string;
 }) {
+  const labelId = useId();
+  const labelledControl =
+    isValidElement<{ 'aria-labelledby'?: string }>(children) &&
+    typeof children.type === 'string' &&
+    ['input', 'select', 'textarea'].includes(children.type)
+      ? cloneElement(children, { 'aria-labelledby': children.props['aria-labelledby'] ?? labelId })
+      : children;
   return (
     <label className="field">
-      <span>{label}</span>
-      {children}
+      <span id={labelId}>{label}</span>
+      {labelledControl}
       {hint && <small>{hint}</small>}
     </label>
   );

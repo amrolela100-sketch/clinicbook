@@ -1,6 +1,7 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 
 async function loaded(page: Page) {
+  await expect(page.locator('[data-app-ready="true"]')).toBeAttached({ timeout: 15000 });
   await expect(page.locator('.loading-screen')).toHaveCount(0, { timeout: 15000 });
   await page.evaluate(() => document.fonts.ready);
 }
@@ -103,12 +104,14 @@ test.describe('Focused UI accessibility regressions', () => {
       await page.evaluate((dir) => (document.documentElement.dir = dir), direction);
       const toggle = page.getByRole('switch', { name: 'متاح اليوم', exact: true });
       await expect(toggle).toBeVisible();
+      await expect(toggle).toHaveCSS('direction', direction);
       await toggle.uncheck();
       const off = await switchThumb(toggle);
       expectThumbInsideTrack(off);
 
       await toggle.check();
       await expect(toggle).toBeChecked();
+      await expect(toggle).toHaveCSS('direction', direction);
       const checkedLeft = direction === 'ltr' ? off.trackWidth - off.width - 3 : 3;
       await expect.poll(async () => (await switchThumb(toggle)).left).toBeCloseTo(checkedLeft, 1);
       const on = await switchThumb(toggle);

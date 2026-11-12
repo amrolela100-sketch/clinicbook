@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import 'server-only';
+import { cache } from 'react';
 import { currentUser, demoEnabled } from '@/lib/auth/session';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { formatDoctorName } from '@/lib/format';
@@ -8,8 +10,6 @@ import type { PublicDoctorDirectoryRow } from '@/lib/supabase/database.types';
 import { redirect, notFound } from 'next/navigation';
 import { headers } from 'next/headers';
 import { ClinicApp } from '@/components/clinic-app';
-
-export const dynamic = 'force-dynamic';
 
 interface PublicDoctorSummary {
   id: string;
@@ -24,10 +24,11 @@ interface PublicDoctorSummary {
   reviews: number;
 }
 
-async function resolvePublicDoctor(doctorId: string): Promise<PublicDoctorSummary | null> {
+const resolvePublicDoctor = cache(async (doctorId: string): Promise<PublicDoctorSummary | null> => {
   try {
     if (demoEnabled()) {
-      const { get } = await import('@/lib/demo-db');
+      const { get, ensureSeed } = await import('@/lib/demo-db');
+      ensureSeed();
       const doc = get<Doctor>('doctor', doctorId);
       const org = doc
         ? get<{
@@ -75,16 +76,9 @@ async function resolvePublicDoctor(doctorId: string): Promise<PublicDoctorSummar
     // Graceful fallback if directory is temporarily unreachable
   }
   return null;
-}
+});
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ path?: string[] }>;
-}): Promise<Metadata> {
-  const { path } = await params;
-  const route = '/' + (path ?? []).join('/');
-
+export async function metadataForClinicRoute(route: string): Promise<Metadata> {
   if (route === '/search') {
     return {
       title: 'ابحث عن طبيب واحجز موعدك فوراً | ClinicBook',
@@ -142,9 +136,7 @@ export async function generateMetadata({
   };
 }
 
-export default async function Page({ params }: { params: Promise<{ path?: string[] }> }) {
-  const { path } = await params;
-  const route = '/' + (path ?? []).join('/');
+export async function renderClinicRoute(route: string) {
   const valid = [
     '/',
     '/search',

@@ -24,6 +24,7 @@ data/session-secret
 coverage/
 playwright-report/
 test-results/
+/tsconfig.e2e-*.json
 
 # Agent & AI Tooling Logs/Cache
 .agents/
@@ -50,4 +51,3 @@ desktop.ini
 *.log
 *.zip
 *.tar.gz
-

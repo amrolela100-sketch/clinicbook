@@ -97,6 +97,7 @@ export function AppProvider({
   const refreshAbort = useRef<AbortController | null>(null);
   const etag = useRef<string | null>(null);
   const bootstrapped = useRef(initialData !== null);
+  const [hydrated, setHydrated] = useState(false);
   const [data, setData] = useState<AppData | null>(initialData),
     [loading, setLoading] = useState(initialData === null),
     [error, setError] = useState(''),
@@ -136,6 +137,7 @@ export function AppProvider({
     }
   }, []);
   useEffect(() => {
+    setHydrated(true);
     if (!bootstrapped.current) void refresh();
     return () => {
       refreshVersion.current += 1;
@@ -291,6 +293,8 @@ export function AppProvider({
   };
   return (
     <Ctx.Provider value={{ data, loading, error, refresh, toast, act, login, signup, logout }}>
+      {/* Server HTML may be visible before its client event handlers are ready. */}
+      <span hidden data-app-ready={hydrated ? 'true' : 'false'} />
       {children}
       <div className="toast-stack" aria-live="polite">
         <AnimatePresence>

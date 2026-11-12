@@ -36,8 +36,39 @@ async function login(page: Page, role: string) {
 }
 
 async function loaded(page: Page) {
+  await expect(page.locator('[data-app-ready="true"]')).toBeAttached({ timeout: 15000 });
   await expect(page.locator('.loading-screen')).toHaveCount(0);
   await page.evaluate(() => document.fonts.ready);
+}
+
+async function showAvailableSlots(page: Page) {
+  const doctorId = new URL(page.url()).pathname.split('/').pop()!;
+  const dateInput = page.getByLabel('تاريخ الحجز');
+  const initialDate = await dateInput.inputValue();
+  // Look for a real working day instead of assuming that tomorrow is open.
+  for (let offset = 0; offset <= 7; offset += 1) {
+    const date = new Date(`${initialDate}T12:00:00Z`);
+    date.setUTCDate(date.getUTCDate() + offset);
+    const targetDate = date.toISOString().slice(0, 10);
+    const response = await page.request.get(
+      `/api/slots?doctorId=${encodeURIComponent(doctorId)}&date=${targetDate}`,
+    );
+    expect(response.ok()).toBeTruthy();
+    const result = await response.json();
+    expect(result.success).toBe(true);
+    if (!result.data.length) continue;
+    if ((await dateInput.inputValue()) !== targetDate) {
+      const changed = page.waitForResponse((value) => {
+        const url = new URL(value.url());
+        return url.pathname === '/api/slots' && url.searchParams.get('date') === targetDate;
+      });
+      await dateInput.fill(targetDate);
+      expect((await changed).ok()).toBeTruthy();
+    }
+    await expect(page.locator('.slot-grid button').first()).toBeVisible();
+    return;
+  }
+  throw new Error('The seeded doctor has no bookable slot in the next week');
 }
 
 test('1. Public discovery, filters, doctor slots and mobile layout', async ({ page }) => {
@@ -71,10 +102,7 @@ test('1. Public discovery, filters, doctor slots and mobile layout', async ({ pa
   await expect(page).toHaveURL(/\/doctors\//);
   await loaded(page);
   await expect(page.locator('.profile-main h1')).toContainText(doctorName ?? '');
-  if ((await page.locator('.slot-grid button').count()) === 0) {
-    await page.locator('.days-carousel button').nth(1).click();
-  }
-  await expect(page.locator('.slot-grid button').first()).toBeVisible();
+  await showAvailableSlots(page);
 
   // 5. Mobile responsive check
   await page.setViewportSize({ width: 390, height: 844 });
@@ -87,15 +115,13 @@ test('1. Public discovery, filters, doctor slots and mobile layout', async ({ pa
 test('2. Patient books real slot then cancels with persisted status', async ({ page }) => {
   await login(page, 'patient');
   await page.goto('/search');
+  await loaded(page);
   await expect(page.locator('.doctor-card').first()).toBeVisible();
   await page.locator('.doctor-card a.book-link').first().click();
   await page.waitForURL(/\/doctors\//);
   await loaded(page);
 
-  if ((await page.locator('.slot-grid button').count()) === 0) {
-    await page.locator('.days-carousel button').nth(1).click();
-  }
-  await expect(page.locator('.slot-grid button').first()).toBeVisible();
+  await showAvailableSlots(page);
   await page.locator('.slot-grid button').first().click();
   await page.getByRole('button', { name: 'متابعة الحجز' }).click();
   await page.getByRole('button', { name: 'تأكيد طلب الحجز', exact: true }).click();
@@ -137,19 +163,27 @@ test('3. Owner navigation, branch save, schedule save and permissions across wor
 
   // Schedule page
   await page.goto('/workspace/schedule');
+  await loaded(page);
   await expect(page.locator('.schedule-week')).toBeVisible();
+  await page.clock.install();
   const firstDay = page.locator('.schedule-day').first();
   const firstDayToggle = firstDay.getByRole('switch');
   if (!(await firstDayToggle.isChecked())) await firstDayToggle.check();
   const unsavedStart = firstDay.getByLabel('بداية الأحد');
   await unsavedStart.fill('08:15');
-  await page.waitForTimeout(21_000);
+  await page.clock.runFor(21_000);
   await expect(unsavedStart).toHaveValue('08:15');
+  const savedSchedule = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/actions' && response.request().method() === 'POST',
+  );
   await page.getByRole('button', { name: 'حفظ جدول الدوام' }).click();
+  expect((await savedSchedule).ok()).toBeTruthy();
   await expect(page.getByText('تم تحديث جدول الدوام', { exact: true })).toBeVisible();
 
   // Team & Branch management
   await page.goto('/workspace/team');
+  await loaded(page);
   await expect(page.getByRole('button', { name: 'إضافة فرع', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'إضافة فرع', exact: true }).click();
   await page.getByLabel('اسم الفرع').fill('فرع اختبار المتصفح');
@@ -212,19 +246,46 @@ test('4. Reception direct booking, check-in and cash collection', async ({ page 
   await page.getByLabel('رقم الهاتف', { exact: true }).fill('+963993333222');
 
   const select = page.getByLabel('الفترة المتاحة');
-  let bookedTomorrow = false;
-  if ((await select.locator('option').count()) <= 1) {
-    bookedTomorrow = true;
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-    await page.getByRole('dialog').getByLabel('تاريخ الموعد').fill(tomorrow);
+  const dateInput = page.getByRole('dialog').getByLabel('تاريخ الموعد');
+  const initialDate = await dateInput.inputValue();
+  const doctorId = await page.getByRole('dialog').getByLabel('الطبيب المعالج').inputValue();
+  let bookedLater = false;
+  for (let offset = 0; offset <= 7; offset += 1) {
+    const date = new Date(`${initialDate}T12:00:00Z`);
+    date.setUTCDate(date.getUTCDate() + offset);
+    const targetDate = date.toISOString().slice(0, 10);
+    const response = await page.request.get(
+      `/api/slots?doctorId=${encodeURIComponent(doctorId)}&date=${targetDate}`,
+    );
+    expect(response.ok()).toBeTruthy();
+    const result = await response.json();
+    expect(result.success).toBe(true);
+    if (!result.data.length) continue;
+    if (targetDate !== initialDate) {
+      bookedLater = true;
+      const changed = page.waitForResponse((value) => {
+        const url = new URL(value.url());
+        return url.pathname === '/api/slots' && url.searchParams.get('date') === targetDate;
+      });
+      await dateInput.fill(targetDate);
+      expect((await changed).ok()).toBeTruthy();
+    }
+    break;
   }
+  await expect(select).toBeEnabled();
   await expect(select.locator('option')).not.toHaveCount(1);
   const value = await select.locator('option').last().getAttribute('value');
   await select.selectOption(value!);
+  const created = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/appointments' &&
+      response.request().method() === 'POST',
+  );
   await page.getByRole('button', { name: 'إضافة وتأكيد الموعد' }).click();
+  expect((await created).ok()).toBeTruthy();
   await expect(page.getByText('تمت إضافة الموعد وتأكيده بنجاح')).toBeVisible();
 
-  if (bookedTomorrow) {
+  if (bookedLater) {
     await page.getByRole('button', { name: 'كل السجل' }).click();
   }
   await page.getByPlaceholder('ابحث باسم المريض أو الهاتف…').fill('مريض اختبار المتصفح');

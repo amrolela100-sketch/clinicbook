@@ -409,9 +409,7 @@ export function ActivityChart({
                 stroke="#3b8068"
                 strokeWidth="2"
               />
-              <title>
-                {days[i].date}: {v}
-              </title>
+              <title>{`${days[i].date}: ${v}`}</title>
               {(values.length === 7 || i % 2 === 0) && (
                 <text
                   x={55 + i * (665 / (values.length - 1))}

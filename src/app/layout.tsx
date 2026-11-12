@@ -1,12 +1,17 @@
 import type { Metadata } from 'next';
 import { AppProvider } from '@/components/app-provider';
 import { DirectionProvider } from '@radix-ui/react-direction';
+import { fetchAppData } from '@/lib/services/app-data-service';
 import './globals.css';
 export const metadata: Metadata = {
   title: 'ClinicBook | رعاية أقرب. حياة أفضل.',
   description: 'مساحة واحدة لرعاية أفضل. اكتشف طبيبك واحجز موعدك، وأدر عيادتك بكل هدوء.',
 };
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+// Per-request CSP nonces and personalized snapshots cannot use a shared static document.
+export const dynamic = 'force-dynamic';
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const initialData = await fetchAppData().catch(() => null);
   return (
     <html lang="ar" dir="rtl">
       <head>
@@ -21,7 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <DirectionProvider dir="rtl">
-          <AppProvider>{children}</AppProvider>
+          <AppProvider initialData={initialData}>{children}</AppProvider>
         </DirectionProvider>
       </body>
     </html>

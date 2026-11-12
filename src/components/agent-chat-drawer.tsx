@@ -43,12 +43,12 @@ const INITIAL_WELCOME_MESSAGE: ChatMessage = {
   ],
 };
 
-export function AgentChatDrawer() {
+export function AgentChatDrawer({ initialOpen = false }: { initialOpen?: boolean } = {}) {
   const router = useRouter();
   const { data: appData, refresh } = useApp();
 
-  const [isOpen, setIsOpen] = useState(false);
-  const [showTooltip, setShowTooltip] = useState(true);
+  const [isOpen, setIsOpen] = useState(initialOpen);
+  const [showTooltip, setShowTooltip] = useState(!initialOpen);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_WELCOME_MESSAGE]);

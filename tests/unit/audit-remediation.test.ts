@@ -119,7 +119,8 @@ import { fetchSupabaseAppData } from '../../src/lib/services/supabase-data-servi
 import { executeSupabaseAction } from '../../src/lib/services/supabase-actions-service';
 import getClinicSummaryTool from '../../agent/tools/get_clinic_summary';
 import handlePatientResponseTool from '../../agent/tools/handle_patient_response';
-import { generateMetadata } from '../../src/app/[[...path]]/page';
+import { generateMetadata as generateDoctorMetadata } from '../../src/app/(public)/doctors/[doctorId]/page';
+import { generateMetadata as generateSearchMetadata } from '../../src/app/(public)/search/page';
 import { ensureSeed, all, get, put } from '../../src/lib/demo-db';
 import type { Doctor, User } from '../../src/lib/types';
 import type { Organization } from '../../src/lib/services/booking-service';
@@ -575,11 +576,11 @@ describe('Full-Stack Audit Remediations Suite (REM-01 through REM-09)', () => {
     ensureSeed();
     const verifiedDoc = all<Doctor>('doctor').find((d) => d.verified)!;
 
-    const searchMeta = await generateMetadata({ params: Promise.resolve({ path: ['search'] }) });
+    const searchMeta = await generateSearchMetadata();
     expect(String(searchMeta.title)).toContain('ابحث عن طبيب');
 
-    const docMeta = await generateMetadata({
-      params: Promise.resolve({ path: ['doctors', verifiedDoc.id] }),
+    const docMeta = await generateDoctorMetadata({
+      params: Promise.resolve({ doctorId: verifiedDoc.id }),
     });
     expect(String(docMeta.title)).toContain(verifiedDoc.name);
     expect(String(docMeta.title)).toContain(verifiedDoc.specialty);
@@ -587,8 +588,8 @@ describe('Full-Stack Audit Remediations Suite (REM-01 through REM-09)', () => {
     const organization = get<Organization>('organization', verifiedDoc.organizationId)!;
     try {
       put('organization', organization.id, { ...organization, subscriptionStatus: 'canceled' });
-      const hiddenDocMeta = await generateMetadata({
-        params: Promise.resolve({ path: ['doctors', verifiedDoc.id] }),
+      const hiddenDocMeta = await generateDoctorMetadata({
+        params: Promise.resolve({ doctorId: verifiedDoc.id }),
       });
       expect(String(hiddenDocMeta.title)).not.toContain(verifiedDoc.name);
     } finally {
