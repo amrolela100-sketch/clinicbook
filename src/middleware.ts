@@ -129,7 +129,12 @@ export async function middleware(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (supabaseUrl) {
     try {
-      supabaseConnectSrc = ` ${new URL(supabaseUrl).origin}`;
+      const origin = new URL(supabaseUrl);
+      if (!['https:', 'http:'].includes(origin.protocol))
+        throw new Error('Invalid Supabase protocol');
+      const websocket = new URL(origin.origin);
+      websocket.protocol = origin.protocol === 'https:' ? 'wss:' : 'ws:';
+      supabaseConnectSrc = ` ${origin.origin} ${websocket.origin}`;
     } catch (err) {
       console.warn('Invalid NEXT_PUBLIC_SUPABASE_URL in middleware:', err);
     }

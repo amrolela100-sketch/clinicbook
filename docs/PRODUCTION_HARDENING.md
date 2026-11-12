@@ -33,6 +33,7 @@ No migrations have been applied to a remote database.
 | #10.2 | Both summary implementations assign appointments to the Damascus calendar date instead of slicing a UTC timestamp in demo. | A worked late-UTC/next-local-day summary and revenue regression |
 | #20 | Search fields have explicit labels, selected appointment days/slots/status filters expose pressed state, and navigation marks the current page. | Actual public/workspace labels, keyboard command search, navigation and day/slot selection |
 | #21 | The 7–8px text declarations are raised to an 11px floor, including the mobile hero captions and supporting interface text. | Actual 360px/390px mobile font sizes and horizontal-overflow checks |
+| #18 | Unconditional 20-second refresh is replaced by coalesced focus/visibility and scoped authenticated Realtime events, plus five-minute visible-tab reconciliation. Unchanged HTTP snapshots return 304 with no-store. | Real browser idle/focus request counts, identity/change-aware HTTP validators and PostgreSQL publication membership |
 
 The focus outline is **6.29:1 on white**, up from 1.82:1. The changed status badges
 now range from **4.82:1 to 5.09:1** on their respective backgrounds. Browser tests
@@ -46,6 +47,27 @@ Lighthouse or complete application performance claim.
 The new indexes use transactional `CREATE INDEX`, which holds write-blocking locks
 until commit. Measure creation time with representative staging data and apply in
 an agreed maintenance window; the tiny local fixture is not a production benchmark.
+
+## App-data revalidation
+
+- Supabase browser configuration uses only the public URL/anon key. Subscriptions
+  start only for the matching authenticated session. Appointments are filtered by
+  patient, treating doctor, reception branch or owner organization; platform admins
+  receive no clinical subscription. Record events are treating-doctor/patient scoped.
+- INSERT/UPDATE events invalidate the authorized HTTP snapshot; payloads are not
+  copied into logs. DELETE subscriptions are intentionally omitted because their
+  Realtime/RLS semantics differ. Focus and five-minute visible-tab reconciliation
+  handle missed/deleted/revoked data, even when the channel is healthy.
+- Event bursts coalesce. Obsolete fetches are aborted, and logout invalidates their
+  generation and clears the in-memory validator so old data cannot restore identity.
+- Conditional HTTP responses compare an opaque snapshot validator only **after**
+  resolving the current user and applying scope filtering. `no-store` remains;
+  there is no shared server cache or persistent browser cache of clinical snapshots.
+- CSP permits WebSockets only at the configured Supabase origin, not a wildcard.
+- The PostgreSQL harness checks publication membership, not live Realtime delivery.
+  A real Supabase authenticated/multi-tenant streaming test is still required on
+  staging. This keeps the existing snapshot shape; per-table deltas and large-tenant
+  history pagination require separate representative-volume validation.
 
 The audit's claim that direct availability writes were open at the base commit was
 too broad: `20261110000001` already revoked direct DML. The vulnerable schedule RPC,

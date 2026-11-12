@@ -20,3 +20,6 @@ CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$
 $$;
 GRANT USAGE ON SCHEMA public, auth TO service_role;
 GRANT EXECUTE ON FUNCTION auth.uid(), auth.role() TO authenticated, anon, service_role;
+
+-- Catalogue fixture only; this harness does not run the Supabase Realtime server.
+CREATE PUBLICATION supabase_realtime;

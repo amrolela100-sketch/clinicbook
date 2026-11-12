@@ -12,6 +12,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 import type { User, Doctor, Appointment, MedicalRecord, Shift } from '@/lib/types';
 import type { Organization } from '@/lib/services/booking-service';
+import { startAppDataRevalidation } from '@/lib/app-data-revalidation';
 export type AppData = {
   user: User | null;
   doctors: Doctor[];
@@ -85,10 +86,19 @@ interface AppContext {
 }
 const Ctx = createContext<AppContext>(null!);
 export const useApp = () => useContext(Ctx);
-export function AppProvider({ children }: { children: ReactNode }) {
+export function AppProvider({
+  children,
+  initialData = null,
+}: {
+  children: ReactNode;
+  initialData?: AppData | null;
+}) {
   const refreshVersion = useRef(0);
-  const [data, setData] = useState<AppData | null>(null),
-    [loading, setLoading] = useState(true),
+  const refreshAbort = useRef<AbortController | null>(null);
+  const etag = useRef<string | null>(null);
+  const bootstrapped = useRef(initialData !== null);
+  const [data, setData] = useState<AppData | null>(initialData),
+    [loading, setLoading] = useState(initialData === null),
     [error, setError] = useState(''),
     [toasts, setToasts] = useState<{ id: number; message: string; error: boolean }[]>([]);
   const toast = useCallback((message: string, error = false) => {
@@ -98,25 +108,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
   const refresh = useCallback(async () => {
     const version = ++refreshVersion.current;
+    refreshAbort.current?.abort();
+    const controller = new AbortController();
+    refreshAbort.current = controller;
     try {
-      const r = await fetch('/api/data', { cache: 'no-store' });
+      const r = await fetch('/api/data', {
+        cache: 'no-store',
+        signal: controller.signal,
+        headers: etag.current ? { 'If-None-Match': etag.current } : undefined,
+      });
+      if (version !== refreshVersion.current) return;
+      if (r.status === 304) {
+        setError('');
+        return;
+      }
       const j = await r.json();
       if (!r.ok || !j.success) throw new Error();
       if (version !== refreshVersion.current) return;
+      etag.current = r.headers.get('etag');
       setData(j.data);
       setError('');
     } catch {
-      if (version !== refreshVersion.current) return;
+      if (version !== refreshVersion.current || controller.signal.aborted) return;
       setError('تعذر تحميل البيانات. تحقق من الاتصال وحاول مجدداً.');
     } finally {
       if (version === refreshVersion.current) setLoading(false);
     }
   }, []);
   useEffect(() => {
-    refresh();
-    const id = setInterval(refresh, 20000);
-    return () => clearInterval(id);
+    if (!bootstrapped.current) void refresh();
+    return () => {
+      refreshVersion.current += 1;
+      refreshAbort.current?.abort();
+    };
   }, [refresh]);
+  const updateUser = data?.user ?? null;
+  useEffect(
+    () => startAppDataRevalidation(updateUser, refresh),
+    [refresh, updateUser?.id, updateUser?.role, updateUser?.organizationId, updateUser?.clinicId],
+  );
   const act = async (action: string, payload: unknown, message = 'تم حفظ التغييرات بنجاح') => {
     try {
       const r = await fetch('/api/actions', {
@@ -247,6 +277,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   };
   const logout = async () => {
+    refreshVersion.current += 1;
+    refreshAbort.current?.abort();
+    etag.current = null;
+    setData(null);
     try {
       await fetch('/api/session', { method: 'DELETE' });
       setData(null);

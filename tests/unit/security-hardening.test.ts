@@ -1119,7 +1119,7 @@ describe('Security & Production Hardening Regression Suite', () => {
 
       const admin = roles.find((r) => r.role === 'super_admin')!;
       await createSession(admin.id);
-      const res = await dataGET();
+      const res = await dataGET(new Request('http://localhost:3000/api/data'));
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.data.appointments).toEqual([]);
@@ -1804,6 +1804,17 @@ describe('Security & Production Hardening Regression Suite', () => {
       expect(response.headers.get('x-middleware-request-x-nonce')).toBe(nonce);
     });
 
+    it('allows Realtime WebSockets only at the configured Supabase origin', async () => {
+      vi.stubEnv('CSP_ENFORCE', 'true');
+      vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://clinic.example.supabase.co');
+      const response = await middleware(new NextRequest('http://localhost:3000/'));
+      const policy = response.headers.get('Content-Security-Policy') ?? '';
+      expect(policy).toContain(
+        "connect-src 'self' https://clinic.example.supabase.co wss://clinic.example.supabase.co",
+      );
+      expect(policy).not.toContain('wss://*');
+    });
+
     it('fails closed on production CSRF checks when the canonical app origin is missing', async () => {
       const previousNodeEnv = process.env.NODE_ENV;
       const previousAppUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -1987,7 +1998,7 @@ describe('Security & Production Hardening Regression Suite', () => {
         name: 'مريض',
       });
 
-      const res = await dataGET();
+      const res = await dataGET(new Request('http://localhost:3000/api/data'));
       expect(res.status).toBe(200);
       const body = await res.json();
       const loadedReviews = body.data.reviews as Array<{ appointmentId: string }>;

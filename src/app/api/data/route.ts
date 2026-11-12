@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { createHash } from 'node:crypto';
 import { currentUser, demoEnabled } from '@/lib/auth/session';
 import { canAccess } from '@/lib/auth/guards';
 import type { Doctor, MedicalRecord, User } from '@/lib/types';
@@ -8,11 +9,28 @@ import { fetchSupabaseAppData } from '@/lib/services/supabase-data-service';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+function dataResponse(data: unknown, request?: Request) {
+  const body = JSON.stringify({ success: true, data });
+  const etag = `"${createHash('sha256').update(body).digest('hex')}"`;
+  const headers = {
+    'Cache-Control': 'no-store',
+    'Content-Type': 'application/json; charset=utf-8',
+    ETag: etag,
+    Vary: 'Cookie',
+  };
+  // Authorization and scope filtering have already run for this request. Never
+  // cache a tenant snapshot on the server or compare before resolving identity.
+  const validators = request?.headers.get('if-none-match')?.split(',').map((value) => value.trim());
+  return new NextResponse(validators?.includes(etag) ? null : body, {
+    status: validators?.includes(etag) ? 304 : 200, headers,
+  });
+}
+
+export async function GET(request: Request) {
   if (!demoEnabled()) {
     try {
       const data = await fetchSupabaseAppData();
-      return NextResponse.json({ success: true, data }, { headers: { 'Cache-Control': 'no-store' } });
+      return dataResponse(data, request);
     } catch (e) {
       console.error('Supabase app data fetch error:', e);
       return NextResponse.json(
@@ -124,5 +142,5 @@ export async function GET() {
         : null,
   };
 
-  return NextResponse.json({ success: true, data }, { headers: { 'Cache-Control': 'no-store' } });
+  return dataResponse(data, request);
 }
