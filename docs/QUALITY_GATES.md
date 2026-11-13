@@ -89,7 +89,6 @@ latency, database upgrade safety or representative production load. A green
 pipeline is necessary, not sufficient, for operating real patient data.
 
 The CI workflow now runs the lint, coverage-threshold, audit and production
-build gates, and also runs on the `production-hardening` branch. Updating
-`.github/workflows/ci.yml` requires a credential with **Workflows: read and
-write**; if the push of the workflow file is rejected, that part stays local and
-`docs/ci-hardening.patch` remains the reference until the permission exists.
+build gates, and also runs on the `production-hardening` branch. The workflow
+file was published successfully and its new gates were confirmed on the remote
+branch.

@@ -251,20 +251,18 @@ The repository audit did not cover several advisories returned by `npm audit`:
 - The intended CI Gate 4 runs `npm run test:production`. Demo E2E uses a development server and
   a fresh, isolated database; it never enables demo under `next start`.
 
-## Workflow permission constraint
+## Workflow gates
 
-The supplied GitHub credential can push repository content, but cannot update
-`.github/workflows/ci.yml`. That workflow stays at its base version. Apply
-`docs/ci-hardening.patch` only after obtaining **Workflows: Read and write**,
-then verify the CI run and remove the patch. The local backup branch
-`production-hardening-ci-backup` retains the earlier workflow-enabled history.
+The audit #25 workflow (lint gate, coverage thresholds, dependency audit and
+the production build gate, plus a `production-hardening` branch trigger) is
+**active** in `.github/workflows/ci.yml`. It was confirmed on the remote branch:
+the published workflow contains every new gate. The earlier
+`docs/ci-hardening.patch` reference is superseded by the committed workflow and
+can be retired once the first CI run on the branch is observed.
 
-The audit #25 workflow change (lint gate, coverage thresholds, dependency audit
-and the production build gate, plus a `production-hardening` branch trigger) is
-prepared locally in `.github/workflows/ci.yml`. If the credential cannot write
-that file, the change stays local and `docs/ci-hardening.patch` remains the
-reference. The equivalent local commands are `npm run lint`,
-`npm run test:coverage`, `npm run audit` and `npm run test:production`.
+The gates now run for `main` and `production-hardening`. A green pipeline
+verifies the checks above; it does not verify Supabase Auth/Realtime, Upstash,
+database upgrades, backups or live patient safety.
 
 ## Remaining release blockers
 
