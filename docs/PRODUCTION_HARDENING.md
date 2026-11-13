@@ -223,25 +223,48 @@ The repository audit did not cover several advisories returned by `npm audit`:
   Its config is now `vitest.config.mts`; test-only automatic JSX transformation
   prevents Vite from inheriting Next's `jsx: preserve` compiler behavior.
 - Node 22.12+ is required; CI remains on Node 22.
+- ESLint 9.39.5 with `eslint-config-next` 15.5.29, and the matching
+  `@typescript-eslint` 8.72.2 line, are now pinned. The version that
+  `eslint-config-next` resolves by default cannot load under ESLint 9 and
+  carries a vulnerable `minimatch` range.
 - `npm run audit` and `npm run audit:production` report **0 known advisories** at
-  this verification point. CI now blocks on high/critical dependency advisories.
+  this verification point. The intended CI audit gate is saved in
+  `docs/ci-hardening.patch`, not active in the unchanged workflow yet.
   A clean registry audit is not proof that the application has no vulnerabilities.
 
 ## Verification so far
 
-- Vitest: **181/181** passing across 12 files.
-- TypeScript: `npm run typecheck` passes.
+- Vitest: **269/269** passing across 21 files, with coverage thresholds met
+  (78.43% statements, 60.84% branches, 82.51% functions, 80.01% lines).
+  See `QUALITY_GATES.md` for the measured scope and thresholds.
+- ESLint: `npm run lint` reports no errors and no warnings.
+- TypeScript: `npm run typecheck` passes after `next typegen`.
 - PostgreSQL: all migrations and `tests/postgres/verify.ts` pass on an isolated
   PostgreSQL 17 instance, including 50 competing bookings with only one winner.
 - PostgreSQL verification is not a full Supabase Auth/PostgREST or browser test.
-- Production browser smoke: **6/6** passing against `next build` / `next start`,
+- Production browser smoke: **16/16** passing against `next build` / `next start`,
   with Supabase and Redis protocol fixtures on loopback. This verifies hydration,
   nonce propagation, cross-instance shared limits, spoof resistance and fail-closed
   Redis outages without live keys, Auth sessions or patient data.
-- Demo browser regression: **22/22** passing, including the existing axe scans.
+- Demo browser regression: **38/38** passing, including the existing axe scans.
   These tested views are not a claim of complete WCAG conformance.
-- CI Gate 4 runs `npm run test:production`. Demo E2E uses a development server and
+- The intended CI Gate 4 runs `npm run test:production`. Demo E2E uses a development server and
   a fresh, isolated database; it never enables demo under `next start`.
+
+## Workflow permission constraint
+
+The supplied GitHub credential can push repository content, but cannot update
+`.github/workflows/ci.yml`. That workflow stays at its base version. Apply
+`docs/ci-hardening.patch` only after obtaining **Workflows: Read and write**,
+then verify the CI run and remove the patch. The local backup branch
+`production-hardening-ci-backup` retains the earlier workflow-enabled history.
+
+The audit #25 workflow change (lint gate, coverage thresholds, dependency audit
+and the production build gate, plus a `production-hardening` branch trigger) is
+prepared locally in `.github/workflows/ci.yml`. If the credential cannot write
+that file, the change stays local and `docs/ci-hardening.patch` remains the
+reference. The equivalent local commands are `npm run lint`,
+`npm run test:coverage`, `npm run audit` and `npm run test:production`.
 
 ## Remaining release blockers
 

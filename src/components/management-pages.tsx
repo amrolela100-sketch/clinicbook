@@ -1,32 +1,24 @@
 'use client';
 import Link from 'next/link';
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import {
   UsersRound,
   Building2,
   Plus,
   Search,
   ShieldCheck,
-  Mail,
   ArrowLeft,
   ArrowUpLeft,
   Check,
   CheckCircle2,
   CalendarDays,
   Wallet,
-  FileText,
-  Star,
-  Settings,
-  LogOut,
-  SlidersHorizontal,
-  Download,
   Stethoscope,
   Clock,
   Activity,
   Pencil,
   Globe,
   MapPin,
-  Eye,
 } from 'lucide-react';
 import { useApp } from './app-provider';
 import {
@@ -39,8 +31,6 @@ import {
   Empty,
   DownloadCSV,
   dateLabel,
-  today,
-  dateKey,
   Logo,
 } from './shared';
 import { Button } from './ui/button';
@@ -815,7 +805,7 @@ export function SettingsPage() {
   );
 }
 export function AdminPage() {
-  const { data, act, login } = useApp();
+  const { data, act } = useApp();
   const [tab, setTab] = useState('verification'),
     [reject, setReject] = useState(''),
     [busy, setBusy] = useState(false),

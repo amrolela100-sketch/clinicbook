@@ -9,7 +9,7 @@ async function run() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role: 'receptionist' }),
     });
-  } catch (err) {
+  } catch {
     throw new Error(
       `Cannot connect to ClinicBook server at ${base}. Please ensure the server is running (e.g. via 'npm run dev' or 'npm run start') before executing the concurrency suite.`,
     );

@@ -13,14 +13,9 @@ import {
   Printer,
   ShieldCheck,
   UserRound,
-  HeartPulse,
-  Check,
-  ChevronDown,
   Star,
   X,
-  AlertCircle,
   Palmtree,
-  Save,
   LogOut,
 } from 'lucide-react';
 import { useApp } from './app-provider';
@@ -34,8 +29,6 @@ import {
   Empty,
   time,
   dateLabel,
-  dateKey,
-  today,
 } from './shared';
 import { Button } from './ui/button';
 import { Modal } from './ui/dialog';

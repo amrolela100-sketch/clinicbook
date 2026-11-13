@@ -400,7 +400,10 @@ export async function fetchSupabaseAppData(preResolvedUser?: User | null): Promi
           status: a.status,
           visitType: a.visit_type,
           source: 'patient_portal',
-          fee: a.fee_amount != null ? Number(a.fee_amount) : (doc?.fee ?? 25),
+          fee:
+            a.fee_amount !== null && a.fee_amount !== undefined
+              ? Number(a.fee_amount)
+              : (doc?.fee ?? 25),
           payment:
             (a.payment_status as 'unpaid' | 'paid_cash' | 'paid_online' | 'refunded') || 'unpaid',
           expiresAt: a.expires_at ?? undefined,
@@ -464,7 +467,10 @@ export async function fetchSupabaseAppData(preResolvedUser?: User | null): Promi
             status: a.status,
             visitType: a.visit_type,
             source: a.booking_source || 'reception_desk',
-            fee: a.fee_amount != null ? Number(a.fee_amount) : (doc?.fee ?? 25),
+            fee:
+              a.fee_amount !== null && a.fee_amount !== undefined
+                ? Number(a.fee_amount)
+                : (doc?.fee ?? 25),
             payment:
               (a.payment_status as 'unpaid' | 'paid_cash' | 'paid_online' | 'refunded') || 'unpaid',
             expiresAt: a.expires_at ?? undefined,
@@ -499,7 +505,10 @@ export async function fetchSupabaseAppData(preResolvedUser?: User | null): Promi
             status: a.status,
             visitType: a.visit_type,
             source: 'reception_desk',
-            fee: a.fee_amount != null ? Number(a.fee_amount) : (doc?.fee ?? 25),
+            fee:
+              a.fee_amount !== null && a.fee_amount !== undefined
+                ? Number(a.fee_amount)
+                : (doc?.fee ?? 25),
             payment:
               (a.payment_status as 'unpaid' | 'paid_cash' | 'paid_online' | 'refunded') || 'unpaid',
             expiresAt: a.expires_at ?? undefined,

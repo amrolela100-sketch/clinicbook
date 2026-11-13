@@ -14,16 +14,12 @@ import {
   ChevronLeft,
   Search,
   Bell,
-  Plus,
   ArrowUpLeft,
   LogOut,
   HelpCircle,
   Menu,
   X,
-  ShieldCheck,
   Globe,
-  Command,
-  Check,
   ArrowLeft,
   Building2,
 } from 'lucide-react';
@@ -44,7 +40,7 @@ const managementNav = [
   { href: '/workspace/settings', label: 'إعدادات المركز', icon: Settings },
 ];
 export function WorkspaceShell({ route, children }: { route: string; children: ReactNode }) {
-  const { data, act, login } = useApp();
+  const { data, act } = useApp();
   const [menu, setMenu] = useState(false),
     [notifications, setNotifications] = useState(false),
     [switcher, setSwitcher] = useState(false),

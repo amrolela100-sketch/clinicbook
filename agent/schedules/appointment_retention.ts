@@ -53,9 +53,11 @@ export async function checkUpcomingAppointmentsRetention(
   };
 }
 
-export default {
+const schedule = {
   cron: '0 * * * *', // تشغيل رأس كل ساعة لفحص المواعيد
   handler: async () => {
     return await checkUpcomingAppointmentsRetention(24);
   },
 };
+
+export default schedule;

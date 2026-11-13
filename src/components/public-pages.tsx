@@ -2,14 +2,13 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { useState, useEffect, useMemo, type ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { motion } from 'motion/react';
 import {
   Search,
   ArrowLeft,
   ArrowUpLeft,
   MapPin,
-  ChevronDown,
   CalendarDays,
   Clock,
   Star,
@@ -21,15 +20,11 @@ import {
   Flower2,
   Smile,
   Check,
-  Plus,
   SlidersHorizontal,
   CheckCircle2,
-  MoveUpLeft,
   Menu,
   X,
   Building2,
-  ArrowRight,
-  UserRound,
   LoaderCircle,
   LogOut,
 } from 'lucide-react';
@@ -41,7 +36,6 @@ import {
   Empty,
   ErrorBox,
   Field,
-  Submit,
   time,
   dateLabel,
   today,
@@ -49,8 +43,8 @@ import {
 } from './shared';
 import { Button } from './ui/button';
 import { Modal } from './ui/dialog';
-import type { Doctor, Appointment } from '@/lib/types';
-import { cleanDoctorName, formatDoctorName } from '@/lib/format';
+import type { Doctor } from '@/lib/types';
+import { formatDoctorName } from '@/lib/format';
 import { AgentChatLauncher } from './agent-chat-launcher';
 
 // Keep persisted portrait names unchanged; only these local originals have WebP copies.
@@ -118,7 +112,7 @@ const specialties = [
 ];
 export function PublicShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { data, login, logout } = useApp();
+  const { data, logout } = useApp();
   const [menu, setMenu] = useState(false);
   return (
     <div className="public-shell">
@@ -340,12 +334,13 @@ export function Home() {
           transition={{ duration: 0.8, delay: 0.1 }}
         >
           <div className="hero-backdrop" />
-          <img
+          <Image
             className="hero-photo"
             src="/images/care-editorial.jpg"
             alt="طبيبة ترحب بك في عيادة هادئة ومضيئة"
             width={500}
             height={516}
+            sizes="(max-width: 760px) calc(100vw - 40px), 500px"
             fetchPriority="high"
             loading="eager"
           />
@@ -580,6 +575,7 @@ export function DoctorCard({
 }
 export function SearchPage() {
   const { data } = useApp();
+  const directory = data?.doctors;
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(''),
     [city, setCity] = useState(searchParams?.get('city') ?? ''),
@@ -594,11 +590,11 @@ export function SearchPage() {
     setSpecialty(searchParams?.get('specialty') ?? '');
   }, [searchParams]);
   useEffect(() => {
-    if (!todayOnly || !data) return;
+    if (!todayOnly || !directory) return;
     let active = true;
     setChecking(true);
     Promise.all(
-      data.doctors.map(async (d) => {
+      directory.map(async (d) => {
         const r = await fetch(`/api/slots?doctorId=${d.id}&date=${today()}`);
         const j = await r.json();
         return j.data?.length ? d.id : '';
@@ -616,7 +612,7 @@ export function SearchPage() {
     return () => {
       active = false;
     };
-  }, [todayOnly, data?.doctors.length]);
+  }, [todayOnly, directory]);
   const doctors = (data?.doctors ?? [])
     .filter(
       (d) =>
@@ -772,7 +768,7 @@ export function SearchPage() {
   );
 }
 export function DoctorPage({ id }: { id: string }) {
-  const { data, toast, refresh, login } = useApp();
+  const { data, toast, refresh } = useApp();
   const d = data?.doctors.find((d) => d.id === id && d.verified);
   const [date, setDate] = useState(today()),
     [slots, setSlots] = useState<{ start: string; end: string }[]>([]),

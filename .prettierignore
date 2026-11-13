@@ -1,8 +1,11 @@
 node_modules
 .next
 package-lock.json
-data
+/data
 docs
 public
 supabase
 uploads
+coverage
+test-results
+playwright-report

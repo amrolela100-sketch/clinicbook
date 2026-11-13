@@ -1,12 +1,26 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import findSlotsTool from '../../agent/tools/find_available_slots';
 import bookAppointmentTool from '../../agent/tools/book_appointment';
 import handlePatientResponseTool from '../../agent/tools/handle_patient_response';
 import { checkUpcomingAppointmentsRetention } from '../../agent/schedules/appointment_retention';
 import { all, appointments, saveAppointment, db } from '../../src/lib/demo-db';
-import type { Doctor, Appointment } from '../../src/lib/types';
+import type { Doctor } from '../../src/lib/types';
 
 describe('ClinicBook Eve AI Agent Tools & Schedules', () => {
+  it('loads the agent model from configuration with a safe default', async () => {
+    vi.resetModules();
+    vi.stubEnv('AGENTROUTER_MODEL', 'synthetic/model');
+    expect((await import('../../agent/agent')).default).toMatchObject({
+      model: 'synthetic/model',
+      reasoning: 'low',
+      temperature: 0.2,
+    });
+    vi.stubEnv('AGENTROUTER_MODEL', '');
+    vi.resetModules();
+    expect((await import('../../agent/agent')).default.model).toBe('gpt-5.6-sol');
+    vi.unstubAllEnvs();
+  });
+
   it('find_available_slots returns doctors and available slots', async () => {
     const doctors = all<Doctor>('doctor').filter((d) => d.verified);
     expect(doctors.length).toBeGreaterThan(0);

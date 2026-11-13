@@ -145,10 +145,7 @@ export function AppProvider({
     };
   }, [refresh]);
   const updateUser = data?.user ?? null;
-  useEffect(
-    () => startAppDataRevalidation(updateUser, refresh),
-    [refresh, updateUser?.id, updateUser?.role, updateUser?.organizationId, updateUser?.clinicId],
-  );
+  useEffect(() => startAppDataRevalidation(updateUser, refresh), [refresh, updateUser]);
   const act = async (action: string, payload: unknown, message = 'تم حفظ التغييرات بنجاح') => {
     try {
       const r = await fetch('/api/actions', {

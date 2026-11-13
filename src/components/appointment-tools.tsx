@@ -1,16 +1,14 @@
 'use client';
 import Link from 'next/link';
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useMemo, type FormEvent } from 'react';
 import {
   Plus,
   Check,
   Clock,
   ArrowLeft,
-  Phone,
   CalendarDays,
   Wallet,
   MoreHorizontal,
-  CheckCircle2,
   X,
   UserCheck,
   FileText,
@@ -20,7 +18,7 @@ import { useApp } from './app-provider';
 import { Modal } from './ui/dialog';
 import { Button } from './ui/button';
 import { Avatar, Badge, Field, Submit, Empty, time, dateLabel, today } from './shared';
-import type { Appointment, Doctor } from '@/lib/types';
+import type { Appointment } from '@/lib/types';
 import { formatDoctorName } from '@/lib/format';
 export function WalkInButton({ className = '' }: { className?: string }) {
   const { data, toast, refresh } = useApp();
@@ -34,16 +32,19 @@ export function WalkInButton({ className = '' }: { className?: string }) {
   const user = data?.user;
   const role = user?.role;
 
-  const clinicDoctors = (data?.doctors ?? []).filter((d) => {
-    if (!d.verified) return false;
-    if (role === 'doctor') return d.id === user?.id;
-    if (user?.organizationId) {
-      return d.organizationId === user.organizationId || d.clinicId === user.clinicId;
-    }
-    return true;
-  });
-  const doctors =
-    clinicDoctors.length > 0 ? clinicDoctors : (data?.doctors?.filter((d) => d.verified) ?? []);
+  const doctors = useMemo(() => {
+    const clinicDoctors = (data?.doctors ?? []).filter((d) => {
+      if (!d.verified) return false;
+      if (role === 'doctor') return d.id === user?.id;
+      if (user?.organizationId) {
+        return d.organizationId === user.organizationId || d.clinicId === user.clinicId;
+      }
+      return true;
+    });
+    return clinicDoctors.length > 0
+      ? clinicDoctors
+      : (data?.doctors?.filter((d) => d.verified) ?? []);
+  }, [data?.doctors, role, user]);
 
   useEffect(() => {
     if ((!doctorId || !doctors.some((d) => d.id === doctorId)) && doctors[0]) {

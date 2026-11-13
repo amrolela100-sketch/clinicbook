@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState, useEffect, type FormEvent } from 'react';
 import {
   ArrowLeft,
@@ -12,7 +13,6 @@ import {
   Mail,
   LockKeyhole,
   UsersRound,
-  CalendarDays,
   LoaderCircle,
   Phone,
   Eye,
@@ -20,7 +20,7 @@ import {
   ArrowUpLeft,
 } from 'lucide-react';
 import { useApp } from './app-provider';
-import { Logo, Field, Submit } from './shared';
+import { Logo, Field } from './shared';
 import { Button } from './ui/button';
 
 export function Login() {
@@ -359,7 +359,13 @@ export function Login() {
         </div>
       </div>
       <div className="auth-art-side">
-        <img src="/images/care-editorial.jpg" alt="رعاية طبية إنسانية متكاملة" />
+        <Image
+          src="/images/care-editorial.jpg"
+          alt="رعاية طبية إنسانية متكاملة"
+          width={500}
+          height={516}
+          sizes="(max-width: 900px) 0px, 50vw"
+        />
         <div className="auth-art-overlay">
           <span>أكثر من مجرد موعد.</span>
           <h2>

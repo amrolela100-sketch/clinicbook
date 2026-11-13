@@ -4,39 +4,19 @@ import { useState } from 'react';
 import { motion } from 'motion/react';
 import {
   CalendarDays,
-  ArrowUpLeft,
-  ArrowUpRight,
-  ArrowDownRight,
   ChevronLeft,
   ChevronRight,
   Users,
   Clock3,
   Wallet,
   ArrowLeft,
-  Check,
-  Plus,
-  Sun,
-  MoreHorizontal,
-  Activity,
   Search,
-  Filter,
   CalendarCheck2,
   HeartPulse,
   Stethoscope,
 } from 'lucide-react';
 import { useApp } from './app-provider';
-import {
-  Avatar,
-  Badge,
-  CardHeading,
-  PageHeading,
-  Empty,
-  time,
-  dateLabel,
-  today,
-  dateKey,
-  DownloadCSV,
-} from './shared';
+import { Avatar, CardHeading, PageHeading, today, dateKey } from './shared';
 import { Button } from './ui/button';
 import { WalkInButton, AppointmentTable } from './appointment-tools';
 import type { Appointment } from '@/lib/types';

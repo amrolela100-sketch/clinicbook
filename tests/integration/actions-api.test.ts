@@ -43,7 +43,7 @@ vi.mock('../../src/lib/supabase/admin', () => ({
 import { POST } from '../../src/app/api/actions/route';
 import { POST as sessionPOST } from '../../src/app/api/session/route';
 import { createSession } from '../../src/lib/auth/session';
-import { roles, appointments, get, put } from '../../src/lib/demo-db';
+import { roles, appointments, get, put, all, db, saveAppointment } from '../../src/lib/demo-db';
 import { _resetRateLimitStore } from '../../src/lib/rate-limit';
 import { hashPassword } from '../../src/lib/auth/password';
 
@@ -501,5 +501,284 @@ describe('Integration: Actions API Route (/api/actions)', () => {
     expect(validJson.success).toBe(true);
     expect(validJson.data.role).toBe('super_admin');
     expect(validJson.redirectTo).toBe('/admin');
+  });
+
+  it('executes the complete demo mutation surface through authenticated HTTP roles', async () => {
+    vi.stubEnv('CLINICBOOK_MODE', 'demo');
+    vi.stubEnv('FORCE_SUPABASE', 'false');
+    const prefix = `action-surface-${Date.now()}`;
+    const orgId = `${prefix}-org`;
+    const clinicId = `${prefix}-clinic`;
+    const ownerId = `${prefix}-owner`;
+    const doctorId = `${prefix}-doctor`;
+    const patientId = `${prefix}-patient`;
+    const transitionId = `${prefix}-transition`;
+    const paymentId = `${prefix}-payment`;
+    const medicalId = `${prefix}-medical`;
+    const reviewId = `${prefix}-review`;
+    const notificationId = `${prefix}-notification`;
+    const verificationId = `${prefix}-verification`;
+    const existingAuditIds = new Set(
+      (db.prepare('SELECT id FROM audit').all() as Array<{ id: string }>).map(({ id }) => id),
+    );
+
+    const call = async (actorId: string, action: string, payload: unknown) => {
+      await createSession(actorId);
+      return POST(
+        new Request('http://localhost:3000/api/actions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, payload }),
+        }),
+      );
+    };
+    const expectSuccess = async (actorId: string, action: string, payload: unknown) => {
+      const response = await call(actorId, action, payload);
+      expect(response.status, `${action}: ${await response.clone().text()}`).toBe(200);
+      expect(await response.json()).toMatchObject({ success: true });
+    };
+
+    put('organization', orgId, {
+      id: orgId,
+      name: prefix,
+      city: 'دمشق',
+      district: 'المزة',
+      phone: '0111234567',
+      license: `${prefix}-license`,
+      tier: 'enterprise',
+      status: 'approved',
+      subscriptionStatus: 'active',
+      periodEnd: '2036-01-01T00:00:00.000Z',
+      cancelHours: 2,
+      leadMinutes: 60,
+      pendingHours: 12,
+      expiryMinutes: 60,
+      timezone: 'Asia/Damascus',
+    });
+    put('branch', clinicId, {
+      id: clinicId,
+      organizationId: orgId,
+      name: prefix,
+      city: 'دمشق',
+      district: 'المزة',
+      phone: '0111234567',
+    });
+    put('user', ownerId, {
+      id: ownerId,
+      name: 'مالك التغطية',
+      email: `${ownerId}@example.test`,
+      role: 'clinic_owner',
+      organizationId: orgId,
+      clinicId,
+    });
+    put('user', doctorId, {
+      id: doctorId,
+      name: 'طبيب التغطية',
+      email: `${doctorId}@example.test`,
+      role: 'doctor',
+      organizationId: orgId,
+      clinicId,
+    });
+    put('user', patientId, {
+      id: patientId,
+      name: 'مريض التغطية',
+      email: `${patientId}@example.test`,
+      role: 'patient',
+    });
+    put('doctor', doctorId, {
+      id: doctorId,
+      name: 'طبيب التغطية',
+      organizationId: orgId,
+      clinicId,
+      clinic: prefix,
+      city: 'دمشق',
+      district: 'المزة',
+      specialty: 'الطب العام',
+      fee: 25,
+      followUpFee: 15,
+      rating: 4,
+      reviews: 1,
+      experience: 5,
+      bio: 'طبيب اختبار',
+      color: '#ffffff',
+      image: 'doctor-1.jpg',
+      verified: true,
+      license: `${prefix}-doctor-license`,
+    });
+    put('notification', notificationId, {
+      id: notificationId,
+      userId: ownerId,
+      title: prefix,
+      body: prefix,
+      read: false,
+      createdAt: new Date().toISOString(),
+    });
+
+    const appointmentBase = {
+      organizationId: orgId,
+      clinicId,
+      doctorId,
+      patientName: 'مريض التغطية',
+      phone: '0999999999',
+      visitType: 'first_visit' as const,
+      source: 'patient_portal' as const,
+      fee: 25,
+      payment: 'unpaid' as const,
+      createdAt: '2026-11-12T00:00:00.000Z',
+    };
+    saveAppointment({
+      ...appointmentBase,
+      id: transitionId,
+      patientId,
+      start: '2035-01-10T10:00:00.000Z',
+      end: '2035-01-10T10:30:00.000Z',
+      status: 'pending',
+      expiresAt: '2035-01-09T10:00:00.000Z',
+    });
+    saveAppointment({
+      ...appointmentBase,
+      id: paymentId,
+      patientId,
+      start: '2035-01-11T10:00:00.000Z',
+      end: '2035-01-11T10:30:00.000Z',
+      status: 'confirmed',
+    });
+    saveAppointment({
+      ...appointmentBase,
+      id: medicalId,
+      patientId,
+      start: '2026-01-10T10:00:00.000Z',
+      end: '2026-01-10T10:30:00.000Z',
+      status: 'checked_in',
+    });
+    saveAppointment({
+      ...appointmentBase,
+      id: reviewId,
+      patientId,
+      start: '2026-01-11T10:00:00.000Z',
+      end: '2026-01-11T10:30:00.000Z',
+      status: 'completed',
+    });
+
+    try {
+      await expectSuccess(ownerId, 'settings', {
+        name: prefix,
+        phone: '0117654321',
+        address: 'دمشق',
+        cancelHours: 3,
+        leadMinutes: 45,
+        autoConfirm: false,
+      });
+      await expectSuccess(ownerId, 'doctorFee', { id: doctorId, fee: 30, followUpFee: 20 });
+      await expectSuccess(ownerId, 'schedule', {
+        doctorId,
+        shifts: [{ day: 1, start: '09:00', end: '12:00', duration: 30, active: true }],
+      });
+      expect(
+        (
+          await call(ownerId, 'schedule', {
+            doctorId,
+            shifts: [
+              { day: 1, start: '09:00', end: '12:00', duration: 30, active: true },
+              { day: 1, start: '11:00', end: '13:00', duration: 30, active: true },
+            ],
+          })
+        ).status,
+      ).toBe(422);
+      await expectSuccess(ownerId, 'exception', {
+        doctorId,
+        start: '2035-02-01T09:00:00.000Z',
+        end: '2035-02-01T12:00:00.000Z',
+        reason: 'إجازة اختبار',
+      });
+      await expectSuccess(ownerId, 'team', {
+        name: 'موظف استقبال تغطية',
+        email: `${prefix}-reception@example.test`,
+        role: 'receptionist',
+        specialty: 'الاستقبال',
+        fee: 0,
+        license: '',
+        clinicId,
+      });
+      await expectSuccess(ownerId, 'team', {
+        name: 'د. طبيب فريق تغطية',
+        email: `${prefix}-team-doctor@example.test`,
+        role: 'doctor',
+        specialty: 'الطب العام',
+        fee: 35,
+        license: `${prefix}-team-license`,
+        clinicId,
+      });
+      await expectSuccess(ownerId, 'branch', {
+        name: 'فرع تغطية',
+        city: 'دمشق',
+        district: 'القصاع',
+        phone: '0115555555',
+      });
+      await expectSuccess(ownerId, 'billingRequest', { tier: 'clinic_pro' });
+      expect((await call(ownerId, 'billingRequest', { tier: 'enterprise' })).status).toBe(422);
+      await expectSuccess(ownerId, 'notification', { id: notificationId });
+      await expectSuccess(ownerId, 'payment', { id: paymentId });
+      await expectSuccess(ownerId, 'transition', { id: transitionId, status: 'confirmed' });
+
+      await expectSuccess(doctorId, 'medical', {
+        appointmentId: medicalId,
+        diagnosis: 'تشخيص تغطية',
+        complaint: 'شكوى تغطية',
+        notes: 'ملاحظات',
+        medications: [
+          {
+            name: 'دواء اختبار',
+            dose: 'جرعة',
+            frequency: 'مرة يومياً',
+            duration: 'أسبوع',
+          },
+        ],
+        followUp: '',
+        visible: true,
+      });
+      await expectSuccess(patientId, 'review', {
+        appointmentId: reviewId,
+        rating: 5,
+        comment: 'زيارة جيدة',
+      });
+      expect(
+        (
+          await call(patientId, 'review', {
+            appointmentId: reviewId,
+            rating: 4,
+            comment: 'تقييم مكرر',
+          })
+        ).status,
+      ).toBe(422);
+
+      put('verification', verificationId, {
+        id: verificationId,
+        organizationId: orgId,
+        doctorId,
+        license: `${prefix}-verified-license`,
+        status: 'pending',
+      });
+      const admin = roles.find((candidate) => candidate.role === 'super_admin')!;
+      await expectSuccess(admin.id, 'verify', { id: verificationId, status: 'approved' });
+      await expectSuccess(admin.id, 'subscription', { id: orgId, tier: 'enterprise' });
+      await expectSuccess(admin.id, 'reference', { name: prefix, type: 'city' });
+
+      expect(get<{ read: boolean }>('notification', notificationId)?.read).toBe(true);
+      expect(appointments().find(({ id }) => id === paymentId)?.payment).toBe('paid_cash');
+      expect(appointments().find(({ id }) => id === medicalId)?.status).toBe('completed');
+      expect(get('review', reviewId)).toBeDefined();
+      expect(all<{ name: string }>('reference').some(({ name }) => name === prefix)).toBe(true);
+    } finally {
+      db.prepare('DELETE FROM appointments WHERE id LIKE ?').run(`${prefix}%`);
+      db.prepare('DELETE FROM sessions WHERE user_id LIKE ?').run(`${prefix}%`);
+      db.prepare('DELETE FROM entities WHERE id LIKE ? OR data LIKE ?').run(
+        `${prefix}%`,
+        `%${prefix}%`,
+      );
+      for (const { id } of db.prepare('SELECT id FROM audit').all() as Array<{ id: string }>) {
+        if (!existingAuditIds.has(id)) db.prepare('DELETE FROM audit WHERE id=?').run(id);
+      }
+    }
   });
 });

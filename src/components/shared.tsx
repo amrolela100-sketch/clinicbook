@@ -1,19 +1,7 @@
 'use client';
 import Link from 'next/link';
-import {
-  ArrowLeft,
-  CalendarDays,
-  Check,
-  CheckCheck,
-  ChevronLeft,
-  Search,
-  ShieldCheck,
-  Stethoscope,
-  LoaderCircle,
-  Inbox,
-  AlertCircle,
-  FileDown,
-} from 'lucide-react';
+import Image from 'next/image';
+import { Check, LoaderCircle, Inbox, AlertCircle, FileDown } from 'lucide-react';
 import { cloneElement, isValidElement, useId, type ReactNode } from 'react';
 import type { Status } from '@/lib/types';
 import { Button } from './ui/button';
@@ -122,7 +110,13 @@ export function Avatar({
   return (
     <span className={`avatar avatar-${size}`} style={{ background: color }}>
       {image ? (
-        <img src={`/images/${image}`} alt={name} width={sizePx} height={sizePx} loading="lazy" />
+        <Image
+          src={`/images/${image}`}
+          alt={name}
+          width={sizePx}
+          height={sizePx}
+          sizes={`${sizePx}px`}
+        />
       ) : (
         name
           .split(' ')

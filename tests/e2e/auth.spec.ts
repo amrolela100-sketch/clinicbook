@@ -1,5 +1,4 @@
 import { test, expect, type Page } from '@playwright/test';
-import { db } from '../../src/lib/demo-db';
 
 async function loaded(page: Page) {
   await expect(page.locator('[data-app-ready="true"]')).toBeAttached({ timeout: 15000 });

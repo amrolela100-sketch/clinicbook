@@ -1,7 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { processAgentMessage } from '../../src/lib/services/agent-service';
-import { all } from '../../src/lib/demo-db';
-import type { Doctor } from '../../src/lib/types';
 
 describe('TDD: Agent Service Orchestrator (processAgentMessage)', () => {
   beforeEach(() => {

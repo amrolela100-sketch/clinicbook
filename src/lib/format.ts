@@ -13,7 +13,7 @@ export function cleanDoctorName(name?: string | null): string {
   if (!name) return '';
   return name
     .trim()
-    .replace(/^(د\s*[\.\/:]\s*|دكتور(ة)?\s+|الدكتور(ة)?\s+|أ\s*[\.]?\s*د\s*[\.]?\s*)+/u, '')
+    .replace(/^(د\s*[./:]\s*|دكتور(ة)?\s+|الدكتور(ة)?\s+|أ\s*\.?\s*د\s*\.?\s*)+/u, '')
     .trim();
 }
 

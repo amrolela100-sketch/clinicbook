@@ -6,7 +6,7 @@ import { currentUser, createSession, demoEnabled } from '@/lib/auth/session';
 import { canAccess } from '@/lib/auth/guards';
 import { canTransition } from '@/lib/services/appointment-lifecycle';
 import { overlaps } from '@/lib/services/slots-engine';
-import type { Appointment, Doctor, MedicalRecord, Shift, User } from '@/lib/types';
+import type { Doctor, User } from '@/lib/types';
 import type { Organization } from '@/lib/services/booking-service';
 import { limitHttpRequest } from '@/lib/http-rate-limit';
 import { RATE_LIMIT_CONFIGS } from '@/lib/rate-limit';
@@ -112,7 +112,7 @@ export async function POST(request: Request) {
     const { all, get, put, appointments, saveAppointment, audit, db, ensureSeed } =
       await import('@/lib/demo-db');
     ensureSeed();
-    let user = await currentUser();
+    const user = await currentUser();
     if (user) {
       const actorRate = await limitHttpRequest(
         request,
