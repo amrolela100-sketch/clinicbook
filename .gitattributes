@@ -1,0 +1,18 @@
+# Keep text files in the repository as LF, including on Windows checkouts.
+# Prettier is configured with the default endOfLine "lf", so a CRLF working
+# tree otherwise makes `prettier --check .` fail locally while CI passes.
+* text=auto eol=lf
+
+# Binary assets are never line-ending converted.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.avif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.sqlite binary
+*.sqlite-shm binary
+*.sqlite-wal binary
