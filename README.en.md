@@ -4,7 +4,7 @@
 
 ### Multi-Tenant Healthcare SaaS & Clinical Practice Management System
 
-**Production-Grade Outpatient Scheduling, Clinical EMR, and Medical Center Operations**
+**A Semester Project for Appointment Scheduling, Simplified Clinical Records, and Clinic Operations**
 
 <p align="center">
   <a href="#executive-summary">Overview</a> •
@@ -17,14 +17,14 @@
 </p>
 
 [![Next.js](https://img.shields.io/badge/Next.js-15.5_App_Router-black?style=flat-square&logo=next.js)](https://nextjs.org/)
-[![React](https://img.shields.io/badge/React-19.1-blue?style=flat-square&logo=react)](https://react.dev/)
+[![React](https://img.shields.io/badge/React-19-blue?style=flat-square&logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9_Strict-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4_RTL-38B2AC?style=flat-square&logo=tailwind-css)](https://tailwindcss.com/)
 [![SQLite](https://img.shields.io/badge/SQLite-WAL_Immediate-003B57?style=flat-square&logo=sqlite)](https://sqlite.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17_RLS-336791?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
-[![Vitest](https://img.shields.io/badge/Vitest-145_Passed-6E9F18?style=flat-square&logo=vitest)](https://vitest.dev/)
-[![Playwright](https://img.shields.io/badge/Playwright-E2E_Verified-2EAD33?style=flat-square&logo=playwright)](https://playwright.dev/)
-[![WCAG AA](https://img.shields.io/badge/Accessibility-WCAG_2.1_AA-005A9C?style=flat-square)](docs/ACCESSIBILITY_AUDIT_REPORT.md)
+[![Vitest](https://img.shields.io/badge/Vitest-269_tests_at_1c84859-6E9F18?style=flat-square&logo=vitest)](docs/QUALITY_GATES.md)
+[![Playwright](https://img.shields.io/badge/Playwright-38_demo_%2B_16_production-2EAD33?style=flat-square&logo=playwright)](docs/QUALITY_GATES.md)
+[![Accessibility](https://img.shields.io/badge/Accessibility-Sampled_axe_checks-005A9C?style=flat-square)](docs/ACCESSIBILITY_AUDIT_REPORT.md)
 
 <br />
 
@@ -44,21 +44,23 @@
 
 ## Executive Summary
 
-**ClinicBook** is an enterprise-grade medical center management and patient scheduling platform engineered to solve real outpatient operations and scheduling conflicts. Designed from field observations of healthcare centers across the Middle East (specifically regional Syrian healthcare workflows), the platform unifies the entire patient journey: automated discovery and appointment reservation, front-desk reception queue management, point-of-care billing, and clinical electronic medical records (EMR) with standardized e-prescriptions.
+> **Deployment boundary:** The hardening changes are not approval to operate real patient data. Review [deployment constraints](docs/PRODUCTION_HARDENING.md), and verify staging migrations, backups and restoration before deployment. Old reports and screenshots are historical illustrations, not evidence for the current release.
 
-Engineered with a **Multi-Tenant SaaS architecture**, strict Row-Level Security (RLS), and a native **RTL-First Arabic UI**, ClinicBook operates completely without third-party CDN dependencies to ensure continuous operation across constrained regional network conditions.
+**ClinicBook** is an educational clinic-management prototype with an Arabic doctor directory, appointment booking, reception and doctor workspaces, cash-payment recording, and simplified clinical notes. The repository contains no published field study or measurements of waiting-time reduction or clinical outcomes.
 
-> **Current Implementation State**: A fully functional local evaluation environment powered by a serialized SQLite engine alongside a production PostgreSQL 17 / Supabase schema with verified Row-Level Security policies. Ready for comprehensive architectural review, academic evaluation, and technical audits.
+Its **multi-tenant** design uses a shared PostgreSQL schema with RLS policies and application guards, not one separate database per organization. Application fonts and illustrative images are self-hosted; Supabase and optional LLM generation still require external services. Offline operation is not claimed.
+
+> **Verification scope:** Demo names, portraits and licensing states are illustrative, not verified provider identities. Local/CI tests cover application logic and isolated PostgreSQL 17 fixtures, not a certified live Supabase deployment. See the [claim-to-code matrix](docs/TRACEABILITY.md) and [asset sources](docs/ASSETS.md).
 
 ---
 
 ## Core Features and UI Showcase
 
-All screenshots below are captured directly at High-DPI Retina resolution from the live running application:
+The screenshots illustrate an earlier local demo. A screenshot alone does not prove a passing test or match the latest revision; implementation/test boundaries are linked in [TRACEABILITY.md](docs/TRACEABILITY.md).
 
 ### 1. Atomic Concurrency Slot Engine
 
-The appointment engine models availability via half-open intervals `[start, end)`. Timestamps are persisted in standard UTC, with timezone offsets calculated dynamically for Damascus (`Asia/Damascus`). Under extreme concurrent traffic, serialized SQL transactions eliminate race conditions and prevent double-booking.
+The slot engine uses half-open intervals `[start, end)` and converts local shifts to UTC using `Asia/Damascus`. Demo writes use SQLite `IMMEDIATE` transactions; PostgreSQL's `appointment_no_overlap` constraint rejects overlapping active visits for the same doctor. The PostgreSQL suite races 50 requests for one slot; this is not a production-capacity benchmark.
 
 <p align="center">
   <a href="docs/screenshots/showcase/03-doctor-profile-slots.png">
@@ -66,9 +68,9 @@ The appointment engine models availability via half-open intervals `[start, end)
   </a>
 </p>
 
-- **Dynamic Slot Slicing:** Automatically computes consultation intervals (20 or 30 minutes) based on physician shift configurations.
-- **Break & Exception Handling:** Automatically excludes official holidays, practitioner leaves, and break intervals from patient availability.
-- **Double-Booking Prevention:** Atomic reservations immediately discard expired pending holds and reject conflicting attempts with HTTP 409.
+- **Slot Slicing:** Configured durations of 10, 15, 20, 30, 45 or 60 minutes.
+- **Exceptions:** Excludes recorded leave and gaps between shifts; no automatic public-holiday calendar.
+- **Conflicts & Expiry:** Rejects active overlap and marks expired pending holds `expired`, rather than deleting them.
 
 ---
 
@@ -82,15 +84,15 @@ A real-time medical discovery engine allowing patients to find practitioners and
   </a>
 </p>
 
-- **Multi-Facet Filtering:** Filter physicians by clinical specialty, city, neighborhood, consultation fee ranges, and years of clinical experience.
-- **Intelligent Sorting:** Order matching doctors by verified patient rating, earliest available slot, or consultation fees.
+- **Current Filters:** Name/specialty/clinic text, city, district, specialty and available-today toggle.
+- **Current Sorts:** Rating or lowest consultation fee. Fee-range/experience filters and general earliest-slot sorting are not implemented.
 - **Interactive Physician Cards:** Quick-view clinic locations, weekly schedule summaries, and direct links to live booking calendars.
 
 ---
 
 ### 3. Clinic Operations & Financial Analytics
 
-Offers executive management an instant, high-fidelity overview of clinical, operational, and financial indicators.
+Shows role-scoped appointments and derived operational indicators, without claiming guaranteed instant updates or clinical analytics.
 
 <p align="center">
   <a href="docs/screenshots/showcase/07-clinic-owner-dashboard.png">
@@ -98,15 +100,15 @@ Offers executive management an instant, high-fidelity overview of clinical, oper
   </a>
 </p>
 
-- **Real-Time KPI Tracking:** Daily revenue, total consultations, branch capacity utilization, and patient status distributions.
+- **Operational Indicators:** Appointment counts/statuses and fee totals; these are not audited financial statements or field-measured occupancy.
 - **Staff & Branch Provisioning:** Onboard physicians, configure multi-branch assignments, and manage subscription tier limits.
-- **Safe CSV Financial Exports:** Strips dangerous formula prefixes (`=`, `@`, `+`, `-`) to prevent Excel Formula Injection (CSV Injection) attacks.
+- **CSV Export:** Quotes cells and replaces the first character with an apostrophe when it is `=`, `@`, `+` or `-`. This is the specific `DownloadCSV` behavior, not comprehensive spreadsheet-injection protection.
 
 ---
 
-### 4. Clinical EMR & Standardized Digital Prescriptions
+### 4. Simplified Clinical Records & Printable Prescriptions
 
-A purpose-built clinical encounter workspace designed for treating doctors, prioritizing diagnostic speed and patient data confidentiality.
+A treating-doctor workspace with record authorization and patient-visibility controls.
 
 <p align="center">
   <a href="docs/screenshots/showcase/09-doctor-clinical-emr.png">
@@ -114,10 +116,10 @@ A purpose-built clinical encounter workspace designed for treating doctors, prio
   </a>
 </p>
 
-- **Clinical Encounter Documentation:** Structured SOAP notes capturing chief complaint, patient history, physical examination, and diagnoses.
-- **Standardized Digital Prescriptions:** Structured medication entries with dosage, frequency, course duration, and pharmacist guidance.
-- **Print-Ready Medical Format:** Clean browser-to-print prescription template with clinic branding and unique verification barcodes.
-- **Strict Clinical Isolation:** Medical diagnosis records are strictly isolated; clinic owners and receptionists are programmatically blocked from viewing patient clinical data.
+- **Simplified Record:** Complaint, diagnosis, doctor notes and follow-up date, not a full structured SOAP/history/allergy model.
+- **Medication Entries:** Name, dose, frequency and duration, with no automated drug-interaction checking.
+- **Browser Printing:** A printable template with optional browser save-as-PDF, not a server-generated PDF, barcode, verification code, digital signature or FHIR/HL7 implementation.
+- **Clinical Boundary:** Receptionists, owners and platform admins cannot read diagnoses through application/user-role access. Patients read their own records when visibility is enabled. This is not healthcare privacy certification.
 
 ---
 
@@ -133,7 +135,7 @@ A flexible calendar utility allowing practitioners and clinics to configure cons
 
 - **Shift Definition:** Configure daily start and end working hours, break periods, and custom consultation slot durations.
 - **Scheduled Rest Periods:** Block lunch and break intervals from appearing in patient booking slots.
-- **Emergency Absence & Leave:** Log ad-hoc leaves or emergency closures with automated conflict resolution.
+- **Leave:** Records an exception and shows affected appointment counts. Existing visits are not automatically cancelled or rescheduled.
 
 ---
 
@@ -147,31 +149,32 @@ Designed specifically for front-desk receptionists to manage patient queues and 
   </a>
 </p>
 
-- **One-Click Check-In:** Instantly transitions appointment states upon patient arrival to alert the attending physician inside the clinic.
-- **In-Person Cash Collection:** Directly logs patient payments and issues verification receipts.
-- **Walk-In Scheduling:** Quickly schedules emergency and walk-in arrivals into available gap intervals.
+- **Check-In:** Transitions the visit to `checked_in` in the doctor's authorized visit list.
+- **Cash Recording:** Sets `paid_cash`, not a tax-invoice or signed-receipt system.
+- **Walk-In Scheduling:** Books a named visitor with a phone number into an available slot, subject to treating-doctor/reception-branch authorization; not emergency triage.
 
 ---
 
-### 7. Clinical AI Triage Assistant (Eve)
+### 7. Booking & General-Guidance Assistant (Eve)
 
-An embedded clinical triage assistant built on AgentRouter, providing conversational guidance to direct patients to appropriate specialties.
+A rule-based language router with optional LLM text generation. The name Eve does not indicate an installed durable-agent framework.
 
 <p align="center">
   <a href="docs/screenshots/showcase/04-ai-assistant-eve.png">
-    <img src="docs/screenshots/showcase/04-ai-assistant-eve.png" alt="Clinical AI Triage Assistant Eve" width="90%" />
+    <img src="docs/screenshots/showcase/04-ai-assistant-eve.png" alt="Booking and General-Guidance Assistant Eve" width="90%" />
   </a>
 </p>
 
-- **Symptom Triage Analysis:** Evaluates patient-reported symptoms, flags red-flag emergencies, and assesses clinical urgency.
-- **Specialty Routing:** Directs users to verified specialists with direct deep links to real doctor scheduling profiles.
-- **Ethical & Safety Guardrails:** Clear clinical disclaimers reinforcing that AI guidance is strictly educational and does not replace in-person consultation.
+- **Precautionary Alerts:** Emergency words/phrases are checked before database or LLM work. They do not diagnose or provide validated clinical triage.
+- **Search & Booking:** Matches words to specialties/doctors, shows slots, and books only after user confirmation and authentication.
+- **Optional Generation:** Local replies work without an AI key. No LLM-directed tool execution or durable workflow runtime is implemented.
+- **Safety Limits:** No alert does not mean symptoms are safe. Synthetic-rule measurements and known false alarms are documented in [AGENT_TRIAGE.md](docs/AGENT_TRIAGE.md).
 
 ---
 
 ### 8. Patient Portal & Booking Management
 
-A responsive patient self-service portal for managing visits, reviewing prescriptions, and maintaining treatment records.
+A patient portal for managing appointments and reading records/prescriptions allowed by the visibility policy; it does not automatically monitor health.
 
 <p align="center">
   <a href="docs/screenshots/showcase/06-patient-appointments.png">
@@ -179,15 +182,15 @@ A responsive patient self-service portal for managing visits, reviewing prescrip
   </a>
 </p>
 
-- **Upcoming Visit Countdown:** Real-time countdowns, location directions, and verification codes for reception check-in.
-- **Automated Cancellation Policy:** Self-service cancellation permitted up to 2 hours prior to the slot; late cancellations are blocked to protect doctor schedule utilization.
-- **Historical Treatment Archive:** Searchable archive of completed visits with printable prescriptions and verified patient review submissions.
+- **Upcoming Visits:** Doctor/clinic details, a shortened text reference and a pending-hold expiry countdown, not a check-in barcode.
+- **Cancellation:** Pending holds can be cancelled; confirmed visits use the clinic's configured window (two hours by default).
+- **Visit History:** Authorized appointment/record views, one review per completed visit, and browser printing.
 
 ---
 
 ### 9. Multi-Role Authentication & Direct Persona Simulator
 
-A unified authentication portal supporting single-click role switching for technical evaluators alongside secure credential flows.
+A login/sign-up portal with role-preview buttons only in local demo mode, not in production runtime.
 
 <p align="center">
   <a href="docs/screenshots/showcase/05-multi-role-login.png">
@@ -195,8 +198,9 @@ A unified authentication portal supporting single-click role switching for techn
   </a>
 </p>
 
-- **Instant Persona Simulator:** Immediate testing across all five personas (`clinic_owner`, `doctor`, `receptionist`, `patient`, `super_admin`).
-- **Cryptographic Sessions & Passwords:** Password hashing via `scrypt`, random session tokens hashed via SHA-256 in HttpOnly cookies (`__Host-` prefixed in production), and session rotation on login.
+- **Demo Personas:** `clinic_owner`, `doctor`, `receptionist`, `patient` and `super_admin` in demo only.
+- **Demo Authentication:** `scrypt` password hashes, random opaque session tokens stored as SHA-256 hashes, and `HttpOnly` cookies. A session identifier is not encrypted session data.
+- **Supabase Authentication:** Supabase Auth manages cloud credentials/sessions; authority is resolved from an active database profile. The local hashing algorithm does not describe Supabase's password storage.
 - **Sign-Up Pipelines:** Dedicated registration flows for patients and clinic owners with strict schema validation.
 
 ---
@@ -211,15 +215,15 @@ A guided multi-step onboarding wizard for registering new outpatient clinics and
   </a>
 </p>
 
-- **Medical Licensing Record:** Captures official practice registry IDs, regulatory bodies, and clinic physical branch details.
-- **Subscription Tier Selection:** Select tiered capacities based on active physician headcount and branch volume.
+- **Licensing Data:** Entered license numbers and administrative review, not a government-registry lookup.
+- **Subscription:** Production onboarding starts a 14-day Starter trial with one doctor and one clinic. Upgrades require a request and administrative activation; demo behavior is not the production entitlement policy.
 - **Pending Verification Gate:** Quarantines new clinics until authenticated and reviewed by platform administrators.
 
 ---
 
 ### 11. Platform Governance & Tamper-Evident Audit Trail
 
-A centralized super-administration console ensuring operational compliance and security auditing across all tenants.
+A governance console for verification, subscriptions and references, without tenant-appointment or clinical-record access.
 
 <p align="center">
   <a href="docs/screenshots/showcase/12-super-admin-console.png">
@@ -227,25 +231,25 @@ A centralized super-administration console ensuring operational compliance and s
   </a>
 </p>
 
-- **Clinic Verification Queue:** Review pending healthcare facility applications, verify credentials, and approve or reject access.
-- **Immutable Audit Logging:** Tracks all critical state mutations (appointments, role assignments, license changes) with actor IDs and UTC timestamps.
-- **System References Management:** Manage system-wide clinical specialties, cities, and administrative districts.
+- **Verification Queue:** Reviews entered data and approval/rejection state; not official KYC verification.
+- **Audit Logging:** Database triggers record committed changes without copying clinical values; application clients cannot write or edit the log. This does not protect against the database owner or a leaked privileged key. Legacy rows are not authoritative payment/approval evidence.
+- **References:** Manage specialties/cities; districts are branch data, not an official licensing registry.
 
 ---
 
-### 12. Automated Patient Retention & Proactive Cron Engine
+### 12. Scheduled Operational Jobs (Retention Cron)
 
-ClinicBook features a hardened scheduled endpoint (`/api/cron/retention`) designed to reduce patient no-show rates through proactive notification triggers:
+The repository defines `GET/POST /api/cron/retention`. An endpoint/schedule definition alone does not prove deployed execution or reduced no-shows:
 
-- **24-Hour Lookahead Window:** Automatically scans all scheduled consultations across clinics within the subsequent 24 hours to queue confirmation actions.
-- **Constant-Time Cryptographic Verification:** Protects cron execution via `Authorization: Bearer <CRON_SECRET>` using `crypto.timingSafeEqual` to eliminate timing attack vectors.
-- **Integrated Audit Logging:** Every automated retention scan records idempotent events directly to the system audit trail under the `eve-retention-cron` identity.
+- **Production Jobs:** One atomic RPC handles pending expiry, conditional no-shows, in-app reminders for confirmed visits within 24 hours, subscription expiry and eligible record archival. No SMS/WhatsApp delivery or autonomous treatment follow-up.
+- **Authorization:** Explicit `CRON_SECRET`, `timingSafeEqual` comparison, count-only output and duplicate-safe reminders.
+- **Operations:** `vercel.json` requests hourly execution; secrets and hosting-plan support still need verification. Demo simulates scanning/expiry, not every SQL job.
 
 ---
 
 ### 13. Mobile Responsive Viewports
 
-Engineered with responsive touch targets and dynamic layout adaptations across smartphone viewports (390px to 1440px+).
+Responsive CSS is covered by selected mobile checks, including home text at 360px/390px and desktop/mobile portrait sizing. Every page/state/viewport and screen reader has not been tested.
 
 <p align="center">
   <a href="docs/screenshots/showcase/mobile-01-home.png"><img src="docs/screenshots/showcase/mobile-01-home.png" alt="Mobile View - Landing" width="31%" /></a> &nbsp;
@@ -263,7 +267,7 @@ ClinicBook employs a clean three-tier architecture separating declarative UI com
 ┌────────────────────────────────────────────────────────────────────────┐
 │                        Presentation & UI Layer                         │
 │      Next.js 15 App Router • React 19 • Tailwind 4 • Motion • Radix     │
-│             (RTL Arabic • Offline Fonts • Zero External CDN)            │
+│             (RTL Arabic • Self-hosted Fonts and Demo Images)            │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
                                     ▼
@@ -280,8 +284,8 @@ ClinicBook employs a clean three-tier architecture separating declarative UI com
 ┌──────────────────────────────────────┐  ┌──────────────────────────────┐
 │       Local High-Speed Engine        │  │    PostgreSQL 17 + Supabase  │
 │   • Better-SQLite3 (WAL Mode)        │  │  • Row-Level Security (RLS)  │
-│   • IMMEDIATE Serialized Mutexes     │  │  • Stored Atomic RPCs        │
-│   • 0 Double Bookings under load     │  │  • Comprehensive Audit Log   │
+│   • IMMEDIATE Transactions          │  │  • Stored Atomic RPCs        │
+│   • Transactional Conflict Checks   │  │  • Database Mutation Audit   │
 └──────────────────────────────────────┘  └──────────────────────────────┘
 ```
 
@@ -291,13 +295,15 @@ ClinicBook employs a clean three-tier architecture separating declarative UI com
 
 Enforces the **Principle of Least Privilege** to maintain patient confidentiality and role isolation:
 
-| Role                 |   Role Key   |                   Appointments                    |     Clinical EMR & Diagnosis     |        Staff & Branch Mgmt        |     Financial Operations      |
-| :------------------- | :----------: | :-----------------------------------------------: | :------------------------------: | :-------------------------------: | :---------------------------: |
-| **Clinic Owner**     |   `owner`    |            View/confirm clinic visits             |           🚫 Forbidden           | Add/edit staff, allocate branches |    Manage tier & invoices     |
-| **Attending Doctor** |   `doctor`   |             Manage assigned schedule              |   ✅ Full create/edit EMR & Rx   |           🚫 Forbidden            |   View personal fee totals    |
-| **Receptionist**     | `reception`  |            Book, confirm, and check in            |           🚫 Forbidden           |           🚫 Forbidden            | Collect cash & issue receipts |
-| **Patient**          |  `patient`   |           Book, view, and cancel visits           |     ✅ View own visits & Rx      |           🚫 Forbidden            |  View personal visit charges  |
-| **Super Admin**      | `superadmin` | 🚫 Forbidden from tenant visits (Governance only) | 🚫 Forbidden (RBAC/RLS Isolated) |   Approve clinic registrations    |    Manual tier activations    |
+| Role                 |    Role Key    |                 Appointments                 |   Clinical EMR & Diagnosis    |      Staff & Branch Mgmt      |          Financial Operations          |
+| :------------------- | :------------: | :------------------------------------------: | :---------------------------: | :---------------------------: | :------------------------------------: |
+| **Clinic Owner**     | `clinic_owner` |   View/confirm/reject/cancel under policy    |         🚫 Forbidden          |     Manage staff/branches     | Request upgrade; scoped cash recording |
+| **Attending Doctor** |    `doctor`    |           Manage assigned schedule           | ✅ Full create/edit EMR & Rx  |         🚫 Forbidden          |        View personal fee totals        |
+| **Receptionist**     | `receptionist` | Book/confirm/check in within assigned branch |         🚫 Forbidden          |         🚫 Forbidden          |      Branch-scoped cash recording      |
+| **Patient**          |   `patient`    |   Book/view/cancel own visits under policy   | View own records when visible |         🚫 Forbidden          |   View appointment fee/payment state   |
+| **Super Admin**      | `super_admin`  |          🚫 Tenant visits forbidden          |         🚫 Forbidden          | Approve organizations/doctors | Administrative subscription activation |
+
+These are application/`authenticated` boundaries, not restrictions on the database owner. Patient record visibility is conditional. Sources: `canAccess`, `canTransition` and the SQL policies linked in [TRACEABILITY.md](docs/TRACEABILITY.md).
 
 ---
 
@@ -305,13 +311,13 @@ Enforces the **Principle of Least Privilege** to maintain patient confidentialit
 
 ### Prerequisites
 
-- **Node.js**: Version 20.19.0 or higher.
+- **Node.js**: Version 22.12.0 or newer within the 22.x series (`^22.12.0` in `package.json`).
 - **npm**: Version 10 or higher.
 
 > ⚠️ **Deployment Constraints**:
 >
-> - **Production (`CLINICBOOK_MODE=production`)**: Mandatory when running with `NODE_ENV=production`; relies strictly on PostgreSQL 17 + Supabase with RLS and never imports `better-sqlite3` or creates a `data/` directory, making it fully compatible with Serverless hosts such as Vercel.
-> - **Demo Mode (`CLINICBOOK_MODE=demo`)**: Uses the native `better-sqlite3` binding and writes locally to `data/clinicbook.sqlite`; therefore it is unsuitable for read-only Serverless filesystems and requires writable disk storage or PostgreSQL/Supabase.
+> - **Production (`CLINICBOOK_MODE=production`)**: Uses Supabase Auth/PostgreSQL and shared Redis. Build/start tests use isolated services; deployment requires staging verification. CI runs PostgreSQL 17, while `supabase/config.toml` still specifies 16; target-version alignment/verification remains outstanding.
+> - **Demo (`CLINICBOOK_MODE=demo`)**: Local development/evaluation through `npm run dev` with writable disk. The application rejects demo at `NODE_ENV=production`, even on a writable host. Do not use `npm run build` / `npm start` to run demo.
 
 ### Quick Setup Steps
 
@@ -319,21 +325,28 @@ Enforces the **Principle of Least Privilege** to maintain patient confidentialit
 # 1. Install dependencies with exact lockfile guarantees
 npm ci
 
-# 2. Configure local environment variables
-cp .env.example .env.local
+```
 
-# 3. Seed the local SQLite database with realistic initial data
+Create a local `.env.local` with these demo-only values (do not overwrite an existing secrets file). `.env.example` defaults to production, so do not copy it unchanged for demo:
+
+```dotenv
+CLINICBOOK_MODE=demo
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+COOKIE_SECURE=false
+```
+
+Then:
+
+```bash
 npm run db:seed
-
-# 4. Start the development server
 npm run dev
 ```
 
-Navigate to `http://localhost:3000` in your browser.
+Open `http://localhost:3000`. SQLite demo data is created locally, not supplied by Git. An AI provider is optional for generated replies, not required for demo search/booking.
 
 ### Interactive Multi-Role Exploration
 
-Explore all five system personas instantly without manual account registration via `/login`:
+In local demo, explore the five personas through `/login` without registering accounts. These buttons do not grant production privileges:
 
 1. **Clinic Owner:** Inspect the operational dashboard, manage clinic branches, and view analytics.
 2. **Attending Doctor:** Review today's queue, author SOAP clinical notes, and print medical prescriptions.
@@ -345,32 +358,39 @@ Explore all five system personas instantly without manual account registration v
 
 ## Test Suite and Verification
 
-The codebase adheres strictly to **Test-Driven Development (TDD)** to ensure behavioral correctness across critical clinical paths:
+The repository contains unit, integration, browser and database tests. Their presence or TDD names do not prove that every feature was developed test-first or that the system is defect-free:
 
 ```bash
 # 1. Strict static type analysis (Zero TypeScript diagnostics)
 npm run typecheck
 
-# 2. Comprehensive unit and integration testing (Vitest)
-npm run test:unit
+# 2. ESLint and unit/integration tests with enforced coverage thresholds
+npm run lint
+npm run test:coverage
 
-# 3. High-concurrency race condition benchmark (50 concurrent HTTP requests)
-# Note: Requires the local server running in another terminal (npm run dev or npm run start)
+# 3. Separate HTTP exercise, not a capacity benchmark; rate limits may reject requests
+# Requires a local demo server running in another terminal
 npm run test:concurrency
 
 # 4. End-to-end browser test automation & accessibility suite (Playwright)
 npm run test:e2e
 
-# 5. Automated WCAG 2.1 AA accessibility audit (Playwright + axe-core)
+# 5. Selected axe checks, not comprehensive conformance certification
 npx playwright test tests/e2e/accessibility.spec.ts
+
+# 6. Production build/start against isolated Supabase/Redis fixtures
+npm run test:production
 ```
 
-### Verified Benchmark Results:
+### Verification Snapshot:
 
-- **173 Passing Unit & Integration Tests (173/173):** Validates half-open time interval calculations, daylight saving transitions (DST), appointment lifecycle state machine, atomic schedule replacement, multi-tenant isolation, and security hardening.
-- **Zero Double Bookings & IP Rate Limiting:** Atomic slot locking is verified directly on PostgreSQL 17 (1 winner, remaining rejected with `23P01`), while HTTP `/api/appointments` enforces a `10 req/min` IP rate limit (`429 Too Many Requests`) against booking floods.
-- **PostgreSQL 17 RLS Verification:** Full test suite verifying tenant boundary isolation, RPC impersonation prevention, and strict denial of medical record access to non-treating staff.
-- **Zero Automated A11y Violations:** Automated `axe-core` Playwright scans of the landing page and workspace dashboards confirm 100% compliance with WCAG 2.1 AA color contrast and focus requirements.
+These results apply to revision `1c84859` on 2026-11-13, not every future release. See [QUALITY_GATES.md](docs/QUALITY_GATES.md) for scope:
+
+- **269/269 unit/integration tests** across 21 files: 78.43% statements, 60.84% branches, 82.51% functions and 80.01% lines over library/API/agent modules, not all UI code.
+- **38/38 demo browser tests**, including 11 axe tests covering 10 routes and the assistant-drawer state. Login also scans the sign-up tab. Passing is not comprehensive WCAG conformance.
+- **16/16 production build/browser tests** against local protocol fixtures, not real Supabase Auth or Upstash services.
+- **PostgreSQL 17:** `tests/postgres/verify.ts` covers RLS/RPC and 50 competing bookings (one winner, the rest `23P01`). This is separate from HTTP's token bucket (capacity 10, replenished over one minute).
+- **Still required:** Upgrade/restore testing, live integrations and broader manual accessibility checks. See [POSTGRES_TESTING.md](docs/POSTGRES_TESTING.md) for a disposable database; never run the bootstrap on a live database.
 
 ---
 
@@ -381,12 +401,13 @@ clinicbook/
 ├── docs/                       # Academic reports, architectural specs, and screenshots
 │   ├── ACADEMIC_REPORT.md      # Full university semester project engineering report
 │   ├── COMPREHENSIVE_PROPOSAL.md # Technical implementation proposal and architecture
-│   ├── ACCESSIBILITY_AUDIT_REPORT.md # WCAG 2.1 AA accessibility audit report
-│   ├── AI_AGENT_EVE_BLUEPRINT.md     # Eve clinical triage AI system blueprint
-│   └── screenshots/showcase/   # High-resolution application screenshots
+│   ├── ACCESSIBILITY_AUDIT_REPORT.md # Scope of selected accessibility checks
+│   ├── AI_AGENT_EVE_BLUEPRINT.md     # Current assistant vs future agent ideas
+│   ├── TRACEABILITY.md         # Requirements/claims linked to code and tests
+│   └── screenshots/showcase/   # Illustrations from an earlier demo
 ├── public/                     # Static assets, local typography, and portraits
 │   ├── fonts/                  # Self-hosted IBM Plex Sans Arabic and Inter fonts
-│   └── images/                 # Verified doctor portraits and platform brand assets
+│   └── images/                 # Illustrative demo portraits and platform brand assets
 ├── src/
 │   ├── app/                    # Next.js 15 App Router routes and API handlers
 │   ├── components/             # Decomposed domain components
@@ -421,24 +442,26 @@ This project represents an applied software engineering semester project submitt
 - ♿ **Accessibility Audit Report (WCAG 2.1 AA):** [`docs/ACCESSIBILITY_AUDIT_REPORT.md`](docs/ACCESSIBILITY_AUDIT_REPORT.md)
 - 🖼️ **Complete Visual Showcase Gallery:** [`docs/screenshots/README.md`](docs/screenshots/README.md)
 - 🔒 **PostgreSQL RLS Verification Guide:** [`docs/POSTGRES_TESTING.md`](docs/POSTGRES_TESTING.md)
+- 🔎 **Requirement & Claim Traceability:** [`docs/TRACEABILITY.md`](docs/TRACEABILITY.md)
+- 📘 **Organization, Clinic & Appointment Vocabulary:** [`GLOSSARY.md`](GLOSSARY.md)
 
 ---
 
 ## Cloud Production Roadmap
 
-Maintaining strict software engineering transparency, the table below delineates verified existing capabilities from pending production cloud milestones:
+The table separates implemented code from missing/unverified work. “Tested” refers to named scenarios, not approval for clinical use:
 
-| Functional Area               |    Current Status     | Cloud Rollout Requirement                                                                |
-| :---------------------------- | :-------------------: | :--------------------------------------------------------------------------------------- |
-| **Slot Engine & Booking**     |      ✅ Verified      | Production-ready; operational locally with parity Supabase RPC stored procedures.        |
-| **Clinical EMR & Digital Rx** |      ✅ Verified      | Ready; future enhancement includes cryptographic doctor signatures and FHIR/HL7 exports. |
-| **Multi-Tenant RBAC**         |      ✅ Verified      | Complete; integrate third-party OAuth providers (Google/Apple) and MFA.                  |
-| **Payment Gateway**           | ⚠️ Cash Point-of-Care | Full Stripe / regional payment gateway webhook integration.                              |
-| **Patient Notifications**     |  ⚠️ Internal System   | Official SMS & WhatsApp Business API gateway integration for automated reminders.        |
-| **Document Storage**          |   ⚠️ Local Storage    | Supabase Storage integration with signed access URLs for medical imaging attachments.    |
+| Functional Area               |           Current Status           | Cloud Rollout Requirement                                                         |
+| :---------------------------- | :--------------------------------: | :-------------------------------------------------------------------------------- |
+| **Slot Engine & Booking**     |    Implemented, isolated tests     | Staging upgrade, target-platform concurrency and representative load.             |
+| **Clinical EMR & Digital Rx** | Simplified record/browser printing | Clinical/legal review; no signature, verification code or FHIR/HL7.               |
+| **Multi-Tenant RBAC**         |         Guards/RLS tested          | Real Supabase Auth, invitation/acceptance/revocation and Realtime tests.          |
+| **Payment Gateway**           |       ⚠️ Cash Point-of-Care        | Full Stripe / regional payment gateway webhook integration.                       |
+| **Patient Notifications**     |         ⚠️ Internal System         | Official SMS & WhatsApp Business API gateway integration for automated reminders. |
+| **Medical Attachments**       |          Not implemented           | Storage/access-policy design; no local or cloud upload feature in this release.   |
 
 ---
 
 <div align="center">
-  <sub>Engineered with precision and uncompromising standards • ClinicBook © 2026</sub>
+  <sub>Educational semester project • Synthetic demo data • ClinicBook © 2026</sub>
 </div>

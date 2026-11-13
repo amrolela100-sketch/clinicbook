@@ -1,6 +1,7 @@
 # Production hardening — progress and deployment constraints
 
-Branch: `production-hardening`, based on `3d85eed`.
+Implementation baseline: `1c84859d8093e41ee2ac1d78e2b7c4fc1f09660e`.
+The `production-hardening` changes were incorporated into `main` at that revision.
 Target selected by the project owner: **Vercel + Supabase**.
 
 This is a work-in-progress security release, **not a production sign-off**.
@@ -8,32 +9,32 @@ No migrations have been applied to a remote database.
 
 ## Completed changes
 
-| Audit issue | Change | Regression boundary |
-| --- | --- | --- |
-| #2 | Runtime refuses demo mode in production; an opt-in variable does not enable it. | `demoEnabled()` environment contract |
-| #1 | Demo onboarding requires an authenticated session before changing any account. | `POST /api/actions` |
-| #3 | Anonymous access to the raw reviews table is revoked; the masked public RPC remains available. | Actual PostgreSQL roles and RPCs |
-| #4 | Tenant membership no longer grants owner permissions in another tenant. | Actual PostgreSQL policies and schedule RPC |
-| #5 | Clients cannot insert audit events. Mutation triggers record committed changes without copying private values. Billing requests have independent, authoritative state. | Actual PostgreSQL transactions and billing RPCs |
-| #8 | Privileged Auth provisioning is service-role-only, refuses unrelated/claimed identities, checks scoped unused invitations and uses fixed Starter onboarding entitlements. | Actual PostgreSQL roles, invitation state, cleanup and concurrent provisioning |
-| #13 | Demo onboarding updates the complete stored account and retains its password hash; safe HTTP projections remain unchanged. | Authenticated `POST /api/actions` and persisted account checks |
-| #7 | Per-request nonces reach Next's renderer and JSON-LD, and client-supplied CSP headers are replaced. | Middleware and a real production build/browser |
-| #9 | Production write endpoints require shared Redis counters, HMAC identifiers, actor/account budgets and a trusted ingress IP contract; Redis failure returns 503 instead of falling back. | Two real production instances, spoofed headers and Redis outage/timeout |
-| #12 | Schedule writes require an explicit branch, replace only that doctor's rows in that branch, and require the doctor's active branch membership. | Actual PostgreSQL branch preservation/authorization and action validation |
-| #6 | Clinical records use restrictive parent references, ten-year retention metadata, legal holds and service-only idempotent archival. Application and service roles cannot hard-delete them. | Actual PostgreSQL constraints, roles, legal-hold/archive behavior and delete guard |
-| #10.3 | One treating-doctor RPC locks the visit, preserves lifecycle validation and commits record save plus visit completion atomically. Direct client record writes are revoked. | Actual PostgreSQL rollback after a forced insert failure, actor isolation/concurrency, and service error mapping |
-| #14 | Agent booking confirmation uses a labelled Radix modal, confines focus, isolates its Escape handling and returns focus to the selected time slot. | Real browser keyboard, background focus, close/cancel, and successful booking |
-| #27 | Readiness executes a service-only database/schema RPC with an abortable two-second deadline; failures return 503 without environment or AI details. | Actual PostgreSQL execute grants/schema readiness, HTTP unit tests and a real production transport outage/timeout |
-| #28 | Cron requires an explicit secret in every environment and executes atomic, idempotent expiry/no-show/reminder/subscription/archive jobs. The scheduler is configured and HTTP responses contain counts only. | Actual PostgreSQL jobs, concurrent retries/legal holds, HTTP authorization and real production database failures/deadlines |
-| #17 | Public doctor portraits use responsive Next images with reserved dimensions; four oversized originals map to new WebP assets, retaining the original files. | Actual desktop/mobile browser image responses, layout/candidate selection and byte budgets |
-| #11 | Narrow hot-path indexes cover branch schedules, patient/doctor record recency, tenant/global audit recency and global pending expiry; existing doctor-specific expiry indexing remains. | Actual PostgreSQL catalogue keys/predicates and ordered index-path capability |
-| #15 | Focus outlines are visible immediately, without a low-contrast color transition; status badge text meets AA contrast and sampled axe scans include WCAG 2.2 AA tags. | Real browser computed contrast/keyboard focus, known-ratio unit checks and sampled axe scans |
-| #16 | Switch thumbs move with logical inline positioning and stay inside the track in both RTL and LTR, instead of using a direction-specific translation. | Actual browser off/on/off thumb geometry in both directions |
-| #10.1 | Organization settings are owner-only in demo as well as production; doctor/platform-admin attempts do not mutate persisted settings. | Authenticated action HTTP tests and production role regression |
-| #10.2 | Both summary implementations assign appointments to the Damascus calendar date instead of slicing a UTC timestamp in demo. | A worked late-UTC/next-local-day summary and revenue regression |
-| #20 | Search fields have explicit labels, selected appointment days/slots/status filters expose pressed state, and navigation marks the current page. | Actual public/workspace labels, keyboard command search, navigation and day/slot selection |
-| #21 | The 7–8px text declarations are raised to an 11px floor, including the mobile hero captions and supporting interface text. | Actual 360px/390px mobile font sizes and horizontal-overflow checks |
-| #18 | Unconditional 20-second refresh is replaced by coalesced focus/visibility and scoped authenticated Realtime events, plus five-minute visible-tab reconciliation. Unchanged HTTP snapshots return 304 with no-store. | Real browser idle/focus request counts, identity/change-aware HTTP validators and PostgreSQL publication membership |
+| Audit issue | Change                                                                                                                                                                                                              | Regression boundary                                                                                                        |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| #2          | Runtime refuses demo mode in production; an opt-in variable does not enable it.                                                                                                                                     | `demoEnabled()` environment contract                                                                                       |
+| #1          | Demo onboarding requires an authenticated session before changing any account.                                                                                                                                      | `POST /api/actions`                                                                                                        |
+| #3          | Anonymous access to the raw reviews table is revoked; the masked public RPC remains available.                                                                                                                      | Actual PostgreSQL roles and RPCs                                                                                           |
+| #4          | Tenant membership no longer grants owner permissions in another tenant.                                                                                                                                             | Actual PostgreSQL policies and schedule RPC                                                                                |
+| #5          | Clients cannot insert audit events. Mutation triggers record committed changes without copying private values. Billing requests have independent, authoritative state.                                              | Actual PostgreSQL transactions and billing RPCs                                                                            |
+| #8          | Privileged Auth provisioning is service-role-only, refuses unrelated/claimed identities, checks scoped unused invitations and uses fixed Starter onboarding entitlements.                                           | Actual PostgreSQL roles, invitation state, cleanup and concurrent provisioning                                             |
+| #13         | Demo onboarding updates the complete stored account and retains its password hash; safe HTTP projections remain unchanged.                                                                                          | Authenticated `POST /api/actions` and persisted account checks                                                             |
+| #7          | Per-request nonces reach Next's renderer and JSON-LD, and client-supplied CSP headers are replaced.                                                                                                                 | Middleware and a real production build/browser                                                                             |
+| #9          | Production write endpoints require shared Redis counters, HMAC identifiers, actor/account budgets and a trusted ingress IP contract; Redis failure returns 503 instead of falling back.                             | Two real production instances, spoofed headers and Redis outage/timeout                                                    |
+| #12         | Schedule writes require an explicit branch, replace only that doctor's rows in that branch, and require the doctor's active branch membership.                                                                      | Actual PostgreSQL branch preservation/authorization and action validation                                                  |
+| #6          | Clinical records use restrictive parent references, ten-year retention metadata, legal holds and service-only idempotent archival. Application and service roles cannot hard-delete them.                           | Actual PostgreSQL constraints, roles, legal-hold/archive behavior and delete guard                                         |
+| #10.3       | One treating-doctor RPC locks the visit, preserves lifecycle validation and commits record save plus visit completion atomically. Direct client record writes are revoked.                                          | Actual PostgreSQL rollback after a forced insert failure, actor isolation/concurrency, and service error mapping           |
+| #14         | Agent booking confirmation uses a labelled Radix modal, confines focus, isolates its Escape handling and returns focus to the selected time slot.                                                                   | Real browser keyboard, background focus, close/cancel, and successful booking                                              |
+| #27         | Readiness executes a service-only database/schema RPC with an abortable two-second deadline; failures return 503 without environment or AI details.                                                                 | Actual PostgreSQL execute grants/schema readiness, HTTP unit tests and a real production transport outage/timeout          |
+| #28         | Cron requires an explicit secret in every environment and executes atomic, idempotent expiry/no-show/reminder/subscription/archive jobs. The scheduler is configured and HTTP responses contain counts only.        | Actual PostgreSQL jobs, concurrent retries/legal holds, HTTP authorization and real production database failures/deadlines |
+| #17         | Public doctor portraits use responsive Next images with reserved dimensions; four oversized originals map to new WebP assets, retaining the original files.                                                         | Actual desktop/mobile browser image responses, layout/candidate selection and byte budgets                                 |
+| #11         | Narrow hot-path indexes cover branch schedules, patient/doctor record recency, tenant/global audit recency and global pending expiry; existing doctor-specific expiry indexing remains.                             | Actual PostgreSQL catalogue keys/predicates and ordered index-path capability                                              |
+| #15         | Focus outlines are visible immediately, without a low-contrast color transition; status badge text meets AA contrast and sampled axe scans include WCAG 2.2 AA tags.                                                | Real browser computed contrast/keyboard focus, known-ratio unit checks and sampled axe scans                               |
+| #16         | Switch thumbs move with logical inline positioning and stay inside the track in both RTL and LTR, instead of using a direction-specific translation.                                                                | Actual browser off/on/off thumb geometry in both directions                                                                |
+| #10.1       | Organization settings are owner-only in demo as well as production; doctor/platform-admin attempts do not mutate persisted settings.                                                                                | Authenticated action HTTP tests and production role regression                                                             |
+| #10.2       | Both summary implementations assign appointments to the Damascus calendar date instead of slicing a UTC timestamp in demo.                                                                                          | A worked late-UTC/next-local-day summary and revenue regression                                                            |
+| #20         | Search fields have explicit labels, selected appointment days/slots/status filters expose pressed state, and navigation marks the current page.                                                                     | Actual public/workspace labels, keyboard command search, navigation and day/slot selection                                 |
+| #21         | The 7–8px text declarations are raised to an 11px floor, including the mobile hero captions and supporting interface text.                                                                                          | Actual 360px/390px mobile font sizes and horizontal-overflow checks                                                        |
+| #18         | Unconditional 20-second refresh is replaced by coalesced focus/visibility and scoped authenticated Realtime events, plus five-minute visible-tab reconciliation. Unchanged HTTP snapshots return 304 with no-store. | Real browser idle/focus request counts, identity/change-aware HTTP validators and PostgreSQL publication membership        |
 
 The focus outline is **6.29:1 on white**, up from 1.82:1. The changed status badges
 now range from **4.82:1 to 5.09:1** on their respective backgrounds. Browser tests
@@ -228,8 +229,8 @@ The repository audit did not cover several advisories returned by `npm audit`:
   `eslint-config-next` resolves by default cannot load under ESLint 9 and
   carries a vulnerable `minimatch` range.
 - `npm run audit` and `npm run audit:production` report **0 known advisories** at
-  this verification point. The intended CI audit gate is saved in
-  `docs/ci-hardening.patch`, not active in the unchanged workflow yet.
+  this verification point. The audit gate is active in `.github/workflows/ci.yml`;
+  the historical `docs/ci-hardening.patch` is superseded.
   A clean registry audit is not proof that the application has no vulnerabilities.
 
 ## Verification so far
@@ -248,7 +249,7 @@ The repository audit did not cover several advisories returned by `npm audit`:
   Redis outages without live keys, Auth sessions or patient data.
 - Demo browser regression: **38/38** passing, including the existing axe scans.
   These tested views are not a claim of complete WCAG conformance.
-- The intended CI Gate 4 runs `npm run test:production`. Demo E2E uses a development server and
+- CI Gate 4 runs `npm run test:production`. Demo E2E uses a development server and
   a fresh, isolated database; it never enables demo under `next start`.
 
 ## Workflow gates
@@ -269,6 +270,15 @@ database upgrades, backups or live patient safety.
 - Production-like E2E, migration upgrade testing, backups/restore testing,
   monitoring, credential configuration and deployment-specific checks.
 
-Do not merge this branch as a claim of readiness until the remaining blockers have
-been explicitly verified. Do not push migrations to a live database without a
+The merge is not a claim of readiness: the remaining blockers need explicit
+verification. Do not push migrations to a live database without a
 backup, a tested staging upgrade and an agreed deployment window.
+
+## Academic documentation — audit #23
+
+The README translations, academic report/printable companion, proposal,
+assistant design notes and accessibility/screenshot descriptions separate current
+implementation from unmeasured outcomes and future designs. [TRACEABILITY.md](TRACEABILITY.md)
+links claims to code/tests and records limits, including missing fee-specific
+tests and the coverage helper exclusion. This correction does not close the
+final-release evidence task (#24) or the migration upgrade task (#26).
